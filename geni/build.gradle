@@ -6,7 +6,8 @@ plugins {
 
 // Geni app settings: geni.properties in the project root (git-ignored).
 // Keys: geniAppId, geniHost (default www.geni.com, sandbox.geni.com for the sandbox),
-// geniRedirectUri (default <geniAppId>://authorize).
+// geniRedirectUri (default app.familygem.geni://authorize; it must equal the Callback URL in the Geni app settings).
+// Geni cannot redirect to the <appId>://authorize URI from its docs: a numeric app ID is not a valid URI scheme.
 // The app never needs the Geni app secret: the mobile OAuth flow uses only the app ID.
 // The build works without the file (empty values).
 def geniProperties = new Properties()
@@ -16,7 +17,7 @@ if (geniPropertiesFile.exists()) {
 }
 def geniAppId = geniProperties.getProperty('geniAppId', '').trim()
 def geniHost = geniProperties.getProperty('geniHost', 'www.geni.com').trim()
-def geniRedirectUri = geniProperties.getProperty('geniRedirectUri', geniAppId ? "${geniAppId}://authorize" : '').trim()
+def geniRedirectUri = geniProperties.getProperty('geniRedirectUri', 'app.familygem.geni://authorize').trim()
 def geniRedirectScheme = geniRedirectUri.contains('://') ? geniRedirectUri.substring(0, geniRedirectUri.indexOf('://')) : 'app.familygem.geni.unset'
 
 android {

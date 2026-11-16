@@ -142,6 +142,14 @@ The user picked A.
 
 ## To verify on the sandbox before relying on it
 
+Found on the sandbox (2026-11-16):
+- The redirect URI must equal the Callback URL in the Geni app settings; with an empty Callback URL Geni shows "an unexpected error has occurred".
+- Geni cannot redirect to `<appId>://authorize` from its mobile docs (a numeric scheme); `app.familygem.geni://authorize` works and is the default.
+- The desktop flow on the sandbox fails with "redirect must be provided".
+- `client_id` = app ID works; the app secret is not needed.
+
+Still open:
+
 - Which OAuth flow Geni allows for a mobile app and how token refresh works.
 - What `immediate-family` returns, and how many requests it takes per person.
 - Whether Geni exposes a profile version or `updated_at` usable for conflict detection.
