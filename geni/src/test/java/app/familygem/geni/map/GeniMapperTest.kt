@@ -1,0 +1,134 @@
+package app.familygem.geni.map
+
+import app.familygem.geni.Fixtures
+import app.familygem.geni.api.GeniDate
+import app.familygem.geni.api.GeniLocation
+import app.familygem.geni.api.GeniProfile
+import app.familygem.geni.api.GeniUnion
+import app.familygem.geni.api.parseResults
+import org.folg.gedcom.model.EventFact
+import org.folg.gedcom.model.Family
+import org.folg.gedcom.model.Gedcom
+import org.folg.gedcom.model.Note
+import org.folg.gedcom.model.Person
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+class GeniMapperTest {
+
+    private val profiles = parseResults(Fixtures.read("profiles-batch.json"), GeniProfile::class.java).associateBy { it.id }
+    private val unions = parseResults(Fixtures.read("unions-batch.json"), GeniUnion::class.java).associateBy { it.id }
+
+    private fun Person.fact(tag: String) = eventsFacts.single { it.tag == tag }
+    private fun Person.mapped(id: String) = apply { GeniMapper.applyProfile(Gedcom(), this, profiles.getValue(id)) }
+
+    @Test
+    fun fullDate() = assertEquals("12 MAR 1960", GeniMapper.gedcomDate(GeniDate(1960, 3, 12, null)))
+
+    @Test
+    fun monthYear() = assertEquals("JUN 2012", GeniMapper.gedcomDate(GeniDate(2012, 6, null, null)))
+
+    @Test
+    fun yearOnly() = assertEquals("2014", GeniMapper.gedcomDate(GeniDate(2014, null, null, null)))
+
+    @Test
+    fun circa() = assertEquals("ABT 1960", GeniMapper.gedcomDate(GeniDate(1960, null, null, true)))
+
+    @Test
+    fun noYearIsNull() {
+        assertNull(GeniMapper.gedcomDate(GeniDate(null, 5, 3, null)))
+        assertNull(GeniMapper.gedcomDate(null))
+    }
+
+    @Test
+    fun placeJoinsParts() = assertEquals(
+        "Vvedenskoye Cemetery, Moscow",
+        GeniMapper.place(GeniLocation(placeName = "Vvedenskoye Cemetery", city = "Moscow", county = null, state = " ", country = null))
+    )
+
+    @Test
+    fun profileMapsNamesSexEvents() {
+        val father = Person().mapped("profile-36431")
+        assertEquals("Ivan /User/", father.names.single().value)
+        assertEquals("M", father.fact("SEX").value)
+        assertEquals("12 MAR 1960", father.fact("BIRT").date)
+        assertEquals("Moscow, Russia", father.fact("BIRT").place)
+        assertEquals("15 JAN 2020", father.fact("DEAT").date)
+        assertEquals("Vvedenskoye Cemetery, Moscow", father.fact("BURI").place)
+        assertEquals("Teacher", father.fact("OCCU").value)
+        assertEquals("Taught physics at school No. 5 for 35 years.", GeniMapper.getTag(father, GeniMapper.ABOUT_TAG))
+    }
+
+    @Test
+    fun maidenNameAddsBirthName() {
+        val mother = Person().mapped("profile-36432")
+        assertEquals(listOf("Maria /User/", "Maria /Smirnova/"), mother.names.map { it.value })
+        assertEquals("birth", mother.names[1].type)
+        assertEquals("Masha", mother.names[0].nickname)
+    }
+
+    @Test
+    fun deadWithoutDeathEventGetsDeatY() {
+        val person = Person()
+        GeniMapper.applyProfile(Gedcom(), person, profiles.getValue("profile-36432").copy(isAlive = false))
+        assertEquals("Y", person.fact("DEAT").value)
+    }
+
+    @Test
+    fun applyProfileKeepsOtherData() {
+        val person = Person()
+        person.addNote(Note().apply { value = "My note" })
+        person.addEventFact(EventFact().apply { tag = "RESI"; place = "Kazan" })
+        person.mapped("profile-36431")
+        assertEquals("My note", person.notes.single().value)
+        assertEquals("Kazan", person.fact("RESI").place)
+    }
+
+    @Test
+    fun applyProfileTwiceDoesNotDuplicateFacts() {
+        val father = Person().mapped("profile-36431").mapped("profile-36431")
+        assertEquals(1, father.names.size)
+        assertEquals(1, father.eventsFacts.count { it.tag == "BIRT" })
+        assertEquals("Taught physics at school No. 5 for 35 years.", GeniMapper.getTag(father, GeniMapper.ABOUT_TAG))
+    }
+
+    @Test
+    fun unionLinksPartnersAndChildren() {
+        val gedcom = Gedcom()
+        val people = listOf("profile-36430", "profile-36433", "profile-36434", "profile-36436", "profile-36437").mapIndexed { i, id ->
+            Person().apply { this.id = "I${i + 1}"; GeniMapper.applyProfile(gedcom, this, profiles.getValue(id)); GeniMapper.setGeniId(this, id); gedcom.addPerson(this) }
+        }.associateBy { GeniMapper.getGeniId(it)!! }
+        val family = Family().apply { id = "F1"; gedcom.addFamily(this) }
+        GeniMapper.applyUnion(gedcom, family, unions.getValue("union-10106")) { people[it] }
+        assertEquals("I1", family.husbandRefs.single().ref)
+        assertEquals("I2", family.wifeRefs.single().ref)
+        assertEquals(listOf("I3", "I4", "I5"), family.childRefs.map { it.ref })
+        assertEquals("F1", people.getValue("profile-36434").parentFamilyRefs.single().ref)
+        assertEquals("F1", people.getValue("profile-36430").spouseFamilyRefs.single().ref)
+        assertEquals("JUN 2012", family.eventsFacts.single { it.tag == "MARR" }.date)
+        GeniMapper.applyUnion(gedcom, family, unions.getValue("union-10106")) { people[it] }
+        assertEquals(3, family.childRefs.size)
+        assertEquals(1, people.getValue("profile-36434").parentFamilyRefs.size)
+    }
+
+    @Test
+    fun unknownGenderPartnerTakesFreeSlot() {
+        val gedcom = Gedcom()
+        val a = Person().apply { id = "I1" }.also { gedcom.addPerson(it) }
+        val b = Person().apply { id = "I2" }.also { gedcom.addPerson(it) }
+        val family = Family().apply { id = "F1" }
+        val union = GeniUnion("union-1", "spouse", listOf("profile-a", "profile-b"), null, null, null)
+        GeniMapper.applyUnion(gedcom, family, union) { mapOf("profile-a" to a, "profile-b" to b)[it] }
+        assertEquals("I1", family.husbandRefs.single().ref)
+        assertEquals("I2", family.wifeRefs.single().ref)
+    }
+
+    @Test
+    fun geniIdTagRoundTrip() {
+        val person = Person()
+        GeniMapper.setGeniId(person, "profile-1")
+        GeniMapper.setGeniId(person, "profile-2")
+        assertEquals("profile-2", GeniMapper.getGeniId(person))
+    }
+}

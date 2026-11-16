@@ -67,13 +67,13 @@ Mapping rules (the spec left the field list to sandbox findings):
 - Union: partners → `HUSB` (male) / `WIFE` (female), unknown gender takes the free slot (husband first); `children` → `CHIL`; `marriage` → `MARR`; `divorce` or `status == ex_spouse` → `DIV` (`DIV Y` without data). Person side gets matching `FAMS`/`FAMC` refs, never duplicated.
 - In-place update: `applyProfile` replaces only the names, `SEX`, and the facts with tags `BIRT, BAPM, DEAT, BURI, OCCU` that it manages, plus `_GENI_ABOUT`; any other fact, note, source or media stays.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
   - `GeniModelsTest`: `parsesImmediateFamilyNodes` (root fixture: `focusId == "profile-36430"`, 8 profile IDs, unions `union-10105`, `union-10106`); `parsesProfilesBatch` (8 results; `profile-36431` has `death.date.day == 15`, `burial.location.placeName == "Vvedenskoye Cemetery"`; `profile-36432` `nicknames == listOf("Masha")`); `parsesUnionsBatch` (`union-10106`: 2 partners, 3 children, `marriage.date.month == 6`); `geniIdFromUrl` (`"https://api.sandbox.geni.com/profile-36431"` → `"profile-36431"`).
   - `GeniMapperTest`: `fullDate` (`12 MAR 1960`), `monthYear` (`JUN 2012`), `yearOnly` (`2014`), `circa` (`ABT 1960`), `noYearIsNull`; `placeJoinsParts` (`"Vvedenskoye Cemetery, Moscow"`); `profileMapsNamesSexEvents` (father: `Ivan /P/`, `SEX M`, `BIRT` `12 MAR 1960` `Moscow, Russia`, `DEAT` `15 JAN 2020`, `BURI` place, `OCCU Teacher`, `_GENI_ABOUT`); `maidenNameAddsBirthName` (mother: second name `Maria /Smirnova/` type `birth`, `NICK Masha`); `deadWithoutDeathEventGetsDeatY`; `applyProfileKeepsOtherData` (a person with a `NOTE` and a `RESI` fact keeps both after `applyProfile`); `applyProfileTwiceDoesNotDuplicateFacts`; `unionLinksPartnersAndChildren` (union-10106: `HUSB` = root person, `WIFE` = Anna, 3 `CHIL`; each child has one `FAMC` to it); `unknownGenderPartnerTakesFreeSlot`; `geniIdTagRoundTrip`.
-- [ ] **Step 2: Run, expect compile failure** — `$GRADLE :geni:testDebugUnitTest`
-- [ ] **Step 3: Implement models and `GeniMapper`; make `GeniClient.currentProfile()` use the new `GeniProfile`; delete `GeniProfile.kt`**
-- [ ] **Step 4: Run, expect pass** — `$GRADLE :geni:testDebugUnitTest`
-- [ ] **Step 5: Commit** — `git commit -m "Add Geni models and GEDCOM mapper"`
+- [x] **Step 2: Run, expect compile failure** — `$GRADLE :geni:testDebugUnitTest`
+- [x] **Step 3: Implement models and `GeniMapper`; make `GeniClient.currentProfile()` use the new `GeniProfile`; delete `GeniProfile.kt`**
+- [x] **Step 4: Run, expect pass** — `$GRADLE :geni:testDebugUnitTest`
+- [x] **Step 5: Commit** — `git commit -m "Add Geni models and GEDCOM mapper"`
 
 ### Task 2: Sync store (Room) and family merge
 
