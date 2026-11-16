@@ -148,3 +148,6 @@ The user picked A.
 - How merged and deleted profiles look in API responses.
 - Whether the API can remove a relationship without deleting a profile, and which profiles the user may delete.
 - Real size and speed of a radius-3 prefetch.
+- Whether Geni echoes the OAuth `state` parameter on the mobile flow. If it does, make `state` mandatory in `OAuth.parseRedirect` (now a missing `state` is accepted while a login is pending).
+- Which characters a real token contains (an unencoded `+` would be decoded as a space).
+- Which HTTP code Geni returns for a revoked or expired token (the client treats only 401 as "log in again").

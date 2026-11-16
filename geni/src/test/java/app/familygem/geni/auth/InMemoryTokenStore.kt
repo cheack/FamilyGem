@@ -10,4 +10,5 @@ class InMemoryTokenStore : TokenStore {
     override fun clear() {
         token = null
     }
+    override var pendingState: String? = null
 }

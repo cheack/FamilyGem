@@ -7,6 +7,7 @@ import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import app.familygem.geni.Geni
@@ -31,6 +32,8 @@ class GeniLoginActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.geni_activity_login)
+        setSupportActionBar(findViewById<Toolbar>(R.id.geni_login_toolbar))
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
         status = findViewById(R.id.geni_login_status)
         progress = findViewById(R.id.geni_login_progress)
         loginButton = findViewById(R.id.geni_login_button)
@@ -41,13 +44,25 @@ class GeniLoginActivity : AppCompatActivity() {
         }
         tokens = EncryptedTokenStore(applicationContext)
         loginButton.setOnClickListener {
-            startActivity(Intent(Intent.ACTION_VIEW, OAuth.authorizeUrl(Geni.config).toUri()))
+            val state = OAuth.newState()
+            tokens.pendingState = state
+            startActivity(Intent(Intent.ACTION_VIEW, OAuth.authorizeUrl(Geni.config, state).toUri()))
         }
         logoutButton.setOnClickListener {
             tokens.clear()
             showLoggedOut(null)
         }
-        handleIntent(intent)
+        // On recreation Android gives back the original launch intent, redirect included: it must not be handled again
+        if (savedInstanceState == null) handleIntent(intent) else showSavedState()
+    }
+
+    override fun onSupportNavigateUp(): Boolean {
+        finish()
+        return true
+    }
+
+    private fun showSavedState() {
+        if (tokens.get() != null) loadProfile() else showLoggedOut(null)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -59,11 +74,13 @@ class GeniLoginActivity : AppCompatActivity() {
     private fun handleIntent(intent: Intent) {
         val redirect = intent.data?.takeIf { intent.action == Intent.ACTION_VIEW }?.toString()
         if (redirect == null) {
-            if (tokens.get() != null) loadProfile() else showLoggedOut(null)
+            showSavedState()
             return
         }
-        intent.data = null // Not handled again on recreation
-        when (val result = OAuth.parseRedirect(redirect, System.currentTimeMillis())) {
+        // The pending state is used only once, so a redirect replayed later (e.g. after process death) is rejected
+        val expectedState = tokens.pendingState
+        tokens.pendingState = null
+        when (val result = OAuth.parseRedirect(redirect, System.currentTimeMillis(), expectedState)) {
             is AuthResult.Success -> {
                 tokens.save(result)
                 loadProfile()
