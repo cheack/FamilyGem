@@ -35,7 +35,7 @@ Plan: [2026-11-16-geni-2-read-path.md](2026-11-16-geni-2-read-path.md)
 
 - [x] Sandbox exploration: real responses of `profile`, `immediate-family`, `union`; dates and locations format
 - [ ] Show Geni profile photos (`mugshot_urls`) in FamilyGem media
-- [ ] Room database in `:geni`: Geni tree marker, ID mapping (GEDCOM ID ↔ Geni ID), snapshots
+- [x] Room database in `:geni`: Geni tree marker, ID mapping (GEDCOM ID ↔ Geni ID), snapshots
 - [x] Mapping Geni → GEDCOM: profile → `INDI`, union → `FAM`, `_GENI_ID`, standard fields, `_GENI_*` for the rest
 - [ ] Create a Geni tree from the logged-in user's profile (entry in the trees list, root = own profile)
 - [ ] Lazy load: opening a person fetches `immediate-family` and merges it into the cache (hook in person card or diagram)

@@ -91,15 +91,15 @@ Mapping rules (the spec left the field list to sandbox findings):
   - `data class GeniLink(treeId: Int, geniId: String, gedcomId: String, fullyLoaded: Boolean, geniUpdatedAt: String?, snapshot: String?, loadedAtMillis: Long)` (`snapshot` = raw Geni JSON of the object, for plan 3).
   - `interface SyncStore { suspend fun tree(treeId: Int): GeniTreeInfo?; suspend fun saveTree(info: GeniTreeInfo); suspend fun link(treeId: Int, geniId: String): GeniLink?; suspend fun links(treeId: Int): List<GeniLink>; suspend fun saveLinks(links: List<GeniLink>); suspend fun deleteTree(treeId: Int) }`.
   - `class RoomSyncStore(context: Context) : SyncStore` (database `geni_sync.db`).
-  - `object FamilyMerger { fun merge(gedcom: Gedcom, treeId: Int, family: ImmediateFamily, profiles: List<GeniProfile>, unions: List<GeniUnion>, rawProfiles: Map<String, String>, rawUnions: Map<String, String>, existing: Map<String, GeniLink>, nowMillis: Long): List<GeniLink> }` — finds or creates each `Person`/`Family` by link (fallback: `_GENI_ID` tag scan), applies the mapper, returns the links to save. New GEDCOM IDs come from `gedcom` (`I1`, `F1`… next free number, like upstream). The focus profile and every profile fetched with full fields get `fullyLoaded = true`; nothing else is created.
+  - `object FamilyMerger { fun merge(gedcom: Gedcom, treeId: Int, family: ImmediateFamily, profiles: List<GeniProfile>, unions: List<GeniUnion>, rawProfiles: Map<String, String>, rawUnions: Map<String, String>, existing: Map<String, GeniLink>, nowMillis: Long): List<GeniLink> }` — finds or creates each `Person`/`Family` by link (fallback: `_GENI_ID` tag scan), applies the mapper, returns the links to save. New GEDCOM IDs come from `gedcom` (`I1`, `F1`… next free number, like upstream). Only the focus profile gets `fullyLoaded = true` (its immediate family is known); relatives keep their previous value. Unions are always fully loaded.
 
-- [ ] **Step 1: Write failing tests** (`FamilyMergerTest`, JVM, fixtures): `mergeCreatesPeopleAndFamilies` (root fixtures → 8 `INDI`, 2 `FAM`, 10 links); `loadingTwiceDoesNotDuplicate` (merge root, then father fixtures with the returned links → no duplicate `INDI`; father's own parents added if present); `mergeUpdatesInPlace` (same `Person` instance before and after a second merge); `tagFallbackWhenLinkMissing` (empty `existing`, people already tagged → reused).
-- [ ] **Step 2: Run, expect failure** — `$GRADLE :geni:testDebugUnitTest`
-- [ ] **Step 3: Implement `SyncStore`, `InMemorySyncStore` (test), `FamilyMerger`, then `RoomSyncStore` (entities `GeniTreeEntity`, `GeniLinkEntity` with primary key `(treeId, geniId)`, one DAO)**
-- [ ] **Step 4: Run JVM tests, expect pass** — `$GRADLE :geni:testDebugUnitTest`
-- [ ] **Step 5: Instrumented test on the connected phone** — `RoomSyncStoreTest`: `savesAndReadsTree`, `upsertsLinks` (same key twice → one row, latest values), `deleteTreeRemovesLinks`. Run: `$GRADLE :geni:connectedDebugAndroidTest` → PASS (needs the phone over adb).
-- [ ] **Step 6: Build the app** — `$GRADLE :app:assembleDebug` → BUILD SUCCESSFUL.
-- [ ] **Step 7: Commit** — `git commit -m "Add Geni sync store and family merge"`
+- [x] **Step 1: Write failing tests** (`FamilyMergerTest`, JVM, fixtures): `mergeCreatesPeopleAndFamilies` (root fixtures → 8 `INDI`, 2 `FAM`, 10 links); `loadingTwiceDoesNotDuplicate` (merge root, then father fixtures with the returned links → no duplicate `INDI`; father's own parents added if present); `mergeUpdatesInPlace` (same `Person` instance before and after a second merge); `tagFallbackWhenLinkMissing` (empty `existing`, people already tagged → reused).
+- [x] **Step 2: Run, expect failure** — `$GRADLE :geni:testDebugUnitTest`
+- [x] **Step 3: Implement `SyncStore`, `InMemorySyncStore` (test), `FamilyMerger`, then `RoomSyncStore` (entities `GeniTreeEntity`, `GeniLinkEntity` with primary key `(treeId, geniId)`, one DAO)**
+- [x] **Step 4: Run JVM tests, expect pass** — `$GRADLE :geni:testDebugUnitTest`
+- [x] **Step 5: Instrumented test on the connected phone** — `RoomSyncStoreTest`: `savesAndReadsTree`, `upsertsLinks` (same key twice → one row, latest values), `deleteTreeRemovesLinks`. Run: `$GRADLE :geni:connectedDebugAndroidTest` → PASS (needs the phone over adb).
+- [x] **Step 6: Build the app** — `$GRADLE :app:assembleDebug` → BUILD SUCCESSFUL.
+- [x] **Step 7: Commit** — `git commit -m "Add Geni sync store and family merge"`
 
 ### Task 3: Loader and tree host
 
