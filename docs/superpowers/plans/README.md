@@ -13,7 +13,21 @@ Plan: [2026-11-16-geni-1-api-login.md](2026-11-16-geni-1-api-login.md)
 - [x] OAuth mobile flow: authorize URL and redirect parsing (token, denial)
 - [x] Encrypted token store; API client with bearer token, 401 and 429 handling
 - [x] Login screen and "Geni account" item in the trees menu (hook in `TreesActivity`)
-- [ ] Manual check on the sandbox: login, cancel, redirect scheme, real token lifetime
+- [x] Manual check on the sandbox: login, cancel, redirect scheme, real token lifetime
+
+### Deferred from the stage 1 review
+
+- [ ] Make OAuth `state` mandatory once it is confirmed that Geni echoes it
+- [ ] "Session expired, log in again" message after 401 or expiry; clear an expired token from the store
+- [ ] Show `geni_login_failed` and the code instead of the raw Geni error body
+- [ ] Handle no browser (`ActivityNotFoundException`) on login
+- [ ] Fall back to the profile ID when the name is empty
+- [ ] Keep the status message on rotation; avoid a second profile request on rotation
+- [ ] Log out also calls `/platform/oauth/invalidate_token`
+- [ ] Token store off the main thread; thread-safe `Geni.client` cache; cancellable HTTP calls
+- [ ] Lower-case the redirect scheme; escape `geni.properties` values in `buildConfigField`
+- [ ] Tests: 429 waits a window, 429 then 429 fails, `X-API-Rate-Remaining: 0` delays the next call
+- [ ] Check on the sandbox: token alphabet (`+`), HTTP code for a revoked token
 
 ## 2. Read path
 
@@ -66,6 +80,6 @@ Plan: not written yet.
 
 ## Other tasks
 
-- [ ] Register a Geni sandbox app and fill `geni.properties` (`geniAppId`, `geniHost=sandbox.geni.com`)
+- [x] Register a Geni sandbox app and fill `geni.properties` (`geniAppId`, `geniHost=sandbox.geni.com`)
 - [ ] Take the transparent `NumberPicker` divider fix from Sternbach-Software/GeniForAndroid
 - [ ] CI: weekly trial merge of `upstream/master`, build and tests

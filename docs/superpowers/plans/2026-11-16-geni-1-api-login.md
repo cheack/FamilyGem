@@ -282,7 +282,7 @@ git commit -m "Add Geni login screen"
 
 Needs `geni.properties` with a sandbox app (`geniAppId`, `geniHost=sandbox.geni.com`) and a device or emulator.
 
-- [ ] **Step 1: Without `geni.properties`** — install, open trees menu, "Geni account" shows the not-configured text.
+- [x] **Step 1: Without `geni.properties`** — install, open trees menu, "Geni account" shows the not-configured text.
 - [x] **Step 2: With sandbox credentials** — log in; the screen shows the sandbox user's name. Cancel once in the browser; the denial message appears.
-- [ ] **Step 3: Record findings** in the spec's "To verify on the sandbox" list: whether a numeric app ID works as the redirect scheme (if not, set `geniRedirectUri` to a registered custom scheme), the real `expires_in`, and whether the redirect came as fragment or query.
-- [ ] **Step 4: Commit** the spec update: `git commit -m "Record Geni sandbox login findings"`.
+- [x] **Step 3: Record findings** in the spec's "To verify on the sandbox" list: whether a numeric app ID works as the redirect scheme (if not, set `geniRedirectUri` to a registered custom scheme), the real `expires_in`, and whether the redirect came as fragment or query.
+- [x] **Step 4: Commit** the spec update: `git commit -m "Record Geni sandbox login findings"`.
