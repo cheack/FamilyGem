@@ -1,0 +1,110 @@
+package app.familygem.geni.sync
+
+import app.familygem.geni.FakeTreeHost
+import app.familygem.geni.Fixtures
+import app.familygem.geni.api.GeniClient
+import app.familygem.geni.api.RateLimiter
+import app.familygem.geni.api.rawResults
+import app.familygem.geni.auth.AuthResult
+import app.familygem.geni.auth.InMemoryTokenStore
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runTest
+import mockwebserver3.Dispatcher
+import mockwebserver3.MockResponse
+import mockwebserver3.MockWebServer
+import mockwebserver3.RecordedRequest
+import org.folg.gedcom.model.Gedcom
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+class GeniLoaderTest {
+
+    private val server = MockWebServer()
+    private val tokens = InMemoryTokenStore().apply { save(AuthResult.Success("abc", Long.MAX_VALUE)) }
+    private val store = InMemorySyncStore()
+    private val host = FakeTreeHost()
+    private var batchCode = 200
+    private var familyCode = 200
+
+    @Before
+    fun setUp() {
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.url.encodedPath
+                return when {
+                    path == "/api/profile-36430/immediate-family" -> json(Fixtures.read("immediate-family-root.json"), familyCode)
+                    path == "/api/profile" && request.url.queryParameter("ids") != null -> json(Fixtures.read("profiles-batch.json"), batchCode)
+                    path == "/api/profile" -> json(rawResults(Fixtures.read("profiles-batch.json")).first(), 200)
+                    path == "/api/union" -> json(Fixtures.read("unions-batch.json"), batchCode)
+                    else -> MockResponse.Builder().code(404).build()
+                }
+            }
+        }
+        server.start()
+    }
+
+    @After
+    fun tearDown() = server.close()
+
+    private fun json(body: String, code: Int) = MockResponse.Builder().code(code).body(body).build()
+
+    private fun TestScope.loader() = GeniLoader(
+        GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime }),
+        store, host, now = { 5_000L }
+    )
+
+    private suspend fun geniTree(): Int {
+        val id = host.createTree("Geni", Gedcom())
+        store.saveTree(GeniTreeInfo(id, "profile-36430"))
+        return id
+    }
+
+    @Test
+    fun loadFetchesThreeRequestsAndMerges() = runTest {
+        val treeId = geniTree()
+        assertEquals(LoadResult.Loaded(newPeople = 8), loader().load(treeId, "profile-36430"))
+        assertEquals(3, server.requestCount)
+        assertEquals(8, host.trees.getValue(treeId).people.size)
+        assertEquals(10, store.links(treeId).size)
+        assertEquals(1, host.refreshes)
+        val ids = server.takeRequest().url.encodedPath to server.takeRequest().url.queryParameter("ids")
+        assertEquals("/api/profile-36430/immediate-family", ids.first)
+        assertTrue(ids.second!!.split(',').containsAll(listOf("profile-36430", "profile-36431")))
+    }
+
+    @Test
+    fun networkErrorLeavesTreeUnchanged() = runTest {
+        val treeId = geniTree()
+        batchCode = 500
+        val result = loader().load(treeId, "profile-36430")
+        assertTrue(result is LoadResult.Failed)
+        assertEquals(0, host.trees.getValue(treeId).people.orEmpty().size)
+        assertEquals(0, store.links(treeId).size)
+        assertEquals(0, host.refreshes)
+    }
+
+    @Test
+    fun authErrorReturnsNeedsLogin() = runTest {
+        val treeId = geniTree()
+        familyCode = 401
+        assertEquals(LoadResult.NeedsLogin, loader().load(treeId, "profile-36430"))
+    }
+
+    @Test
+    fun notAGeniTree() = runTest {
+        val treeId = host.createTree("Local", Gedcom())
+        assertEquals(LoadResult.NotAGeniTree, loader().load(treeId, "profile-36430"))
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun createTreeStoresInfo() = runTest {
+        val treeId = loader().createTree()
+        assertEquals("profile-36430", store.tree(treeId)?.rootGeniId)
+        assertEquals("Test User", host.titles[treeId])
+        assertEquals(8, host.trees.getValue(treeId).people.size)
+    }
+}

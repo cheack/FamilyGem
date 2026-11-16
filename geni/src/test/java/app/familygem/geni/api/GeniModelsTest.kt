@@ -34,4 +34,8 @@ class GeniModelsTest {
 
     @Test
     fun geniIdFromUrl() = assertEquals("profile-36431", geniId("https://api.sandbox.geni.com/profile-36431"))
+
+    @Test
+    fun singleIdBatchIsBareObject() =
+        assertEquals(listOf("profile-36431"), parseResults("""{"id":"profile-36431","first_name":"Ivan"}""", GeniProfile::class.java).map { it.id })
 }

@@ -116,11 +116,11 @@ Mapping rules (the spec left the field list to sandbox findings):
   - `class GeniLoader(client: GeniClient, store: SyncStore, host: TreeHost, now: () -> Long) { suspend fun load(treeId: Int, geniProfileId: String): LoadResult }`, `sealed interface LoadResult { data class Loaded(newPeople: Int) ; data object NotAGeniTree; data object NeedsLogin; data class Failed(message: String) }`.
   - `suspend fun GeniLoader.createTree(title: String): Int` — current profile → empty Gedcom with header from the host → `load` of the root → `GeniTreeInfo(treeId, rootId)`.
 
-- [ ] **Step 1: Write failing tests** (MockWebServer serving fixtures, `FakeTreeHost` with an in-memory Gedcom, `InMemorySyncStore`): `loadFetchesThreeRequestsAndMerges` (3 requests: `immediate-family`, `profile?ids=`, `union?ids=`; tree has 8 people); `networkErrorLeavesTreeUnchanged` (500 on the batch call → `Failed`, tree and store untouched); `authErrorReturnsNeedsLogin`; `notAGeniTree` (no `GeniTreeInfo` → `NotAGeniTree`, no request); `createTreeStoresInfo`.
-- [ ] **Step 2: Run, expect failure**
-- [ ] **Step 3: Implement** — fetch everything first, then one `host.edit` with `FamilyMerger.merge`, then `store.saveLinks`, then `host.refreshScreens()`.
-- [ ] **Step 4: Run, expect pass** — `$GRADLE :geni:testDebugUnitTest`
-- [ ] **Step 5: Commit** — `git commit -m "Add Geni loader"`
+- [x] **Step 1: Write failing tests** (MockWebServer serving fixtures, `FakeTreeHost` with an in-memory Gedcom, `InMemorySyncStore`): `loadFetchesThreeRequestsAndMerges` (3 requests: `immediate-family`, `profile?ids=`, `union?ids=`; tree has 8 people); `networkErrorLeavesTreeUnchanged` (500 on the batch call → `Failed`, tree and store untouched); `authErrorReturnsNeedsLogin`; `notAGeniTree` (no `GeniTreeInfo` → `NotAGeniTree`, no request); `createTreeStoresInfo`.
+- [x] **Step 2: Run, expect failure**
+- [x] **Step 3: Implement** — fetch everything first, then one `host.edit` with `FamilyMerger.merge`, then `store.saveLinks`, then `host.refreshScreens()`.
+- [x] **Step 4: Run, expect pass** — `$GRADLE :geni:testDebugUnitTest`
+- [x] **Step 5: Commit** — `git commit -m "Add Geni loader"`
 
 ### Task 4: App glue and "Create Geni tree"
 

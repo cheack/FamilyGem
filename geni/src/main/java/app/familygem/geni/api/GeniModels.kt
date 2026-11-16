@@ -71,13 +71,17 @@ data class ImmediateFamily(val focusId: String, val profileIds: List<String>, va
 /** Geni ID ("profile-1") from an API URL or an ID. */
 fun geniId(urlOrId: String): String = urlOrId.substringAfterLast('/')
 
-/** Items of a {"results": [...]} batch response. */
+/** Items of a batch response (see [rawResults]). */
 fun <T> parseResults(json: String, type: Class<T>): List<T> = rawResults(json).map { Gson().fromJson(it, type) }
 
-/** Raw JSON of each item of a {"results": [...]} batch response. */
+/** Raw JSON of each item of a batch response: {"results": [...]}, or the bare object when only one ID was asked. */
 fun rawResults(json: String): List<String> {
     val root = JsonParser.parseString(json).asJsonObject
-    val results = root.getAsJsonArray("results") ?: return emptyList()
-    return results.map { it.toString() }
+    val results = root.getAsJsonArray("results")
+    return when {
+        results != null -> results.map { it.toString() }
+        root.has("id") -> listOf(root.toString())
+        else -> emptyList()
+    }
 }
 
