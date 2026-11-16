@@ -153,10 +153,10 @@ Login screen: when logged in, button `geni_create_tree` ("Create Geni tree" / "�
 - Produces: `object LoadPolicy { fun shouldLoad(link: GeniLink?, nowMillis: Long, refreshAfterMillis: Long = 24 * 3600 * 1000): Boolean }` — true when the person has a link and it is not fully loaded or older than `refreshAfterMillis`.
 - `onPersonOpened`: only for Geni trees and people with `_GENI_ID`; runs `loader.load` in the activity's `lifecycleScope`; on `Loaded` calls `refresh`; `NeedsLogin` shows a toast once; `Failed` is silent (cached data stays).
 
-- [ ] **Step 1: Failing tests** — `notLoadedPersonLoads`, `freshPersonSkips`, `stalePersonLoads`, `personWithoutLinkSkips`.
-- [ ] **Step 2: Run, expect failure**; **Step 3: implement**; **Step 4: run, expect pass** — `$GRADLE :geni:testDebugUnitTest`
-- [ ] **Step 5: Manual on the phone** — open Sasha (not fully loaded): card refreshes with full birth date and place; airplane mode: opening a person shows cached data, no error; edit a name while a load runs: the edit is kept.
-- [ ] **Step 6: Commit** — `git commit -m "Load Geni relatives when a person is opened"`
+- [x] **Step 1: Failing tests** — `notLoadedPersonLoads`, `freshPersonSkips`, `stalePersonLoads`, `personWithoutLinkSkips`.
+- [x] **Step 2: Run, expect failure**; **Step 3: implement**; **Step 4: run, expect pass** — `$GRADLE :geni:testDebugUnitTest`
+- [x] **Step 5: Manual on the phone** — open Sasha (not fully loaded): card refreshes with full birth date and place; airplane mode: opening a person shows cached data, no error; edit a name while a load runs: the edit is kept.
+- [x] **Step 6: Commit** — `git commit -m "Load Geni relatives when a person is opened"`
 
 ### Task 6: Background prefetch and "Keep offline"
 

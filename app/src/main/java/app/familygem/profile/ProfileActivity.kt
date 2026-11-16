@@ -163,6 +163,7 @@ class ProfileActivity : AppCompatActivity() {
 
         setImages()
         Global.indi = person?.id
+        app.familygem.geni.GeniGlue.onPersonOpened(this, person) { refresh() } // GENI-HOOK
     }
 
     private inner class PagesAdapter(fragmentActivity: FragmentActivity) : FragmentStateAdapter(fragmentActivity) {

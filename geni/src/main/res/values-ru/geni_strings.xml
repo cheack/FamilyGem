@@ -8,4 +8,5 @@
     <string name="geni_login_failed">Не удалось войти</string>
     <string name="geni_create_tree">Создать дерево Geni</string>
     <string name="geni_tree_created">Дерево Geni создано</string>
+    <string name="geni_login_again">Войдите в Geni снова, чтобы загрузить родственников</string>
 </resources>

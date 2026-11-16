@@ -8,4 +8,5 @@
     <string name="geni_login_failed">Login failed</string>
     <string name="geni_create_tree">Create Geni tree</string>
     <string name="geni_tree_created">Geni tree created</string>
+    <string name="geni_login_again">Log in to Geni again to load relatives</string>
 </resources>

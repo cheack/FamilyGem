@@ -38,8 +38,8 @@ Plan: [2026-11-16-geni-2-read-path.md](2026-11-16-geni-2-read-path.md)
 - [x] Room database in `:geni`: Geni tree marker, ID mapping (GEDCOM ID ↔ Geni ID), snapshots
 - [x] Mapping Geni → GEDCOM: profile → `INDI`, union → `FAM`, `_GENI_ID`, standard fields, `_GENI_*` for the rest
 - [x] Create a Geni tree from the logged-in user's profile (entry in the trees list, root = own profile)
-- [ ] Lazy load: opening a person fetches `immediate-family` and merges it into the cache (hook in person card or diagram)
-- [ ] Edge people marked as not fully loaded; opening them triggers a fetch
+- [x] Lazy load: opening a person fetches `immediate-family` and merges it into the cache (hook in person card or diagram)
+- [x] Edge people marked as not fully loaded; opening them triggers a fetch
 - [ ] Background prefetch within N steps of the root (N = 3, setting), WorkManager
 - [ ] "Keep offline" action: download a person's branch to a chosen depth
 - [ ] Measure size and time of a radius-3 prefetch and of saving a large cache JSON
