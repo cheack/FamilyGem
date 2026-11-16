@@ -8,8 +8,8 @@ The items under each stage are the deliverables; the stage's plan breaks them in
 
 Plan: [2026-11-16-geni-1-api-login.md](2026-11-16-geni-1-api-login.md)
 
-- [ ] Config from `geni.properties` (`geniAppId`, `geniHost`, `geniRedirectUri`); no client secret in the app
-- [ ] Rate limiter driven by `X-API-Rate-Limit` / `X-API-Rate-Remaining` / `X-API-Rate-Window`
+- [x] Config from `geni.properties` (`geniAppId`, `geniHost`, `geniRedirectUri`); no client secret in the app
+- [x] Rate limiter driven by `X-API-Rate-Limit` / `X-API-Rate-Remaining` / `X-API-Rate-Window`
 - [ ] OAuth mobile flow: authorize URL and redirect parsing (token, denial)
 - [ ] Encrypted token store; API client with bearer token, 401 and 429 handling
 - [ ] Login screen and "Geni account" item in the trees menu (hook in `TreesActivity`)

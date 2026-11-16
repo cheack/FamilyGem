@@ -1,13 +1,16 @@
 package app.familygem.geni
 
-import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GeniTest {
 
     @Test
-    fun isConfiguredMatchesBuildCredentials() {
-        val expected = BuildConfig.GENI_APP_ID.isNotEmpty() && BuildConfig.GENI_APP_KEY.isNotEmpty()
-        assertEquals(expected, Geni.isConfigured)
-    }
+    fun notConfiguredWithoutAppId() =
+        assertFalse(GeniConfig(appId = "", host = "www.geni.com", redirectUri = "").isConfigured)
+
+    @Test
+    fun configuredWithAppId() =
+        assertTrue(GeniConfig(appId = "123", host = "www.geni.com", redirectUri = "123://authorize").isConfigured)
 }

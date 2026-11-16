@@ -58,13 +58,13 @@ Geni facts this plan relies on (from the Geni developer docs, 2026-11-16):
   - `Geni.config: GeniConfig`; `Geni.isConfigured` delegates to it.
   - `class RateLimiter(limit: Int = 40, windowMillis: Long = 10_000, now: () -> Long)` with `suspend fun acquire()` and `fun update(limit: Int?, remaining: Int?, windowSeconds: Int?)`.
 
-- [ ] **Step 1: Change `geni/build.gradle`**
+- [x] **Step 1: Change `geni/build.gradle`**
   - `geni.properties` keys: `geniAppId`, `geniHost` (default `www.geni.com`; use `sandbox.geni.com` for sandbox), `geniRedirectUri` (default `<geniAppId>://authorize`).
   - Replace `GENI_APP_KEY` with `GENI_HOST` and `GENI_REDIRECT_URI` build config fields. Remove every use of `GENI_APP_KEY`.
   - Add `manifestPlaceholders = [geniRedirectScheme: <scheme part of geniRedirectUri, or "app.familygem.geni.unset" when empty>]`.
   - Dependencies: `implementation` okhttp `5.5.0`, gson `2.14.0`, `org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0`, `androidx.security:security-crypto:1.1.0`, `androidx.appcompat:appcompat:1.8.0`; `testImplementation` `com.squareup.okhttp3:mockwebserver3:5.5.0`, `org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0`.
 
-- [ ] **Step 2: Write failing tests**
+- [x] **Step 2: Write failing tests**
 
 ```kotlin
 // RateLimiterTest
@@ -95,21 +95,21 @@ Geni facts this plan relies on (from the Geni developer docs, 2026-11-16):
     assertFalse(GeniConfig(appId = "", host = "www.geni.com", redirectUri = "").isConfigured)
 ```
 
-- [ ] **Step 3: Run tests, expect compile failure**
+- [x] **Step 3: Run tests, expect compile failure**
 
 Run: `$GRADLE :geni:testDebugUnitTest`
 Expected: FAIL, unresolved `RateLimiter` / `GeniConfig`.
 
-- [ ] **Step 4: Implement `GeniConfig` and `RateLimiter`**
+- [x] **Step 4: Implement `GeniConfig` and `RateLimiter`**
 
 `RateLimiter` keeps the timestamps of requests in the current window (sliding window) and suspends with `delay` until the oldest one leaves the window. `update` replaces limit and window when present; `remaining = 0` blocks until one window from now. Guard state with a `Mutex`.
 
-- [ ] **Step 5: Run tests, expect pass**
+- [x] **Step 5: Run tests, expect pass**
 
 Run: `$GRADLE :geni:testDebugUnitTest`
 Expected: PASS, 5 tests.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add geni/

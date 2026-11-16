@@ -4,13 +4,20 @@ plugins {
     id 'com.android.library'
 }
 
-// Geni app credentials: geni.properties in the project root (git-ignored).
-// Keys: geniAppId, geniAppKey. The build works without the file (empty values).
+// Geni app settings: geni.properties in the project root (git-ignored).
+// Keys: geniAppId, geniHost (default www.geni.com, sandbox.geni.com for the sandbox),
+// geniRedirectUri (default <geniAppId>://authorize).
+// The app never needs the Geni app secret: the mobile OAuth flow uses only the app ID.
+// The build works without the file (empty values).
 def geniProperties = new Properties()
 def geniPropertiesFile = rootProject.file('geni.properties')
 if (geniPropertiesFile.exists()) {
     geniPropertiesFile.withInputStream { geniProperties.load(it) }
 }
+def geniAppId = geniProperties.getProperty('geniAppId', '').trim()
+def geniHost = geniProperties.getProperty('geniHost', 'www.geni.com').trim()
+def geniRedirectUri = geniProperties.getProperty('geniRedirectUri', geniAppId ? "${geniAppId}://authorize" : '').trim()
+def geniRedirectScheme = geniRedirectUri.contains('://') ? geniRedirectUri.substring(0, geniRedirectUri.indexOf('://')) : 'app.familygem.geni.unset'
 
 android {
     namespace = 'app.familygem.geni'
@@ -22,8 +29,10 @@ android {
     }
     defaultConfig {
         minSdk = 23
-        buildConfigField 'String', 'GENI_APP_ID', '"' + geniProperties.getProperty('geniAppId', '') + '"'
-        buildConfigField 'String', 'GENI_APP_KEY', '"' + geniProperties.getProperty('geniAppKey', '') + '"'
+        buildConfigField 'String', 'GENI_APP_ID', '"' + geniAppId + '"'
+        buildConfigField 'String', 'GENI_HOST', '"' + geniHost + '"'
+        buildConfigField 'String', 'GENI_REDIRECT_URI', '"' + geniRedirectUri + '"'
+        manifestPlaceholders = [geniRedirectScheme: geniRedirectScheme]
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     buildFeatures {
@@ -38,5 +47,12 @@ android {
 
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
+    implementation 'com.squareup.okhttp3:okhttp:5.5.0'
+    implementation 'com.google.code.gson:gson:2.14.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0'
+    implementation 'androidx.security:security-crypto:1.1.0'
+    implementation 'androidx.appcompat:appcompat:1.8.0'
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'com.squareup.okhttp3:mockwebserver3:5.5.0'
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0'
 }
