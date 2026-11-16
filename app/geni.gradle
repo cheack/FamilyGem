@@ -1,0 +1,5 @@
+// Geni fork additions to the app module, applied from app/build.gradle (GENI-HOOK).
+// Keep fork-specific build changes here instead of editing app/build.gradle.
+dependencies {
+    implementation project(':geni')
+}

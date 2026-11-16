@@ -1,0 +1,42 @@
+// Geni.com integration module. Upstream FamilyGem does not have this module:
+// all Geni code lives here so that merges from upstream stay cheap.
+plugins {
+    id 'com.android.library'
+}
+
+// Geni app credentials: geni.properties in the project root (git-ignored).
+// Keys: geniAppId, geniAppKey. The build works without the file (empty values).
+def geniProperties = new Properties()
+def geniPropertiesFile = rootProject.file('geni.properties')
+if (geniPropertiesFile.exists()) {
+    geniPropertiesFile.withInputStream { geniProperties.load(it) }
+}
+
+android {
+    namespace = 'app.familygem.geni'
+    resourcePrefix 'geni_'
+    compileSdk {
+        version = release(37) {
+            it.minorApiLevel = 2
+        }
+    }
+    defaultConfig {
+        minSdk = 23
+        buildConfigField 'String', 'GENI_APP_ID', '"' + geniProperties.getProperty('geniAppId', '') + '"'
+        buildConfigField 'String', 'GENI_APP_KEY', '"' + geniProperties.getProperty('geniAppKey', '') + '"'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+    buildFeatures {
+        buildConfig = true
+    }
+    compileOptions {
+        coreLibraryDesugaringEnabled = true
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
+    testImplementation 'junit:junit:4.13.2'
+}

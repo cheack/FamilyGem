@@ -5,3 +5,4 @@ build/
 app/libs-source-data/
 credential.properties
 local.properties
+geni.properties
