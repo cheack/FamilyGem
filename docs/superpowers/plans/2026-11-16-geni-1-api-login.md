@@ -204,7 +204,7 @@ git commit -m "Add Geni OAuth URL and redirect parsing"
 - Other non-2xx: throw `GeniApiException(code, body)`.
 - Run network calls on `Dispatchers.IO`.
 
-- [ ] **Step 1: Write failing tests** (mockwebserver3, `InMemoryTokenStore`, `runTest`)
+- [x] **Step 1: Write failing tests** (mockwebserver3, `InMemoryTokenStore`, `runTest`)
 
 ```kotlin
 @Test fun sendsBearerTokenAndParsesProfile() — enqueue 200 {"id":"profile-1","first_name":"Ann","updated_at":"1700000000"};
@@ -220,19 +220,19 @@ git commit -m "Add Geni OAuth URL and redirect parsing"
 
 The fake clock for the limiter is `testScheduler.currentTime`; for token expiry pass `now = { 1_000L }`.
 
-- [ ] **Step 2: Run tests, expect failure**
+- [x] **Step 2: Run tests, expect failure**
 
 Run: `$GRADLE :geni:testDebugUnitTest --tests '*GeniClientTest'`
 Expected: FAIL, unresolved `GeniClient`.
 
-- [ ] **Step 3: Implement `TokenStore`, `GeniProfile`, `GeniClient`**
+- [x] **Step 3: Implement `TokenStore`, `GeniProfile`, `GeniClient`**
 
-- [ ] **Step 4: Run tests, expect pass**
+- [x] **Step 4: Run tests, expect pass**
 
 Run: `$GRADLE :geni:testDebugUnitTest`
 Expected: PASS, all tests of Tasks 1–3.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add geni/
