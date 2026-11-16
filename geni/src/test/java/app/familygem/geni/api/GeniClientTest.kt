@@ -86,4 +86,12 @@ class GeniClientTest {
         val error = runCatching { client().currentProfile() }.exceptionOrNull()
         assertEquals(500, (error as GeniApiException).code)
     }
+
+    @Test
+    fun getJsonReturnsRawBodyOfPath() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        server.enqueue(ok("""{"focus":{"id":"profile-1"}}"""))
+        assertEquals("""{"focus":{"id":"profile-1"}}""", client().getJson("profile-1/immediate-family"))
+        assertEquals("/api/profile-1/immediate-family", server.takeRequest().url.encodedPath)
+    }
 }

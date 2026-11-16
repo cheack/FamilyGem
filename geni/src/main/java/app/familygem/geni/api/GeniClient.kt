@@ -30,9 +30,10 @@ class GeniClient(
     private val gson = Gson()
 
     /** Profile of the logged-in user. */
-    suspend fun currentProfile(): GeniProfile = get("profile", GeniProfile::class.java)
+    suspend fun currentProfile(): GeniProfile = gson.fromJson(getJson("profile"), GeniProfile::class.java)
 
-    private suspend fun <T> get(path: String, type: Class<T>): T {
+    /** Raw JSON response of a GET request to an API path relative to the base, like "profile-1/immediate-family". */
+    suspend fun getJson(path: String): String {
         val token = tokens.get()?.takeIf { it.expiresAtMillis > now() } ?: throw GeniAuthRequiredException()
         val request = Request.Builder()
             .url(baseUrl.resolve(path)!!)
@@ -48,7 +49,7 @@ class GeniClient(
                 }
             }
             when {
-                code in 200..299 -> return gson.fromJson(body, type)
+                code in 200..299 -> return body
                 code == 401 -> {
                     tokens.clear()
                     throw GeniAuthRequiredException()
