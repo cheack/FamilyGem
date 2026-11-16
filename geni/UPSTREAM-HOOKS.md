@@ -8,3 +8,4 @@ Each code hook is marked with a `GENI-HOOK` comment; after a merge from upstream
 | `settings.gradle` | `include ':geni'` | Adds the Geni module. |
 | `app/build.gradle` | `apply from: 'geni.gradle'` | Fork build changes live in `app/geni.gradle`. |
 | `.gitignore` | `geni.properties` | Keeps Geni app credentials out of git. |
+| `app/src/main/java/app/familygem/TreesActivity.kt` | `GeniHooks.addTreesMenu(this, bar.menu)` after `bar.inflateMenu(R.menu.trees_menu)` | "Geni account" item in the trees list menu. |

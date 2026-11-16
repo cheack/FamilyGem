@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="geni_menu_account">Geni account</string>
+    <string name="geni_login">Log in to Geni</string>
+    <string name="geni_logout">Log out</string>
+    <string name="geni_logged_in_as">Logged in as %1$s</string>
+    <string name="geni_not_configured">Geni app ID is not set in geni.properties</string>
+    <string name="geni_login_failed">Login failed</string>
+</resources>

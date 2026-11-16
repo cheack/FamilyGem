@@ -264,14 +264,14 @@ Hook in `TreesActivity`: `GeniHooks.addTreesMenu(this, bar.menu) // GENI-HOOK`. 
 
 Strings (en / ru): `geni_menu_account` Geni account / Аккаунт Geni; `geni_login` Log in to Geni / Войти в Geni; `geni_logout` Log out / Выйти; `geni_logged_in_as` Logged in as %1$s / Вы вошли как %1$s; `geni_not_configured` Geni app ID is not set in geni.properties / В geni.properties не задан ID приложения Geni; `geni_login_failed` Login failed / Не удалось войти.
 
-- [ ] **Step 1: Implement activity, layout, strings, manifest entry, `GeniHooks`**
-- [ ] **Step 2: Add the hook line to `TreesActivity` and a row to `geni/UPSTREAM-HOOKS.md`**
-- [ ] **Step 3: Build and run all unit tests**
+- [x] **Step 1: Implement activity, layout, strings, manifest entry, `GeniHooks`**
+- [x] **Step 2: Add the hook line to `TreesActivity` and a row to `geni/UPSTREAM-HOOKS.md`**
+- [x] **Step 3: Build and run all unit tests**
 
 Run: `$GRADLE :geni:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug`
 Expected: BUILD SUCCESSFUL; `git grep -n GENI-HOOK` lists `settings.gradle`, `app/build.gradle`, `TreesActivity.kt`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add geni/ app/src/main/java/app/familygem/TreesActivity.kt

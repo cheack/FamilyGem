@@ -4,4 +4,20 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <application>
+        <activity
+            android:name=".ui.GeniLoginActivity"
+            android:exported="true"
+            android:label="@string/geni_menu_account"
+            android:launchMode="singleTask">
+            <!-- OAuth redirect: scheme from geniRedirectUri in geni.properties -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${geniRedirectScheme}" />
+            </intent-filter>
+        </activity>
+    </application>
+
 </manifest>

@@ -12,7 +12,7 @@ Plan: [2026-11-16-geni-1-api-login.md](2026-11-16-geni-1-api-login.md)
 - [x] Rate limiter driven by `X-API-Rate-Limit` / `X-API-Rate-Remaining` / `X-API-Rate-Window`
 - [x] OAuth mobile flow: authorize URL and redirect parsing (token, denial)
 - [x] Encrypted token store; API client with bearer token, 401 and 429 handling
-- [ ] Login screen and "Geni account" item in the trees menu (hook in `TreesActivity`)
+- [x] Login screen and "Geni account" item in the trees menu (hook in `TreesActivity`)
 - [ ] Manual check on the sandbox: login, cancel, redirect scheme, real token lifetime
 
 ## 2. Read path
