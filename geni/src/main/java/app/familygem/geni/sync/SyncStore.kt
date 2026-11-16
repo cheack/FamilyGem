@@ -26,6 +26,7 @@ interface SyncStore {
     suspend fun trees(): List<GeniTreeInfo>
     suspend fun link(treeId: Int, geniId: String): GeniLink?
     suspend fun links(treeId: Int): List<GeniLink>
+    suspend fun unionLinks(treeId: Int): List<GeniLink>
     suspend fun saveLinks(links: List<GeniLink>)
     suspend fun deleteTree(treeId: Int)
 }

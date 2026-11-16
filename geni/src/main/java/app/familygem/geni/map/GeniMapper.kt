@@ -28,9 +28,6 @@ object GeniMapper {
     const val GENI_ID_TAG = "_GENI_ID"
     const val ABOUT_TAG = "_GENI_ABOUT"
 
-    /** Person facts that come from Geni and are replaced on every update. */
-    private val PERSON_TAGS = setOf("SEX", "BIRT", "BAPM", "DEAT", "BURI", "OCCU")
-    private val FAMILY_TAGS = setOf("MARR", "DIV")
     private val MONTHS = listOf("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
 
     /** GEDCOM date like "12 MAR 1960", "JUN 2012", "2014" or "ABT 1960"; null without a year. */
@@ -50,26 +47,86 @@ object GeniMapper {
             .joinToString(", ").takeIf { it.isNotEmpty() }
     }
 
-    fun applyProfile(gedcom: Gedcom, person: Person, profile: GeniProfile) {
-        person.names = names(profile)
-        val facts = mutableListOf<EventFact>()
-        facts += fact("SEX", value = when (profile.gender) {
-            "male" -> "M"
-            "female" -> "F"
-            else -> "U"
-        })
-        event("BIRT", profile.birth)?.let { facts += it }
-        event("BAPM", profile.baptism)?.let { facts += it }
-        profile.occupation?.takeIf { it.isNotBlank() }?.let { facts += fact("OCCU", value = it) }
-        val death = event("DEAT", profile.death)
-            ?: if (profile.isAlive == false || !profile.causeOfDeath.isNullOrBlank()) fact("DEAT", value = "Y") else null
-        death?.let {
-            if (!profile.causeOfDeath.isNullOrBlank()) it.cause = profile.causeOfDeath
-            facts += it
+    /**
+     * Applies a Geni profile to a person, as a three-way merge: a field changes only if Geni changed it since [previous],
+     * the Geni version of the last load (null on the first load: every field is applied).
+     * Facts are updated in place, keeping their notes, sources and media.
+     */
+    fun applyProfile(gedcom: Gedcom, person: Person, profile: GeniProfile, previous: GeniProfile? = null) {
+        fun changed(field: (GeniProfile) -> Any?) = previous == null || field(previous) != field(profile)
+        if (changed { listOf(it.firstName, it.middleName, it.lastName, it.maidenName, it.suffix, it.nicknames) })
+            updateNames(person, profile)
+        if (profile.gender != null && changed { it.gender })
+            setFact(person, "SEX", value = if (profile.gender == "male") "M" else if (profile.gender == "female") "F" else "U")
+        else if (person.eventsFacts.orEmpty().none { it.tag == "SEX" })
+            setFact(person, "SEX", value = "U")
+        if (changed { it.birth }) setEvent(person, "BIRT", profile.birth)
+        if (changed { it.baptism }) setEvent(person, "BAPM", profile.baptism)
+        if (changed { it.occupation }) {
+            val occupation = profile.occupation?.takeIf { it.isNotBlank() }
+            if (occupation != null) setFact(person, "OCCU", value = occupation) else removeFacts(person, "OCCU")
         }
-        event("BURI", profile.burial)?.let { facts += it }
-        person.eventsFacts = facts + person.eventsFacts.orEmpty().filter { it.tag !in PERSON_TAGS }
-        setTag(person, ABOUT_TAG, profile.aboutMe?.takeIf { it.isNotBlank() })
+        if (changed { listOf(it.death, it.isAlive, it.causeOfDeath) }) {
+            val dead = profile.isAlive == false || !profile.causeOfDeath.isNullOrBlank()
+            val date = gedcomDate(profile.death?.date)
+            val place = place(profile.death?.location)
+            if (date == null && place == null && !dead) removeFacts(person, "DEAT")
+            else setFact(person, "DEAT", value = if (date == null && place == null) "Y" else null, date = date, place = place,
+                cause = profile.causeOfDeath?.takeIf { it.isNotBlank() })
+        }
+        if (changed { it.burial }) setEvent(person, "BURI", profile.burial)
+        if (changed { it.aboutMe }) setTag(person, ABOUT_TAG, profile.aboutMe?.takeIf { it.isNotBlank() })
+    }
+
+    /** Updates the main name and the birth (maiden) name in place, keeping their sub-records. */
+    private fun updateNames(person: Person, profile: GeniProfile) {
+        val wanted = names(profile)
+        val current = person.names.orEmpty()
+        val main = current.firstOrNull { it.type != "birth" } ?: Name().also { person.addName(it) }
+        main.value = wanted[0].value
+        main.suffix = wanted[0].suffix
+        main.nickname = wanted[0].nickname
+        val birthName = current.firstOrNull { it.type == "birth" }
+        val wantedBirth = wanted.getOrNull(1)
+        when {
+            wantedBirth == null -> if (birthName != null) person.names = person.names.filter { it !== birthName }
+            birthName != null -> birthName.value = wantedBirth.value
+            else -> person.addName(wantedBirth)
+        }
+    }
+
+    /** Sets the date and place of the first fact with this tag, or removes the facts when Geni has neither. */
+    private fun setEvent(container: Any, tag: String, event: GeniEvent?) {
+        val date = gedcomDate(event?.date)
+        val place = place(event?.location)
+        if (date == null && place == null) removeFacts(container, tag)
+        else setFact(container, tag, date = date, place = place)
+    }
+
+    private fun setFact(container: Any, tag: String, value: String? = null, date: String? = null, place: String? = null, cause: String? = null) {
+        val facts = facts(container)
+        val fact = facts.firstOrNull { it.tag == tag } ?: EventFact().also {
+            it.tag = tag
+            setFacts(container, facts + it)
+        }
+        fact.value = value
+        fact.date = date
+        fact.place = place
+        if (tag == "DEAT") fact.cause = cause
+    }
+
+    private fun removeFacts(container: Any, tag: String) = setFacts(container, facts(container).filter { it.tag != tag })
+
+    private fun facts(container: Any): List<EventFact> = when (container) {
+        is Person -> container.eventsFacts.orEmpty()
+        is Family -> container.eventsFacts.orEmpty()
+        else -> emptyList()
+    }
+
+    private fun setFacts(container: Any, facts: List<EventFact>) = when (container) {
+        is Person -> container.eventsFacts = facts.toMutableList()
+        is Family -> container.eventsFacts = facts.toMutableList()
+        else -> Unit
     }
 
     private fun names(profile: GeniProfile): List<Name> {
@@ -87,17 +144,8 @@ object GeniMapper {
     private fun nameValue(given: String, surname: String?): String =
         if (surname.isNullOrBlank()) given else "$given /$surname/".trim()
 
-    private fun fact(tag: String, value: String? = null) = EventFact().apply { this.tag = tag; this.value = value }
-
-    /** Event with date and place, or null when Geni has neither. */
-    private fun event(tag: String, event: GeniEvent?): EventFact? {
-        val date = gedcomDate(event?.date)
-        val place = place(event?.location)
-        if (date == null && place == null) return null
-        return fact(tag).apply { this.date = date; this.place = place }
-    }
-
-    fun applyUnion(gedcom: Gedcom, family: Family, union: GeniUnion, personFor: (String) -> Person?) {
+    /** Links partners and children (never removes links) and merges marriage and divorce like [applyProfile]. */
+    fun applyUnion(gedcom: Gedcom, family: Family, union: GeniUnion, previous: GeniUnion? = null, personFor: (String) -> Person?) {
         union.partners.orEmpty().mapNotNull { personFor(geniId(it)) }.forEach { partner ->
             if (family.husbandRefs.orEmpty().any { it.ref == partner.id } || family.wifeRefs.orEmpty().any { it.ref == partner.id }) return@forEach
             val sex = partner.eventsFacts.orEmpty().firstOrNull { it.tag == "SEX" }?.value
@@ -116,10 +164,14 @@ object GeniMapper {
             if (child.parentFamilyRefs.orEmpty().none { it.ref == family.id })
                 child.addParentFamilyRef(ParentFamilyRef().apply { ref = family.id })
         }
-        val facts = mutableListOf<EventFact>()
-        event("MARR", union.marriage)?.let { facts += it }
-        (event("DIV", union.divorce) ?: if (union.status == "ex_spouse") fact("DIV", value = "Y") else null)?.let { facts += it }
-        family.eventsFacts = facts + family.eventsFacts.orEmpty().filter { it.tag !in FAMILY_TAGS }
+        if (previous == null || previous.marriage != union.marriage) setEvent(family, "MARR", union.marriage)
+        if (previous == null || previous.divorce != union.divorce || previous.status != union.status) {
+            val date = gedcomDate(union.divorce?.date)
+            val place = place(union.divorce?.location)
+            if (date != null || place != null) setFact(family, "DIV", date = date, place = place)
+            else if (union.status == "ex_spouse") setFact(family, "DIV", value = "Y")
+            else removeFacts(family, "DIV")
+        }
     }
 
     fun getGeniId(container: ExtensionContainer): String? = getTag(container, GENI_ID_TAG)

@@ -26,8 +26,9 @@ class GeniLoader(
      * Nothing changes if any request fails.
      */
     suspend fun load(treeId: Int, geniProfileId: String): LoadResult {
-        store.tree(treeId) ?: return LoadResult.NotAGeniTree
+        if (!host.treeExists(treeId)) return LoadResult.NotAGeniTree
         return try {
+            store.tree(treeId) ?: return LoadResult.NotAGeniTree
             val family = client.immediateFamily(geniProfileId)
             val profiles = client.profiles(family.profileIds)
             val unions = client.unions(family.unionIds)
@@ -61,6 +62,7 @@ class GeniLoader(
         val root = client.currentProfile()
         val treeId = host.createTree(title ?: root.name ?: root.id, Gedcom())
         val info = GeniTreeInfo(treeId, root.id)
+        store.deleteTree(treeId) // Rows left by a deleted tree that had the same ID
         store.saveTree(info)
         load(treeId, root.id)
         store.link(treeId, root.id)?.let { host.setRoot(treeId, it.gedcomId) }

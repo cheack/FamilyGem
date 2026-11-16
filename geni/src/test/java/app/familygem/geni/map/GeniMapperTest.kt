@@ -13,6 +13,7 @@ import org.folg.gedcom.model.Note
 import org.folg.gedcom.model.Person
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Test
 
 class GeniMapperTest {
@@ -130,5 +131,55 @@ class GeniMapperTest {
         GeniMapper.setGeniId(person, "profile-1")
         GeniMapper.setGeniId(person, "profile-2")
         assertEquals("profile-2", GeniMapper.getGeniId(person))
+    }
+
+    @Test
+    fun keepsLocalEditWhenGeniUnchanged() {
+        val geni = profiles.getValue("profile-36431")
+        val father = Person().mapped("profile-36431")
+        father.names[0].value = "Ivan /Petrov/"
+        father.fact("BIRT").date = "13 MAR 1960"
+        GeniMapper.applyProfile(Gedcom(), father, geni, previous = geni)
+        assertEquals("Ivan /Petrov/", father.names.single().value)
+        assertEquals("13 MAR 1960", father.fact("BIRT").date)
+    }
+
+    @Test
+    fun appliesOnlyTheFieldsGeniChanged() {
+        val geni = profiles.getValue("profile-36431")
+        val father = Person().mapped("profile-36431")
+        father.names[0].value = "Ivan /Petrov/"
+        GeniMapper.applyProfile(Gedcom(), father, geni.copy(occupation = "Director"), previous = geni)
+        assertEquals("Director", father.fact("OCCU").value)
+        assertEquals("Ivan /Petrov/", father.names.single().value)
+    }
+
+    @Test
+    fun keepsSubRecordsOfUpdatedFact() {
+        val geni = profiles.getValue("profile-36431")
+        val father = Person().mapped("profile-36431")
+        val birth = father.fact("BIRT")
+        birth.addNote(Note().apply { value = "From the parish book" })
+        val changed = geni.copy(birth = geni.birth!!.copy(date = geni.birth!!.date!!.copy(day = 14)))
+        GeniMapper.applyProfile(Gedcom(), father, changed, previous = geni)
+        assertSame(birth, father.fact("BIRT"))
+        assertEquals("14 MAR 1960", birth.date)
+        assertEquals("From the parish book", birth.notes.single().value)
+    }
+
+    @Test
+    fun keepsLocalBirthWhenGeniNeverHadOne() {
+        val geni = profiles.getValue("profile-36431").copy(birth = null)
+        val person = Person().apply { GeniMapper.applyProfile(Gedcom(), this, geni) }
+        person.addEventFact(EventFact().apply { tag = "BIRT"; date = "1960" })
+        GeniMapper.applyProfile(Gedcom(), person, geni, previous = geni)
+        assertEquals("1960", person.fact("BIRT").date)
+    }
+
+    @Test
+    fun keepsSexWhenGeniHasNoGender() {
+        val person = Person().apply { addEventFact(EventFact().apply { tag = "SEX"; value = "M" }) }
+        GeniMapper.applyProfile(Gedcom(), person, profiles.getValue("profile-36431").copy(gender = null))
+        assertEquals("M", person.fact("SEX").value)
     }
 }

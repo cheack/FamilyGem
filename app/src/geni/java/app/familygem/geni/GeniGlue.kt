@@ -26,6 +26,13 @@ object GeniGlue {
     }
 
     private var loginToastShown = false
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+
+    /** Forgets the Geni data of a deleted tree, so a new tree with the same ID does not inherit it. */
+    fun onTreeDeleted(treeId: Int) {
+        install()
+        scope.launch { Geni.store(Global.context).deleteTree(treeId) }
+    }
 
     /** Loads the person's relatives from Geni when the person card opens, if needed; then refreshes the card. */
     fun onPersonOpened(activity: Activity, person: Person?, refresh: () -> Unit) {

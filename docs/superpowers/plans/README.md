@@ -44,6 +44,18 @@ Plan: [2026-11-16-geni-2-read-path.md](2026-11-16-geni-2-read-path.md)
 - [x] "Keep offline" action: download a person's branch to a chosen depth
 - [x] Measure size and time of a radius-3 prefetch and of saving a large cache JSON
 
+### Deferred from the stage 2 review
+
+- [ ] Read and save links inside the tree lock, or merge flags, so overlapping loads do not reset `fullyLoaded`/`loadedAtMillis`
+- [ ] "Keep offline" only for Geni trees and when logged in
+- [ ] Partners with a known gender first, so an unknown-gender partner cannot cause two `HUSB`
+- [ ] Catch Room errors in the person-open path and in `GeniLoader.load`
+- [ ] `NonCancellable` around save and links after the merge block
+- [ ] Thread-safe `Geni.client`; `treeExists` on the main thread
+- [ ] Shared file lock with upstream saves of `N.json`
+- [ ] Create the Geni tree outside the login screen's scope, so leaving the screen cannot leave a half-made tree
+- [ ] `refreshData` (generation count) off the main thread for large trees; measure a tree of about 5000 people
+
 ## 3. Write path
 
 Plan: not written yet.

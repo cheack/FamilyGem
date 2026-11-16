@@ -28,15 +28,29 @@ object AppTreeHost : TreeHost {
     }
 
     override suspend fun <T> edit(treeId: Int, block: (Gedcom) -> T): T = mutex.withLock {
-        val opened = Global.gc?.takeIf { Global.settings.openTree == treeId }
-        val gedcom = opened ?: TreeUtil.openGedcomTemporarily(treeId, false) ?: error("Tree $treeId not readable")
-        // The opened tree is shared with the screens, which change it on the main thread
-        val result = withContext(Dispatchers.Main) { block(gedcom) }
-        TreeUtil.saveJson(gedcom, treeId, false)
+        if (!treeExists(treeId)) error("Tree $treeId does not exist")
+        // Screens replace Global.gc on the main thread, so the open tree is picked there
+        val (gedcom, result) = editOpened(treeId, block) ?: run {
+            val copy = TreeUtil.openGedcomTemporarily(treeId, false) ?: error("Tree $treeId not readable")
+            val copyResult = withContext(Dispatchers.Main) { block(copy) }
+            // If the tree was opened meanwhile, the live copy gets the change instead (merges are repeatable)
+            editOpened(treeId, block) ?: (copy to copyResult)
+        }
+        val isOpen = withContext(Dispatchers.Main) { gedcom === Global.gc }
+        if (isOpen && !Global.settings.autoSave) {
+            Global.shouldSave = true // Like upstream: the user's unsaved edits are not written without the Save button
+        } else {
+            withContext(Dispatchers.IO) { TreeUtil.saveJson(gedcom, treeId, false) }
+        }
         withContext(Dispatchers.Main) {
             Global.settings.getTree(treeId)?.let { TreeUtil.refreshData(gedcom, it) }
         }
         result
+    }
+
+    /** Runs the block on the open tree if it is [treeId], on the main thread. */
+    private suspend fun <T> editOpened(treeId: Int, block: (Gedcom) -> T): Pair<Gedcom, T>? = withContext(Dispatchers.Main) {
+        Global.gc?.takeIf { Global.settings.openTree == treeId }?.let { it to block(it) }
     }
 
     override fun treeExists(treeId: Int) = Global.settings.getTree(treeId) != null

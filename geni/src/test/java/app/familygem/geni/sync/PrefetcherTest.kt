@@ -17,10 +17,11 @@ class PrefetcherTest {
         "grandchild" to listOf("child")
     )
     private val loaded = mutableListOf<String>()
+    private val asked = mutableListOf<String>()
 
     private fun prefetcher(fresh: Set<String> = emptySet(), result: (String) -> LoadResult = { LoadResult.Loaded(0) }) = Prefetcher(
         loader = { loaded += it; result(it) },
-        relatives = { graph[it].orEmpty() },
+        relatives = { asked += it; graph[it].orEmpty() },
         isFresh = { it in fresh }
     )
 
@@ -52,5 +53,11 @@ class PrefetcherTest {
         val count = prefetcher(result = { if (it == "father") LoadResult.NeedsLogin else LoadResult.Loaded(0) }).run("root", depth = 3)
         assertEquals("father", loaded.last())
         assertEquals(1, count) // Only root was loaded
+    }
+
+    @Test
+    fun lastLevelDoesNotAskRelatives() = runTest {
+        prefetcher().run("root", depth = 1)
+        assertEquals(emptyList<String>(), asked)
     }
 }

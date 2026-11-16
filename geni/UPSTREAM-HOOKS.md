@@ -12,3 +12,4 @@ Each code hook is marked with a `GENI-HOOK` comment; after a merge from upstream
 | `build.gradle` | KSP Gradle plugin on the buildscript classpath | Room code generation in `:geni`; the plugin must share the classloader with AGP. |
 | `app/src/main/java/app/familygem/profile/ProfileActivity.kt` | `GeniGlue.onPersonOpened(this, person) { refresh() }` at the end of `onCreate` | Loads the person's relatives from Geni when the card opens. |
 | `app/src/main/java/app/familygem/profile/ProfileActivity.kt` | `GeniGlue.addProfileMenu(this, menu, person)` in `onCreateOptionsMenu` | "Keep offline" item for people of Geni trees. |
+| `app/src/main/java/app/familygem/util/TreeUtil.kt` | `GeniGlue.onTreeDeleted(treeId)` at the start of `deleteTree` | Drops the Geni rows of a deleted tree, so a new tree with the same ID does not inherit them. |

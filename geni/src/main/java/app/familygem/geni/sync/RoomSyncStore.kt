@@ -40,6 +40,9 @@ interface SyncDao {
     @Query("SELECT * FROM link WHERE treeId = :treeId")
     suspend fun links(treeId: Int): List<GeniLinkEntity>
 
+    @Query("SELECT * FROM link WHERE treeId = :treeId AND geniId LIKE 'union-%'")
+    suspend fun unionLinks(treeId: Int): List<GeniLinkEntity>
+
     @Upsert
     suspend fun saveLinks(links: List<GeniLinkEntity>)
 
@@ -71,6 +74,8 @@ class RoomSyncStore(private val dao: SyncDao) : SyncStore {
     override suspend fun link(treeId: Int, geniId: String) = dao.link(treeId, geniId)?.toLink()
 
     override suspend fun links(treeId: Int) = dao.links(treeId).map { it.toLink() }
+
+    override suspend fun unionLinks(treeId: Int) = dao.unionLinks(treeId).map { it.toLink() }
 
     override suspend fun saveLinks(links: List<GeniLink>) = dao.saveLinks(links.map {
         GeniLinkEntity(it.treeId, it.geniId, it.gedcomId, it.fullyLoaded, it.geniUpdatedAt, it.snapshot, it.loadedAtMillis)

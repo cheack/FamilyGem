@@ -75,4 +75,20 @@ class FamilyMergerTest {
         assertEquals(8, gedcom.people.size)
         assertEquals(8, gedcom.people.mapNotNull { GeniMapper.getGeniId(it) }.toSet().size)
     }
+
+    @Test
+    fun linkToRecordWithOtherTagIsNotTrusted() {
+        val gedcom = Gedcom()
+        val links = merge(gedcom, "immediate-family-root.json").associateBy { it.geniId }
+        val fatherId = links.getValue("profile-36431").gedcomId
+        // The user deleted the father and a hand-made person got his ID
+        gedcom.people.removeIf { it.id == fatherId }
+        val handMade = Person().apply { id = fatherId; addName(org.folg.gedcom.model.Name().apply { value = "Hand /Made/" }) }
+        gedcom.addPerson(handMade)
+        val again = merge(gedcom, "immediate-family-root.json", links).associateBy { it.geniId }
+        assertEquals("Hand /Made/", handMade.names.single().value)
+        assertEquals(null, GeniMapper.getGeniId(handMade))
+        assertTrue(again.getValue("profile-36431").gedcomId != fatherId)
+        assertEquals(9, gedcom.people.size)
+    }
 }

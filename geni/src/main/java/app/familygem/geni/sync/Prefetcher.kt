@@ -17,7 +17,7 @@ class Prefetcher(
         var loads = 0
         val visited = mutableSetOf(startGeniId)
         var level = listOf(startGeniId)
-        repeat(depth) {
+        repeat(depth) { step ->
             val next = mutableListOf<String>()
             for (geniId in level) {
                 if (!isFresh(geniId)) {
@@ -27,7 +27,7 @@ class Prefetcher(
                         is LoadResult.Failed -> Unit // Skipped; its known relatives are still visited
                     }
                 }
-                relatives(geniId).filter { visited.add(it) }.forEach { next += it }
+                if (step < depth - 1) relatives(geniId).filter { visited.add(it) }.forEach { next += it } // Last level: not needed
             }
             level = next
         }

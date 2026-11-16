@@ -117,4 +117,22 @@ class GeniLoaderTest {
         host.trees.remove(treeId) // Deleted in FamilyGem
         assertEquals(null, loader().existingTree("profile-36430"))
     }
+
+    @Test
+    fun createTreeDropsRowsOfDeletedTreeWithSameId() = runTest {
+        store.saveTree(GeniTreeInfo(1, "profile-old"))
+        store.saveLinks(listOf(GeniLink(1, "profile-99999", "I99", true, null, null, 4_000L)))
+        val treeId = loader().createTree() // The host gives ID 1 again: tree 1 was deleted
+        assertEquals(1, treeId)
+        assertEquals("profile-36430", store.tree(1)?.rootGeniId)
+        assertTrue(store.links(1).none { it.gedcomId == "I99" })
+    }
+
+    @Test
+    fun deletedTreeIsNotLoaded() = runTest {
+        val treeId = geniTree()
+        host.trees.remove(treeId)
+        assertEquals(LoadResult.NotAGeniTree, loader().load(treeId, "profile-36430"))
+        assertEquals(0, server.requestCount)
+    }
 }

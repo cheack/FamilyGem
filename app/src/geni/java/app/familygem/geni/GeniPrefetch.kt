@@ -39,7 +39,7 @@ object GeniPrefetch {
         val began = System.currentTimeMillis()
         val loads = Prefetcher(
             loader = { loader.load(treeId, it) },
-            relatives = { RelativesIndex.relatives(store.links(treeId), it) },
+            relatives = { RelativesIndex.relatives(store.unionLinks(treeId), it) },
             isFresh = { id -> store.link(treeId, id)?.let { !LoadPolicy.shouldLoad(it, System.currentTimeMillis()) } ?: false }
         ).run(start, depth)
         Log.d(TAG, "Tree $treeId: $loads loads from $start, depth $depth, in ${System.currentTimeMillis() - began} ms")

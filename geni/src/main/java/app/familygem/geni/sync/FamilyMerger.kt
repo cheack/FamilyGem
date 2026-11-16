@@ -4,6 +4,7 @@ import app.familygem.geni.api.GeniProfile
 import app.familygem.geni.api.GeniUnion
 import app.familygem.geni.api.ImmediateFamily
 import app.familygem.geni.map.GeniMapper
+import com.google.gson.Gson
 import org.folg.gedcom.model.Family
 import org.folg.gedcom.model.Gedcom
 import org.folg.gedcom.model.Person
@@ -27,17 +28,24 @@ object FamilyMerger {
         nowMillis: Long
     ): List<GeniLink> {
         gedcom.createIndexes()
+        // Built once per merge; a link is trusted only if its record still carries the same Geni ID
+        val taggedPeople = gedcom.people.orEmpty().mapNotNull { p -> GeniMapper.getGeniId(p)?.let { it to p } }.toMap()
+        val taggedFamilies = gedcom.families.orEmpty().mapNotNull { f -> GeniMapper.getGeniId(f)?.let { it to f } }.toMap()
+        var lastPerson = maxNumber(gedcom.people.orEmpty().map { it.id }, "I")
+        var lastFamily = maxNumber(gedcom.families.orEmpty().map { it.id }, "F")
         val people = mutableMapOf<String, Person>()
         val links = mutableListOf<GeniLink>()
         for (profile in profiles) {
             val link = existing[profile.id]
-            val person = link?.let { gedcom.getPerson(it.gedcomId) }
-                ?: gedcom.people.orEmpty().firstOrNull { GeniMapper.getGeniId(it) == profile.id }
+            val person = link?.let { gedcom.getPerson(it.gedcomId) }?.takeIf { GeniMapper.getGeniId(it) == profile.id }
+                ?: taggedPeople[profile.id]
                 ?: Person().apply {
-                    id = nextId(gedcom.people.orEmpty().map { it.id }, "I")
+                    id = "I${++lastPerson}"
                     gedcom.addPerson(this)
                 }
-            GeniMapper.applyProfile(gedcom, person, profile)
+            // The previous Geni version counts only if the record is the linked one
+            val previous = if (link != null && person.id == link.gedcomId) link.snapshot?.let { parse(it, GeniProfile::class.java) } else null
+            GeniMapper.applyProfile(gedcom, person, profile, previous)
             GeniMapper.setGeniId(person, profile.id)
             people[profile.id] = person
             val isFocus = profile.id == family.focusId
@@ -51,27 +59,28 @@ object FamilyMerger {
                 loadedAtMillis = if (isFocus) nowMillis else link?.loadedAtMillis ?: 0
             )
         }
-        val personFor = { geniId: String ->
-            people[geniId] ?: existing[geniId]?.let { gedcom.getPerson(it.gedcomId) }
-        }
+        val personFor = { geniId: String -> people[geniId] ?: taggedPeople[geniId] }
         for (union in unions) {
             val link = existing[union.id]
-            val fam = link?.let { gedcom.getFamily(it.gedcomId) }
-                ?: gedcom.families.orEmpty().firstOrNull { GeniMapper.getGeniId(it) == union.id }
+            val fam = link?.let { gedcom.getFamily(it.gedcomId) }?.takeIf { GeniMapper.getGeniId(it) == union.id }
+                ?: taggedFamilies[union.id]
                 ?: Family().apply {
-                    id = nextId(gedcom.families.orEmpty().map { it.id }, "F")
+                    id = "F${++lastFamily}"
                     gedcom.addFamily(this)
                 }
-            GeniMapper.applyUnion(gedcom, fam, union, personFor)
+            val previous = if (link != null && fam.id == link.gedcomId) link.snapshot?.let { parse(it, GeniUnion::class.java) } else null
+            GeniMapper.applyUnion(gedcom, fam, union, previous, personFor)
             GeniMapper.setGeniId(fam, union.id)
             links += GeniLink(treeId, union.id, fam.id, true, null, rawUnions[union.id], nowMillis)
         }
         return links
     }
 
-    /** Next free ID like "I12" after the highest number used with this prefix. */
-    private fun nextId(ids: List<String>, prefix: String): String {
-        val max = ids.mapNotNull { it.removePrefix(prefix).toIntOrNull() }.maxOrNull() ?: 0
-        return "$prefix${max + 1}"
-    }
+    private val gson = Gson()
+
+    private fun <T> parse(json: String, type: Class<T>): T? = runCatching { gson.fromJson(json, type) }.getOrNull()
+
+    /** Highest number used in IDs like "I12" with this prefix, 0 if none. */
+    private fun maxNumber(ids: List<String>, prefix: String): Int =
+        ids.mapNotNull { it.removePrefix(prefix).toIntOrNull() }.maxOrNull() ?: 0
 }

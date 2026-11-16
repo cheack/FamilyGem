@@ -226,6 +226,7 @@ object TreeUtil {
     }
 
     fun deleteTree(treeId: Int) {
+        app.familygem.geni.GeniGlue.onTreeDeleted(treeId) // GENI-HOOK
         val treeFile = File(Global.context.filesDir, "$treeId.json")
         treeFile.delete()
         val mediaDir = Global.context.getExternalFilesDir(treeId.toString())

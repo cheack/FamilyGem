@@ -11,6 +11,7 @@ class InMemorySyncStore : SyncStore {
     override suspend fun trees() = trees.values.toList()
     override suspend fun link(treeId: Int, geniId: String) = linkMap[treeId to geniId]
     override suspend fun links(treeId: Int) = linkMap.values.filter { it.treeId == treeId }
+    override suspend fun unionLinks(treeId: Int) = links(treeId).filter { it.geniId.startsWith("union-") }
     override suspend fun saveLinks(links: List<GeniLink>) = links.forEach { linkMap[it.treeId to it.geniId] = it }
     override suspend fun deleteTree(treeId: Int) {
         trees.remove(treeId)
