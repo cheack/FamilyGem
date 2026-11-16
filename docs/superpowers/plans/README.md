@@ -37,7 +37,7 @@ Plan: [2026-11-16-geni-2-read-path.md](2026-11-16-geni-2-read-path.md)
 - [ ] Show Geni profile photos (`mugshot_urls`) in FamilyGem media
 - [x] Room database in `:geni`: Geni tree marker, ID mapping (GEDCOM ID ↔ Geni ID), snapshots
 - [x] Mapping Geni → GEDCOM: profile → `INDI`, union → `FAM`, `_GENI_ID`, standard fields, `_GENI_*` for the rest
-- [ ] Create a Geni tree from the logged-in user's profile (entry in the trees list, root = own profile)
+- [x] Create a Geni tree from the logged-in user's profile (entry in the trees list, root = own profile)
 - [ ] Lazy load: opening a person fetches `immediate-family` and merges it into the cache (hook in person card or diagram)
 - [ ] Edge people marked as not fully loaded; opening them triggers a fetch
 - [ ] Background prefetch within N steps of the root (N = 3, setting), WorkManager

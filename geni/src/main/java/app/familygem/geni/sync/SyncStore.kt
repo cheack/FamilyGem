@@ -23,6 +23,7 @@ data class GeniLink(
 interface SyncStore {
     suspend fun tree(treeId: Int): GeniTreeInfo?
     suspend fun saveTree(info: GeniTreeInfo)
+    suspend fun trees(): List<GeniTreeInfo>
     suspend fun link(treeId: Int, geniId: String): GeniLink?
     suspend fun links(treeId: Int): List<GeniLink>
     suspend fun saveLinks(links: List<GeniLink>)

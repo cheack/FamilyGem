@@ -137,10 +137,10 @@ Mapping rules (the spec left the field list to sandbox findings):
 
 Login screen: when logged in, button `geni_create_tree` ("Create Geni tree" / "Создать дерево Geni"), hidden if a Geni tree already exists for this account. Tree title: display name of the root profile. On success: toast `geni_tree_created`, finish.
 
-- [ ] **Step 1: Implement glue, host, button, strings; update the hook line**
-- [ ] **Step 2: Build and run all unit tests** — `$GRADLE :geni:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug` → PASS.
-- [ ] **Step 3: Manual on the phone** — log in, "Create Geni tree": a new tree in the list with 8 people; the diagram shows parents, wife, 3 children, brother; father's card shows death, burial, occupation, `_GENI_ABOUT`.
-- [ ] **Step 4: Commit** — `git commit -m "Create a Geni tree from the logged-in profile"`
+- [x] **Step 1: Implement glue, host, button, strings; update the hook line**
+- [x] **Step 2: Build and run all unit tests** — `$GRADLE :geni:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug` → PASS.
+- [x] **Step 3: Manual on the phone** — log in, "Create Geni tree": a new tree in the list with 8 people; the diagram shows parents, wife, 3 children, brother; father's card shows death, burial, occupation, `_GENI_ABOUT`.
+- [x] **Step 4: Commit** — `git commit -m "Create a Geni tree from the logged-in profile"`
 
 ### Task 5: Lazy load on person open
 

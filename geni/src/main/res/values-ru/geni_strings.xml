@@ -6,4 +6,6 @@
     <string name="geni_logged_in_as">Вы вошли как %1$s</string>
     <string name="geni_not_configured">В geni.properties не задан ID приложения Geni</string>
     <string name="geni_login_failed">Не удалось войти</string>
+    <string name="geni_create_tree">Создать дерево Geni</string>
+    <string name="geni_tree_created">Дерево Geni создано</string>
 </resources>

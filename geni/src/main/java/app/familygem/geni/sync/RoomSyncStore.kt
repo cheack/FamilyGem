@@ -31,6 +31,9 @@ interface SyncDao {
     @Upsert
     suspend fun saveTree(tree: GeniTreeEntity)
 
+    @Query("SELECT * FROM tree")
+    suspend fun trees(): List<GeniTreeEntity>
+
     @Query("SELECT * FROM link WHERE treeId = :treeId AND geniId = :geniId")
     suspend fun link(treeId: Int, geniId: String): GeniLinkEntity?
 
@@ -62,6 +65,8 @@ class RoomSyncStore(private val dao: SyncDao) : SyncStore {
     override suspend fun tree(treeId: Int) = dao.tree(treeId)?.let { GeniTreeInfo(it.treeId, it.rootGeniId, it.prefetchDepth) }
 
     override suspend fun saveTree(info: GeniTreeInfo) = dao.saveTree(GeniTreeEntity(info.treeId, info.rootGeniId, info.prefetchDepth))
+
+    override suspend fun trees() = dao.trees().map { GeniTreeInfo(it.treeId, it.rootGeniId, it.prefetchDepth) }
 
     override suspend fun link(treeId: Int, geniId: String) = dao.link(treeId, geniId)?.toLink()
 

@@ -15,6 +15,12 @@ interface TreeHost {
      */
     suspend fun <T> edit(treeId: Int, block: (Gedcom) -> T): T
 
+    /** True if the FamilyGem tree still exists (the user may have deleted it). */
+    fun treeExists(treeId: Int): Boolean
+
+    /** Sets the root person of the tree, the one the diagram starts from. */
+    suspend fun setRoot(treeId: Int, personId: String)
+
     /** Tells the open screens that the tree changed. */
     fun refreshScreens()
 }

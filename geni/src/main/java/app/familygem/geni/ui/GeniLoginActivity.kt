@@ -6,6 +6,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.net.toUri
@@ -27,6 +28,7 @@ class GeniLoginActivity : AppCompatActivity() {
     private lateinit var progress: ProgressBar
     private lateinit var loginButton: Button
     private lateinit var logoutButton: Button
+    private lateinit var createTreeButton: Button
     private lateinit var tokens: TokenStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,6 +40,7 @@ class GeniLoginActivity : AppCompatActivity() {
         progress = findViewById(R.id.geni_login_progress)
         loginButton = findViewById(R.id.geni_login_button)
         logoutButton = findViewById(R.id.geni_logout_button)
+        createTreeButton = findViewById(R.id.geni_create_tree_button)
         if (!Geni.isConfigured) {
             status.setText(R.string.geni_not_configured)
             return
@@ -48,6 +51,7 @@ class GeniLoginActivity : AppCompatActivity() {
             tokens.pendingState = state
             startActivity(Intent(Intent.ACTION_VIEW, OAuth.authorizeUrl(Geni.config, state).toUri()))
         }
+        createTreeButton.setOnClickListener { createTree() }
         logoutButton.setOnClickListener {
             tokens.clear()
             showLoggedOut(null)
@@ -102,6 +106,8 @@ class GeniLoginActivity : AppCompatActivity() {
                 progress.visibility = View.GONE
                 status.text = getString(R.string.geni_logged_in_as, name)
                 logoutButton.visibility = View.VISIBLE
+                val canCreate = Geni.host != null && Geni.loader(applicationContext).existingTree(profile.id) == null
+                createTreeButton.visibility = if (canCreate) View.VISIBLE else View.GONE
             } catch (e: CancellationException) {
                 throw e
             } catch (e: GeniAuthRequiredException) {
@@ -112,7 +118,28 @@ class GeniLoginActivity : AppCompatActivity() {
         }
     }
 
+    private fun createTree() {
+        createTreeButton.isEnabled = false
+        progress.visibility = View.VISIBLE
+        lifecycleScope.launch {
+            try {
+                Geni.loader(applicationContext).createTree()
+                Toast.makeText(this@GeniLoginActivity, R.string.geni_tree_created, Toast.LENGTH_LONG).show()
+                finish()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: GeniAuthRequiredException) {
+                showLoggedOut(null)
+            } catch (e: Exception) {
+                progress.visibility = View.GONE
+                createTreeButton.isEnabled = true
+                status.text = e.localizedMessage ?: getString(R.string.geni_login_failed)
+            }
+        }
+    }
+
     private fun showLoggedOut(message: String?) {
+        createTreeButton.visibility = View.GONE
         progress.visibility = View.GONE
         status.text = message
         loginButton.visibility = View.VISIBLE

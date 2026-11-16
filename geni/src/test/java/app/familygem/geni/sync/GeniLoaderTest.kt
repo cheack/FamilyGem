@@ -106,5 +106,14 @@ class GeniLoaderTest {
         assertEquals("profile-36430", store.tree(treeId)?.rootGeniId)
         assertEquals("Test User", host.titles[treeId])
         assertEquals(8, host.trees.getValue(treeId).people.size)
+        assertEquals(store.link(treeId, "profile-36430")?.gedcomId, host.roots[treeId])
+    }
+
+    @Test
+    fun existingTreeOfAccountIsFound() = runTest {
+        val treeId = loader().createTree()
+        assertEquals(treeId, loader().existingTree("profile-36430"))
+        host.trees.remove(treeId) // Deleted in FamilyGem
+        assertEquals(null, loader().existingTree("profile-36430"))
     }
 }

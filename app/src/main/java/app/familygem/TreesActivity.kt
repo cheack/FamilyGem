@@ -285,7 +285,7 @@ class TreesActivity : AppCompatActivity() {
         bar = Toolbar(this)
         bar.title = getString(R.string.trees)
         bar.inflateMenu(R.menu.trees_menu)
-        app.familygem.geni.GeniHooks.addTreesMenu(this, bar.menu) // GENI-HOOK
+        app.familygem.geni.GeniGlue.addTreesMenu(this, bar.menu) // GENI-HOOK
         bar.menu.findItem(R.id.treesMenu_help).setOnMenuItemClickListener {
             startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/michelesalvador/FamilyGem/wiki".toUri()))
             return@setOnMenuItemClickListener false

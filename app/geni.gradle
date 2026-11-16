@@ -1,5 +1,12 @@
 // Geni fork additions to the app module, applied from app/build.gradle (GENI-HOOK).
 // Keep fork-specific build changes here instead of editing app/build.gradle.
+android {
+    sourceSets {
+        // Glue code that connects :geni with upstream classes (Global, Settings, TreeUtil)
+        main.kotlin.directories.add('src/geni/java')
+    }
+}
+
 dependencies {
     implementation project(':geni')
 }

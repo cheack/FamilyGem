@@ -62,6 +62,11 @@ class GeniLoader(
         val treeId = host.createTree(title ?: root.name ?: root.id, Gedcom())
         store.saveTree(GeniTreeInfo(treeId, root.id))
         load(treeId, root.id)
+        store.link(treeId, root.id)?.let { host.setRoot(treeId, it.gedcomId) }
         return treeId
     }
+
+    /** ID of a FamilyGem tree that still exists and is rooted at this Geni profile, if any. */
+    suspend fun existingTree(rootGeniId: String): Int? =
+        store.trees().firstOrNull { it.rootGeniId == rootGeniId && host.treeExists(it.treeId) }?.treeId
 }

@@ -6,4 +6,6 @@
     <string name="geni_logged_in_as">Logged in as %1$s</string>
     <string name="geni_not_configured">Geni app ID is not set in geni.properties</string>
     <string name="geni_login_failed">Login failed</string>
+    <string name="geni_create_tree">Create Geni tree</string>
+    <string name="geni_tree_created">Geni tree created</string>
 </resources>
