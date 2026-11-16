@@ -49,6 +49,9 @@ object AppTreeHost : TreeHost {
         Unit
     }
 
+    override fun schedulePrefetch(treeId: Int, startGeniId: String, depth: Int) =
+        GeniPrefetch.enqueue(Global.context, treeId, startGeniId, depth)
+
     override fun refreshScreens() {
         Global.edited = true
     }

@@ -3,6 +3,7 @@ package app.familygem.geni
 import android.app.Activity
 import android.view.Menu
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import app.familygem.Global
@@ -43,6 +44,24 @@ object GeniGlue {
                 }
                 else -> Unit // Offline or Geni error: the cached data stays
             }
+        }
+    }
+
+    /** Adds "Keep offline" to the menu of a person card of a Geni tree. */
+    fun addProfileMenu(activity: Activity, menu: Menu, person: Person?) {
+        install()
+        val geniId = person?.let { GeniMapper.getGeniId(it) } ?: return
+        val treeId = Global.settings.openTree
+        menu.add(R.string.geni_keep_offline).setOnMenuItemClickListener {
+            val depths = arrayOf("1", "2", "3", "4", "5")
+            AlertDialog.Builder(activity)
+                .setTitle(R.string.geni_keep_offline_depth)
+                .setSingleChoiceItems(depths, 2) { dialog, which ->
+                    AppTreeHost.schedulePrefetch(treeId, geniId, which + 1)
+                    Toast.makeText(activity, R.string.geni_keep_offline_started, Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
+                }.show()
+            true
         }
     }
 }

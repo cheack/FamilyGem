@@ -21,6 +21,9 @@ interface TreeHost {
     /** Sets the root person of the tree, the one the diagram starts from. */
     suspend fun setRoot(treeId: Int, personId: String)
 
+    /** Starts loading the relatives of a profile in background, up to [depth] relationship steps. */
+    fun schedulePrefetch(treeId: Int, startGeniId: String, depth: Int)
+
     /** Tells the open screens that the tree changed. */
     fun refreshScreens()
 }

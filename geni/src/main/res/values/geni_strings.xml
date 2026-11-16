@@ -9,4 +9,7 @@
     <string name="geni_create_tree">Create Geni tree</string>
     <string name="geni_tree_created">Geni tree created</string>
     <string name="geni_login_again">Log in to Geni again to load relatives</string>
+    <string name="geni_keep_offline">Keep offline</string>
+    <string name="geni_keep_offline_depth">Relationship steps to download</string>
+    <string name="geni_keep_offline_started">Downloading relatives in background</string>
 </resources>

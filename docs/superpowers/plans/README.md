@@ -40,9 +40,9 @@ Plan: [2026-11-16-geni-2-read-path.md](2026-11-16-geni-2-read-path.md)
 - [x] Create a Geni tree from the logged-in user's profile (entry in the trees list, root = own profile)
 - [x] Lazy load: opening a person fetches `immediate-family` and merges it into the cache (hook in person card or diagram)
 - [x] Edge people marked as not fully loaded; opening them triggers a fetch
-- [ ] Background prefetch within N steps of the root (N = 3, setting), WorkManager
-- [ ] "Keep offline" action: download a person's branch to a chosen depth
-- [ ] Measure size and time of a radius-3 prefetch and of saving a large cache JSON
+- [x] Background prefetch within N steps of the root (N = 3, setting), WorkManager
+- [x] "Keep offline" action: download a person's branch to a chosen depth
+- [x] Measure size and time of a radius-3 prefetch and of saving a large cache JSON
 
 ## 3. Write path
 

@@ -9,4 +9,7 @@
     <string name="geni_create_tree">Создать дерево Geni</string>
     <string name="geni_tree_created">Дерево Geni создано</string>
     <string name="geni_login_again">Войдите в Geni снова, чтобы загрузить родственников</string>
+    <string name="geni_keep_offline">Хранить офлайн</string>
+    <string name="geni_keep_offline_depth">Сколько шагов родства скачать</string>
+    <string name="geni_keep_offline_started">Родственники загружаются в фоне</string>
 </resources>

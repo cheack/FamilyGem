@@ -60,9 +60,11 @@ class GeniLoader(
     suspend fun createTree(title: String? = null): Int {
         val root = client.currentProfile()
         val treeId = host.createTree(title ?: root.name ?: root.id, Gedcom())
-        store.saveTree(GeniTreeInfo(treeId, root.id))
+        val info = GeniTreeInfo(treeId, root.id)
+        store.saveTree(info)
         load(treeId, root.id)
         store.link(treeId, root.id)?.let { host.setRoot(treeId, it.gedcomId) }
+        host.schedulePrefetch(treeId, root.id, info.prefetchDepth)
         return treeId
     }
 

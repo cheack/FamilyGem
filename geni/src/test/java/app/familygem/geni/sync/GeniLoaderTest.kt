@@ -107,6 +107,7 @@ class GeniLoaderTest {
         assertEquals("Test User", host.titles[treeId])
         assertEquals(8, host.trees.getValue(treeId).people.size)
         assertEquals(store.link(treeId, "profile-36430")?.gedcomId, host.roots[treeId])
+        assertEquals(listOf(Triple(treeId, "profile-36430", 3)), host.prefetches)
     }
 
     @Test

@@ -491,6 +491,7 @@ class ProfileActivity : AppCompatActivity() {
             menu.add(0, 3, 0, R.string.make_root)
         menu.add(0, 4, 0, R.string.modify)
         menu.add(0, 5, 0, R.string.delete)
+        app.familygem.geni.GeniGlue.addProfileMenu(this, menu, person) // GENI-HOOK
         return true
     }
 

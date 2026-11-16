@@ -148,6 +148,9 @@ Found on the sandbox (2026-11-16):
 - The desktop flow on the sandbox fails with "redirect must be provided".
 - `client_id` = app ID works; the app secret is not needed.
 
+- Prefetch, radius 3 on the sandbox test tree: 7 loads (21 requests) in 13.3 s at the sandbox limit of 3 requests per second; the tree had 12 people and 5 families in 10.8 KB of JSON (about 0.9 KB per person, so about 1 MB per 1000 people). Approach A still looks fine; saving time on large trees is to watch.
+- WorkManager cannot run Geni background work: upstream `Notifier` calls `WorkManager.cancelAllWork()` on every tree save. Prefetch runs in an in-process coroutine scope instead, so it does not survive process death; it restarts from the next tree creation or "Keep offline".
+
 Still open:
 
 - Which OAuth flow Geni allows for a mobile app and how token refresh works.

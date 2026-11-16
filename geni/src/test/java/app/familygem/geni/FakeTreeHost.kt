@@ -8,6 +8,7 @@ class FakeTreeHost : TreeHost {
     val titles = mutableMapOf<Int, String>()
     val roots = mutableMapOf<Int, String>()
     var refreshes = 0
+    val prefetches = mutableListOf<Triple<Int, String, Int>>()
 
     override suspend fun createTree(title: String, gedcom: Gedcom): Int {
         val id = (trees.keys.maxOrNull() ?: 0) + 1
@@ -22,6 +23,10 @@ class FakeTreeHost : TreeHost {
 
     override suspend fun setRoot(treeId: Int, personId: String) {
         roots[treeId] = personId
+    }
+
+    override fun schedulePrefetch(treeId: Int, startGeniId: String, depth: Int) {
+        prefetches += Triple(treeId, startGeniId, depth)
     }
 
     override fun refreshScreens() {

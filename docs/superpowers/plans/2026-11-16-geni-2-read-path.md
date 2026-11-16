@@ -168,16 +168,16 @@ Login screen: when logged in, button `geni_create_tree` ("Create Geni tree" / "�
 **Interfaces:**
 - Produces:
   - `class Prefetcher(loader: suspend (String) -> LoadResult, relatives: suspend (String) -> List<String>, isFresh: suspend (String) -> Boolean) { suspend fun run(startGeniId: String, depth: Int): Int }` — breadth-first over relationship steps (parents, partners, children, siblings count as one step), loads each person at most once, skips fresh ones, stops on `NeedsLogin`, returns the number of loads.
-  - `PrefetchWorker` (CoroutineWorker, unique work `geni-prefetch-<treeId>`, network constraint): input `treeId`, `startGeniId`, `depth`. Enqueued after tree creation (root, `prefetchDepth`) and by "Keep offline".
+  - `GeniPrefetch` in the app glue (in-process coroutine scope, one queue per tree; WorkManager is not usable because upstream `Notifier` calls `WorkManager.cancelAllWork()` on every tree save): `treeId`, `startGeniId`, `depth`. Enqueued after tree creation (root, `prefetchDepth`) and by "Keep offline".
   - Profile menu item `geni_keep_offline` ("Keep offline" / "Хранить офлайн") for Geni trees: a dialog with depth 1–5 (default 3), then the worker from that person.
 
-- [ ] **Step 1: Failing tests** (fake graph): `visitsWithinDepthOnly` (depth 1 from root → root + direct relatives), `eachPersonOnce` (cycle through spouse/children), `skipsFreshPeople`, `stopsOnNeedsLogin`.
-- [ ] **Step 2: Run, expect failure**; **Step 3: implement**; **Step 4: run, expect pass** — `$GRADLE :geni:testDebugUnitTest`
-- [ ] **Step 5: Manual on the phone** — after creating the tree, the worker loads radius 3 (grand-parents' level, if any); "Keep offline" on the father with depth 2 runs and finishes.
-- [ ] **Step 6: Commit** — `git commit -m "Prefetch Geni relatives in background"`
+- [x] **Step 1: Failing tests** (fake graph): `visitsWithinDepthOnly` (depth 1 from root → root + direct relatives), `eachPersonOnce` (cycle through spouse/children), `skipsFreshPeople`, `stopsOnNeedsLogin`.
+- [x] **Step 2: Run, expect failure**; **Step 3: implement**; **Step 4: run, expect pass** — `$GRADLE :geni:testDebugUnitTest`
+- [x] **Step 5: Manual on the phone** — after creating the tree, the worker loads radius 3 (grand-parents' level, if any); "Keep offline" on the father with depth 2 runs and finishes.
+- [x] **Step 6: Commit** — `git commit -m "Prefetch Geni relatives in background"`
 
 ### Task 7: Measure
 
-- [ ] **Step 1:** On the sandbox tree, time a full radius-3 prefetch (log start/end in the worker at debug level) and the size of `<treeId>.json`; time `TreeUtil.saveJson` for the tree.
-- [ ] **Step 2:** Record numbers in the spec section "To verify on the sandbox", with the sandbox rate limit (3 per 1 s) noted; say whether approach A still looks fine.
-- [ ] **Step 3: Commit** — `git commit -m "Record Geni prefetch measurements"`
+- [x] **Step 1:** On the sandbox tree, time a full radius-3 prefetch (log start/end in the worker at debug level) and the size of `<treeId>.json`; time `TreeUtil.saveJson` for the tree.
+- [x] **Step 2:** Record numbers in the spec section "To verify on the sandbox", with the sandbox rate limit (3 per 1 s) noted; say whether approach A still looks fine.
+- [x] **Step 3: Commit** — `git commit -m "Record Geni prefetch measurements"`
