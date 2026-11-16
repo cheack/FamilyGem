@@ -130,7 +130,7 @@ git commit -m "Add Geni config and rate limiter"
 
 Parse with `okhttp3.HttpUrl` (works in JVM unit tests; `android.net.Uri` does not). For a custom scheme, read the fragment or query manually as `&`-separated, URL-decoded pairs.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```kotlin
 private val config = GeniConfig(appId = "123", host = "sandbox.geni.com", redirectUri = "geni123://authorize")
@@ -157,21 +157,21 @@ private val config = GeniConfig(appId = "123", host = "sandbox.geni.com", redire
     assertEquals(AuthResult.Invalid, OAuth.parseRedirect("geni123://authorize", nowMillis = 0L))
 ```
 
-- [ ] **Step 2: Run tests, expect failure**
+- [x] **Step 2: Run tests, expect failure**
 
 Run: `$GRADLE :geni:testDebugUnitTest --tests '*OAuthTest'`
 Expected: FAIL, unresolved `OAuth`.
 
-- [ ] **Step 3: Implement `OAuth`**
+- [x] **Step 3: Implement `OAuth`**
 
 When `expires_in` is missing, use 86400 s.
 
-- [ ] **Step 4: Run tests, expect pass**
+- [x] **Step 4: Run tests, expect pass**
 
 Run: `$GRADLE :geni:testDebugUnitTest --tests '*OAuthTest'`
 Expected: PASS, 5 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add geni/
