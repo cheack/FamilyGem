@@ -318,7 +318,7 @@ class UploaderTest {
     }
 
     @Test
-    fun updateSnapshotFetchFailureKeepsSentHash() = runTest {
+    fun updateSnapshotFetchFailureKeepsSentFields() = runTest {
         tree()
         store.saveLinks(listOf(link("profile-36430", "I1")))
         server.enqueue(ok("""{"id":"profile-36430"}""")) // Check
@@ -327,8 +327,7 @@ class UploaderTest {
         // Geni took the change: done. The old snapshot would make it look like someone else's change later
         assertEquals(Outcome.Done, uploader().run(stored(updateProfile)))
         val link = store.link(1, "profile-36430")!!
-        assertEquals(null, link.snapshot)
-        assertEquals(updateProfile.localHash, link.verifiedHash)
+        assertEquals("Driver", app.familygem.geni.map.ProfileFields.ofSnapshot(link.snapshot!!)!!.occupation)
     }
 
     @Test
@@ -377,15 +376,16 @@ class UploaderTest {
     }
 
     @Test
-    fun addStoresSentHashOnLink() = runTest {
+    fun addStoresSentFieldsAsSnapshot() = runTest {
         tree()
         store.saveLinks(listOf(link("union-10106", "F1")))
         server.enqueue(ok("""{"id":"profile-50","unions":["union-10106"]}"""))
         server.enqueue(error(503))
         assertEquals(Outcome.Done, uploader().run(job(JobKind.ADD_CHILD, "add:I3", person = "I3", family = "F1", anchors = listOf("partner:I1"))))
         val saved = store.link(1, "profile-50")!!
-        assertNull(saved.snapshot)
-        assertEquals(1, saved.verifiedHash) // The job's localHash: what Geni has now, until a snapshot replaces it
+        // Geni's full version could not be fetched: what was sent is Geni's version for later comparisons
+        assertEquals(app.familygem.geni.map.ProfileFields.EMPTY.copy(given = "New"), app.familygem.geni.map.ProfileFields.ofSnapshot(saved.snapshot!!))
+        assertNull(saved.verifiedHash)
     }
 
     @Test
@@ -477,5 +477,17 @@ class UploaderTest {
         assertEquals("1960", person.eventsFacts.single { it.tag == "BIRT" }.date)
         assertEquals("Driver", person.eventsFacts.single { it.tag == "OCCU" }.value)
         assertEquals("1960", reported!!.people.single { it.gedcomId == "I1" }.fields.birth?.date)
+    }
+
+    @Test
+    fun conflictAgainstAnOutdatedBaseRetries() = runTest {
+        val gedcom = treeWithOccupation("Engineer")
+        gedcom.people.single { it.id == "I1" }.addEventFact(org.folg.gedcom.model.EventFact().apply { tag = "BIRT"; date = "1961" })
+        store.saveLinks(listOf(link("profile-36430", "I1", snapshot = engineer)))
+        val geni = """{"id":"profile-36430","occupation":"Engineer","birth":{"date":{"year":1960}}}"""
+        server.enqueue(ok(geni))
+        // A load stores Geni's version while the uploader compares against the snapshot it read before
+        editHook = { kotlinx.coroutines.runBlocking { store.saveLinks(listOf(store.link(1, "profile-36430")!!.copy(snapshot = geni))) } }
+        assertTrue(uploader().run(stored(driverJob)) is Outcome.Retry)
     }
 }

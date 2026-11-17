@@ -41,8 +41,6 @@ interface SyncStore {
      * but only if the snapshot is still [expected]; true if it was.
      */
     suspend fun updateSnapshot(treeId: Int, geniId: String, expected: String?, snapshot: String, geniUpdatedAt: String?): Boolean
-    /** Drops the snapshot and keeps the hash of what was sent, only if the snapshot is still [expected]; true if it was. */
-    suspend fun forgetSnapshot(treeId: Int, geniId: String, expected: String?, hash: Int): Boolean
     suspend fun setOrphaned(treeId: Int, geniId: String, orphaned: Boolean)
     /** Deletes the tree with its links and jobs. */
     suspend fun deleteTree(treeId: Int)

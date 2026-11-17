@@ -34,6 +34,8 @@ class SyncQueue(
     private val lastLocal = mutableMapOf<Int, LocalTree>()
     /** Key of the job being uploaded in each tree. */
     private val running = mutableMapOf<Int, String>()
+    /** Stamp of the last tree each plan started from: a tree accepted later must still be planned. */
+    private val planned = mutableMapOf<Int, Long>()
 
     private fun lock(treeId: Int) = synchronized(locks) { locks.getOrPut(treeId) { Mutex() } }
 
@@ -56,6 +58,7 @@ class SyncQueue(
 
     /** Called with the tree lock held. */
     private suspend fun plan(treeId: Int, local: LocalTree) {
+        synchronized(planned) { planned[treeId] = local.stamp }
         val existing = store.jobs(treeId).associateBy { it.key }
         val plan = UploadPlanner.plan(treeId, local, store.links(treeId), existing.values.toList())
         for (wanted in plan.upserts) {
@@ -141,6 +144,10 @@ class SyncQueue(
                     is Outcome.Retry, Outcome.NeedsLogin ->
                         if (current?.state == JobState.SENDING) store.saveJob(current.copy(state = JobState.PENDING)) // Not sent
                 }
+                // A tree the uploader reported, newer than any plan (its save may not be planned yet), whatever the outcome
+                synchronized(lastLocal) { lastLocal[treeId] }
+                    ?.takeIf { it.stamp > synchronized(planned) { planned[treeId] ?: Long.MIN_VALUE } }
+                    ?.let { plan(treeId, it) }
             }
             when (outcome) {
                 is Outcome.Retry -> return RunResult.RETRY_LATER

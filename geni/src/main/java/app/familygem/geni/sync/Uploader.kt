@@ -9,6 +9,7 @@ import app.familygem.geni.api.GeniProfile
 import app.familygem.geni.api.GeniUnion
 import app.familygem.geni.map.GeniMapper
 import app.familygem.geni.map.ProfileFields
+import app.familygem.geni.map.SnapshotOverlay
 import app.familygem.geni.map.UnionFields
 import app.familygem.geni.map.threeWay
 import com.google.gson.Gson
@@ -84,7 +85,7 @@ open class Uploader(
         val before = store.link(job.treeId, geniId)?.snapshot
         client.post("$geniId/update", job.params)
         // Geni took the change. Without its new version, the old snapshot would make this change look like someone else's:
-        // the link keeps the hash of what was sent instead, like after an add
+        // the snapshot becomes the old one with the sent fields written over it
         return try {
             refreshSnapshot(job.treeId, geniId)
             Outcome.Done
@@ -93,7 +94,8 @@ open class Uploader(
         } catch (e: SnapshotConflict) {
             Outcome.Retry(e.message!!) // Loads keep storing other versions: send again later, that is safe
         } catch (e: Exception) {
-            store.forgetSnapshot(job.treeId, geniId, before, job.localHash)
+            val link = store.link(job.treeId, geniId)
+            if (before != null) store.updateSnapshot(job.treeId, geniId, before, SnapshotOverlay.apply(before, job.params, geniId), link?.geniUpdatedAt)
             Outcome.Done
         }
     }
@@ -153,8 +155,8 @@ open class Uploader(
         val linkFamily = familyLink == null && unionId != null && familyId != null
 
         // Links first: once stored, this person can never be added again; the tags in the tree follow
-        // The hash of what was sent stands for Geni's version until a snapshot comes: an edit made meanwhile goes as an update
-        val links = mutableListOf(GeniLink(treeId, profileId, personId, false, null, null, 0, verifiedHash = job.localHash))
+        // What was sent stands for Geni's version until the full one is fetched: an edit made meanwhile goes as an update
+        val links = mutableListOf(GeniLink(treeId, profileId, personId, false, null, SnapshotOverlay.apply(null, job.params, profileId), 0))
         if (linkFamily) links += GeniLink(treeId, unionId!!, familyId!!, true, null, null, now())
         try {
             store.saveLinks(links)
@@ -215,7 +217,11 @@ open class Uploader(
             if (conflicts.isEmpty()) onTreeEdited(treeId, LocalTree.capture(gedcom))
             conflicts
         } ?: return Outcome.Failed("the record is no longer in the tree")
-        if (conflicts.isNotEmpty()) return Outcome.Conflict(conflicts)
+        if (conflicts.isNotEmpty()) {
+            // A load may have stored a newer base during the check: compare again against it
+            if (store.link(treeId, geniId)?.snapshot != snapshot) return Outcome.Retry("the snapshot changed during the check")
+            return Outcome.Conflict(conflicts)
+        }
         host.refreshScreens()
         // Geni's version is now merged: it is the new base. A load that stored another one meanwhile makes this run again
         if (!store.updateSnapshot(treeId, geniId, snapshot, raw, updatedAt)) return Outcome.Retry("the snapshot changed during the check")

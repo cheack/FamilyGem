@@ -89,6 +89,10 @@ Plan: [2026-11-17-geni-3-write-path.md](2026-11-17-geni-3-write-path.md)
 - [ ] No check with a 4xx from Geni on the phone (the sandbox tree has no profile the user cannot edit); covered by unit tests only
 - [ ] The network watch resumes uploads as soon as Android reports a network; DNS may not be ready yet, so the first try can still back off
 
+### Deferred from the review of stage 4 PR 1
+
+- [ ] Links without a snapshot made by builds before stage 4 (only a hash of what was sent) keep the fill-empty-fields rule on loads: a field cleared locally after such an add comes back from Geni. New builds store what was sent as the snapshot instead
+
 Moved out of stage 3: photo upload goes with "Show Geni profile photos" (stage 2); delete profile goes with the delete rules (stage 5).
 
 ## 4. Refresh and conflicts

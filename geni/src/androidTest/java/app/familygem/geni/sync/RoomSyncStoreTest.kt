@@ -151,10 +151,6 @@ class RoomSyncStoreTest {
         assertEquals("77", updated.geniUpdatedAt)
         assertNull(updated.verifiedHash)
         assertEquals(9L, updated.loadedAtMillis)
-        assertFalse(store.forgetSnapshot(1, "profile-1", "old", 8))
-        assertTrue(store.forgetSnapshot(1, "profile-1", """{"id":"profile-1"}""", 8))
-        assertNull(store.link(1, "profile-1")!!.snapshot)
-        assertEquals(8, store.link(1, "profile-1")!!.verifiedHash)
         store.setOrphaned(1, "profile-1", true)
         assertTrue(store.link(1, "profile-1")!!.orphaned)
     }

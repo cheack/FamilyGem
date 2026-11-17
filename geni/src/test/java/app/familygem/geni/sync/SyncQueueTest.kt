@@ -475,4 +475,18 @@ class SyncQueueTest {
         assertEquals(RunResult.EMPTY, queue.runPending(1))
         assertEquals(listOf("occupation" to "Pilot"), uploader.ran.last().params)
     }
+
+    @Test
+    fun treeReportedByAFailedUploadIsPlanned() = runTest {
+        linkBoth()
+        queue.onSaved(1, tree(driver).copy(stamp = 1))
+        uploader.answer = {
+            // The uploader's tree already holds Anna's edit, saved but not planned yet
+            queue.setLocal(1, tree(driver, anna.copy(occupation = "Nurse")).copy(stamp = 5))
+            uploader.answer = { Outcome.Retry("offline") }
+            Outcome.Failed("Access Denied")
+        }
+        queue.runPending(1)
+        assertTrue(store.jobs(1).any { it.key == "profile:profile-2" })
+    }
 }
