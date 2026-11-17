@@ -69,11 +69,14 @@ class ConflictResolver(
     private fun apply(gedcom: Gedcom, link: GeniLink, snapshot: String, raw: String, keepMine: Set<String>) {
         if (link.geniId.startsWith("profile-")) {
             val person = gedcom.people.orEmpty().firstOrNull { it.id == link.gedcomId } ?: error("the person is no longer in the tree")
-            val keep = ProfileGroup.values().filter { it.name in keepMine }.toSet()
+            // Local edits outside the conflict stay too, also when Geni only reformatted the same field
+            val result = threeWay(ProfileFields.ofSnapshot(snapshot)!!, ProfileFields.of(person), ProfileFields.ofSnapshot(raw)!!)
+            val keep = (result.local - result.conflicts) + ProfileGroup.values().filter { it.name in keepMine }
             GeniMapper.applyProfile(gedcom, person, gson.fromJson(raw, GeniProfile::class.java), gson.fromJson(snapshot, GeniProfile::class.java), keep)
         } else {
             val family = gedcom.families.orEmpty().firstOrNull { it.id == link.gedcomId } ?: error("the family is no longer in the tree")
-            val keep = UnionGroup.values().filter { it.name in keepMine }.toSet()
+            val result = threeWay(UnionFields.ofSnapshot(snapshot)!!, UnionFields.of(family), UnionFields.ofSnapshot(raw)!!)
+            val keep = (result.local - result.conflicts) + UnionGroup.values().filter { it.name in keepMine }
             GeniMapper.applyUnion(gedcom, family, gson.fromJson(raw, GeniUnion::class.java), gson.fromJson(snapshot, GeniUnion::class.java), keep) { null }
         }
         queue.setLocal(link.treeId, LocalTree.capture(gedcom))

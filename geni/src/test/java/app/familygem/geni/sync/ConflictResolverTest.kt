@@ -95,4 +95,14 @@ class ConflictResolverTest {
         server.enqueue(ok(geni.replace("\"Ivan\"", "\"Ivan\",\"last_name\":\"Sidorov\"")))
         assertEquals(FieldConflict("NAMES", "Vanya Petrov", "Ivan Sidorov"), resolver.details(job).first())
     }
+
+    @Test
+    fun takingGeniKeepsOtherLocalEdits() = runTest {
+        val (resolver, job) = setUpConflict()
+        GeniMapper.setTag(person, GeniMapper.ABOUT_TAG, "Local") // Edited only here; Geni's text below differs only in form
+        server.enqueue(ok(geni.replace("}", ""","about_me":""}""")))
+        resolver.resolve(job, keepMine = emptySet())
+        assertEquals("Local", GeniMapper.getTag(person, GeniMapper.ABOUT_TAG))
+        assertEquals("Pilot", person.eventsFacts.single { it.tag == "OCCU" }.value)
+    }
 }
