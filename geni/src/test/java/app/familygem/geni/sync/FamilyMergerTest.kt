@@ -91,4 +91,25 @@ class FamilyMergerTest {
         assertTrue(again.getValue("profile-36431").gedcomId != fatherId)
         assertEquals(9, gedcom.people.size)
     }
+
+    @Test
+    fun mergeKeepsVerifiedHash() {
+        val gedcom = Gedcom()
+        val first = merge(gedcom, "immediate-family-root.json").map { it.copy(verifiedHash = 42) }.associateBy { it.geniId }
+        val second = merge(gedcom, "immediate-family-root.json", first)
+        assertEquals(setOf<Int?>(42), second.map { it.verifiedHash }.toSet())
+        assertEquals(setOf<Int?>(null), merge(Gedcom(), "immediate-family-root.json").map { it.verifiedHash }.toSet())
+    }
+
+    @Test
+    fun mergeClearsVerifiedHashWhenSnapshotChanges() {
+        val gedcom = Gedcom()
+        val first = merge(gedcom, "immediate-family-root.json")
+            .map { it.copy(verifiedHash = 42, snapshot = if (it.geniId in setOf("profile-36431", "union-10105")) "{}" else it.snapshot) }
+            .associateBy { it.geniId }
+        val second = merge(gedcom, "immediate-family-root.json", first).associateBy { it.geniId }
+        assertEquals(null, second.getValue("profile-36431").verifiedHash)
+        assertEquals(null, second.getValue("union-10105").verifiedHash)
+        assertEquals(42, second.getValue("profile-36430").verifiedHash)
+    }
 }

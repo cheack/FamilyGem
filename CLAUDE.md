@@ -2,7 +2,7 @@
 
 ## Project
 
-Fork of [michelesalvador/FamilyGem](https://github.com/michelesalvador/FamilyGem) (remote `upstream`) at `cheack/FamilyGem` (remote `origin`).
+Fork of [michelesalvador/FamilyGem](https://github.com/michelesalvador/FamilyGem) (remote `upstream`) at `cheack/Treekin` (remote `origin`; app name "Treekin", application ID `net.cheack.treekin`).
 Goal: a full genealogy Android app with two-way sync to [Geni.com](https://www.geni.com) through the Geni API, built on top of FamilyGem.
 FamilyGem already provides the GEDCOM data model, tree diagram, editors, import/export and translations; the new work is the Geni layer.
 
@@ -41,3 +41,8 @@ FamilyGem already provides the GEDCOM data model, tree diagram, editors, import/
 
 GPL-3.0 (inherited from FamilyGem). Distributed builds must ship full source under GPL-3.0, keep the original copyright and mark changes.
 Do not add closed-source or proprietary components.
+
+## Progress tracking
+
+- Roadmap and plans: `docs/superpowers/plans/README.md` and one plan per stage. Tick `- [x]` items as work is committed.
+- When a PR is merged or a stage is finished, add one dated line at the top of the roadmap's "Progress log": what now works for the user, and the PR link.

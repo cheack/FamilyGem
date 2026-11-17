@@ -4,6 +4,7 @@ import app.familygem.geni.auth.TokenStore
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.FormBody
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -63,12 +64,21 @@ class GeniClient(
     }
 
     /** Raw JSON response of a GET request to an API path relative to the base, like "profile-1/immediate-family". */
-    suspend fun getJson(path: String): String {
+    suspend fun getJson(path: String): String = execute(Request.Builder().url(baseUrl.resolve(path)!!))
+
+    /**
+     * Raw JSON response of a form POST to an API path relative to the base, like "profile-1/update".
+     * Repeated keys are allowed; an empty value clears the field on Geni.
+     */
+    suspend fun post(path: String, params: List<Pair<String, String>>): String {
+        val form = FormBody.Builder().apply { params.forEach { (key, value) -> add(key, value) } }.build()
+        return execute(Request.Builder().url(baseUrl.resolve(path)!!).post(form))
+    }
+
+    /** Sends the request with the token; 401 clears the token, 429 is retried once after the rate window. */
+    private suspend fun execute(builder: Request.Builder): String {
         val token = tokens.get()?.takeIf { it.expiresAtMillis > now() } ?: throw GeniAuthRequiredException()
-        val request = Request.Builder()
-            .url(baseUrl.resolve(path)!!)
-            .header("Authorization", "Bearer ${token.token}")
-            .build()
+        val request = builder.header("Authorization", "Bearer ${token.token}").build()
         var retried = false
         while (true) {
             limiter.acquire()

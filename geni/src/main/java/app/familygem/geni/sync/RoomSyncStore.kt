@@ -4,10 +4,17 @@ import android.content.Context
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
+import androidx.room.Index
+import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
+import androidx.room.migration.Migration
+import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.execSQL
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 
 @Entity(tableName = "tree", primaryKeys = ["treeId"])
 data class GeniTreeEntity(val treeId: Int, val rootGeniId: String, val prefetchDepth: Int)
@@ -20,7 +27,27 @@ data class GeniLinkEntity(
     val fullyLoaded: Boolean,
     val geniUpdatedAt: String?,
     val snapshot: String?,
-    val loadedAtMillis: Long
+    val loadedAtMillis: Long,
+    val verifiedHash: Int?
+)
+
+/** Upload job; anchors and params are JSON. */
+@Entity(tableName = "job", indices = [Index(value = ["treeId", "key"], unique = true)])
+data class UploadJobEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long,
+    val treeId: Int,
+    val key: String,
+    val kind: String,
+    val geniId: String?,
+    val personGedcomId: String?,
+    val familyGedcomId: String?,
+    val anchors: String,
+    val params: String,
+    val label: String,
+    val localHash: Int,
+    val state: String,
+    val error: String?,
+    val version: Int
 )
 
 @Dao
@@ -51,18 +78,56 @@ interface SyncDao {
 
     @Query("DELETE FROM tree WHERE treeId = :treeId")
     suspend fun deleteTreeRow(treeId: Int)
+
+    @Query("SELECT * FROM link WHERE treeId = :treeId AND gedcomId = :gedcomId LIMIT 1")
+    suspend fun linkByGedcomId(treeId: Int, gedcomId: String): GeniLinkEntity?
+
+    @Query("SELECT * FROM job WHERE treeId = :treeId ORDER BY id")
+    suspend fun jobs(treeId: Int): List<UploadJobEntity>
+
+    @Query("SELECT * FROM job ORDER BY id")
+    suspend fun allJobs(): List<UploadJobEntity>
+
+    @Upsert
+    suspend fun saveJob(job: UploadJobEntity): Long
+
+    @Query("DELETE FROM job WHERE id = :id")
+    suspend fun deleteJob(id: Long)
+
+    @Query("DELETE FROM job WHERE id = :id AND version = :version")
+    suspend fun deleteJobIfVersion(id: Long, version: Int): Int
+
+    @Query("DELETE FROM job WHERE treeId = :treeId")
+    suspend fun deleteJobs(treeId: Int)
 }
 
-@Database(entities = [GeniTreeEntity::class, GeniLinkEntity::class], version = 1, exportSchema = false)
+@Database(entities = [GeniTreeEntity::class, GeniLinkEntity::class, UploadJobEntity::class], version = 2, exportSchema = false)
 abstract class SyncDatabase : RoomDatabase() {
     abstract fun dao(): SyncDao
+
+    companion object {
+        /** Version 2: upload jobs and the verified hash of links. Existing links keep their snapshots. */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL("ALTER TABLE `link` ADD COLUMN `verifiedHash` INTEGER")
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `job` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `treeId` INTEGER NOT NULL, " +
+                            "`key` TEXT NOT NULL, `kind` TEXT NOT NULL, `geniId` TEXT, `personGedcomId` TEXT, `familyGedcomId` TEXT, " +
+                            "`anchors` TEXT NOT NULL, `params` TEXT NOT NULL, `label` TEXT NOT NULL, `localHash` INTEGER NOT NULL, " +
+                            "`state` TEXT NOT NULL, `error` TEXT, `version` INTEGER NOT NULL)"
+                )
+                connection.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_job_treeId_key` ON `job` (`treeId`, `key`)")
+            }
+        }
+    }
 }
 
 /** Sync store in the Room database geni_sync.db. */
 class RoomSyncStore(private val dao: SyncDao) : SyncStore {
 
     constructor(context: Context) : this(
-        Room.databaseBuilder(context.applicationContext, SyncDatabase::class.java, "geni_sync.db").build().dao()
+        Room.databaseBuilder(context.applicationContext, SyncDatabase::class.java, "geni_sync.db")
+            .addMigrations(SyncDatabase.MIGRATION_1_2).build().dao()
     )
 
     override suspend fun tree(treeId: Int) = dao.tree(treeId)?.let { GeniTreeInfo(it.treeId, it.rootGeniId, it.prefetchDepth) }
@@ -78,13 +143,49 @@ class RoomSyncStore(private val dao: SyncDao) : SyncStore {
     override suspend fun unionLinks(treeId: Int) = dao.unionLinks(treeId).map { it.toLink() }
 
     override suspend fun saveLinks(links: List<GeniLink>) = dao.saveLinks(links.map {
-        GeniLinkEntity(it.treeId, it.geniId, it.gedcomId, it.fullyLoaded, it.geniUpdatedAt, it.snapshot, it.loadedAtMillis)
+        GeniLinkEntity(it.treeId, it.geniId, it.gedcomId, it.fullyLoaded, it.geniUpdatedAt, it.snapshot, it.loadedAtMillis, it.verifiedHash)
     })
 
+    override suspend fun linkByGedcomId(treeId: Int, gedcomId: String) = dao.linkByGedcomId(treeId, gedcomId)?.toLink()
+
     override suspend fun deleteTree(treeId: Int) {
+        dao.deleteJobs(treeId)
         dao.deleteLinks(treeId)
         dao.deleteTreeRow(treeId)
     }
 
-    private fun GeniLinkEntity.toLink() = GeniLink(treeId, geniId, gedcomId, fullyLoaded, geniUpdatedAt, snapshot, loadedAtMillis)
+    override suspend fun jobs(treeId: Int) = dao.jobs(treeId).map { it.toJob() }
+
+    override suspend fun allJobs() = dao.allJobs().map { it.toJob() }
+
+    override suspend fun saveJob(job: UploadJob): Long {
+        val rowId = dao.saveJob(job.toEntity())
+        if (job.id != 0L) return job.id // Upsert returns -1 when it updates
+        // A new job whose key is taken: the upsert fell back to updating ID 0 and stored nothing
+        check(rowId > 0) { "Job ${job.key} of tree ${job.treeId} already exists" }
+        return rowId
+    }
+
+    override suspend fun deleteJob(id: Long) = dao.deleteJob(id)
+
+    override suspend fun deleteJobIfVersion(id: Long, version: Int) = dao.deleteJobIfVersion(id, version) > 0
+
+    private fun GeniLinkEntity.toLink() = GeniLink(treeId, geniId, gedcomId, fullyLoaded, geniUpdatedAt, snapshot, loadedAtMillis, verifiedHash)
+
+    private val gson = Gson()
+    private val anchorsType = object : TypeToken<List<String>>() {}.type
+    private val paramsType = object : TypeToken<List<List<String>>>() {}.type
+
+    private fun UploadJob.toEntity() = UploadJobEntity(
+        id, treeId, key, kind.name, geniId, personGedcomId, familyGedcomId,
+        gson.toJson(anchors), gson.toJson(params.map { listOf(it.first, it.second) }),
+        label, localHash, state.name, error, version
+    )
+
+    private fun UploadJobEntity.toJob() = UploadJob(
+        id, treeId, key, JobKind.valueOf(kind), geniId, personGedcomId, familyGedcomId,
+        gson.fromJson<List<String>>(anchors, anchorsType),
+        gson.fromJson<List<List<String>>>(params, paramsType).map { it[0] to it[1] },
+        label, localHash, JobState.valueOf(state), error, version
+    )
 }
