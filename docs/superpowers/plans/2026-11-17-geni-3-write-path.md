@@ -56,11 +56,11 @@ Geni facts this plan relies on (sandbox, 2026-11-17, all with form-encoded `POST
 **Interfaces:**
 - Produces: `suspend fun GeniClient.post(path: String, params: List<Pair<String, String>>): String` (raw JSON body). Same token, 401, 429 and rate-limit handling as `getJson`; both go through one private `execute(request: Request): String`.
 
-- [ ] **Step 1: Write the failing tests** — `postSendsFormWithBearerToken` (MockWebServer records method `POST`, header `Authorization: Bearer t`, body `first_name=Ivan&birth%5Bdate%5D%5Byear%5D=1960`, path `/api/profile-1/update`), `postReturnsBody`, `post401ClearsToken` (throws `GeniAuthRequiredException`, token store empty), `post429RetriesOnce`, `post400ThrowsApiException` (code 400, message is the body).
-- [ ] **Step 2: Run** `$GRADLE :geni:testDebugUnitTest --tests '*GeniClientTest*'` — new tests FAIL (no `post`).
-- [ ] **Step 3: Implement** `post` with `okhttp3.FormBody`; move the loop of `getJson` into `execute`.
-- [ ] **Step 4: Run** the same command — all `GeniClientTest` tests PASS.
-- [ ] **Step 5: Commit** `Add POST requests to the Geni client`.
+- [x] **Step 1: Write the failing tests** — `postSendsFormWithBearerToken` (MockWebServer records method `POST`, header `Authorization: Bearer t`, body `first_name=Ivan&birth%5Bdate%5D%5Byear%5D=1960`, path `/api/profile-1/update`), `postReturnsBody`, `post401ClearsToken` (throws `GeniAuthRequiredException`, token store empty), `post429RetriesOnce`, `post400ThrowsApiException` (code 400, message is the body).
+- [x] **Step 2: Run** `$GRADLE :geni:testDebugUnitTest --tests '*GeniClientTest*'` — new tests FAIL (no `post`).
+- [x] **Step 3: Implement** `post` with `okhttp3.FormBody`; move the loop of `getJson` into `execute`.
+- [x] **Step 4: Run** the same command — all `GeniClientTest` tests PASS.
+- [x] **Step 5: Commit** `Add POST requests to the Geni client`.
 
 ### Task 2: Projections of people and families (`LocalTree`)
 
@@ -86,11 +86,11 @@ Rules (they mirror `GeniMapper`, which writes the same fields):
 - `ofSnapshot(json)`: parse `GeniProfile` (or `GeniUnion`), apply it with `GeniMapper.applyProfile`/`applyUnion` (previous = null) to a new `Person`/`Family` in a scratch `Gedcom`, then `of(...)`. Returns null on bad JSON.
 - `LocalPerson.label`: display name (`given surname`), else the GEDCOM ID. `LocalFamily.partners`: husband refs then wife refs.
 
-- [ ] **Step 1: Write the failing tests** — `parsesDates` (`"12 MAR 1960"` → 12/3/1960, `"jun 2012"` → –/6/2012, `"ABT 1960"` circa, `"BEF 1900"` → null, `"5 1990"` → null), `personFieldsMatchMapper` (a `GeniProfile` fixture from `geni/src/test/resources/geni/` applied with `GeniMapper` then `of()` gives the same `ProfileFields` as `ofSnapshot()` of its raw JSON), `normalizedValuesCompareEqual` (person with `NICK "A,B"`, `DATE "5 jul 1991"`, name `"Ivan  /P/ "` equals the projection of a snapshot with `nicknames ["A","B"]`, date `{day 5, month 7, year 1991}`, `first_name "Ivan"`, `last_name "P"`), `deathWithoutDateIsDead`, `unknownSexIsNull`, `familyFields` (`MARR` and `DIV` dates and places), `captureListsPartnersAndChildren` (a tree with one family: partners `[I1, I2]`, children `[I3]`, `geniId` from `_GENI_ID` or null).
-- [ ] **Step 2: Run** `$GRADLE :geni:testDebugUnitTest --tests '*FieldsTest*' --tests '*GeniParamsTest*' --tests '*LocalTreeTest*'` — FAIL (classes missing).
-- [ ] **Step 3: Implement** `parseDate`, `Fields.kt` and `LocalTree.kt`.
-- [ ] **Step 4: Run** the same command — PASS.
-- [ ] **Step 5: Commit** `Project people and families to the fields Geni has`.
+- [x] **Step 1: Write the failing tests** — `parsesDates` (`"12 MAR 1960"` → 12/3/1960, `"jun 2012"` → –/6/2012, `"ABT 1960"` circa, `"BEF 1900"` → null, `"5 1990"` → null), `personFieldsMatchMapper` (a `GeniProfile` fixture from `geni/src/test/resources/geni/` applied with `GeniMapper` then `of()` gives the same `ProfileFields` as `ofSnapshot()` of its raw JSON), `normalizedValuesCompareEqual` (person with `NICK "A,B"`, `DATE "5 jul 1991"`, name `"Ivan  /P/ "` equals the projection of a snapshot with `nicknames ["A","B"]`, date `{day 5, month 7, year 1991}`, `first_name "Ivan"`, `last_name "P"`), `deathWithoutDateIsDead`, `unknownSexIsNull`, `familyFields` (`MARR` and `DIV` dates and places), `captureListsPartnersAndChildren` (a tree with one family: partners `[I1, I2]`, children `[I3]`, `geniId` from `_GENI_ID` or null).
+- [x] **Step 2: Run** `$GRADLE :geni:testDebugUnitTest --tests '*FieldsTest*' --tests '*GeniParamsTest*' --tests '*LocalTreeTest*'` — FAIL (classes missing).
+- [x] **Step 3: Implement** `parseDate`, `Fields.kt` and `LocalTree.kt`.
+- [x] **Step 4: Run** the same command — PASS.
+- [x] **Step 5: Commit** `Project people and families to the fields Geni has`.
 
 ### Task 3: GEDCOM → Geni parameters (`GeniParams`)
 
@@ -112,11 +112,11 @@ Rules:
   - `isNew`: every non-empty group of `new`, plus `is_alive` always (Geni makes API-created profiles deceased otherwise).
 - `union`: `marriage` and `divorce` groups as events above. A `DIV` without date and place (`DIV Y`) cannot be sent (it would need `status`): treat it as no divorce event. Never send `status`.
 
-- [ ] **Step 1: Write the failing tests** — `sendsOnlyChangedGroups` (only occupation changed → exactly `[occupation=Driver]`), `dateIsSentWhole` (birth year changed → `birth[date][day]`, `[month]`, `[year]`, `[circa]` all present), `placeClearsStructuredParts`, `deathSendsIsAliveFalse`, `aliveAgainSendsOnlyIsAlive`, `unparseableDateKeepsGeniDate` (new birth `"BEF 1900"`, same place → empty list; new place → only location params), `newProfileSendsIsAlive` (`isNew` with no `DEAT` → contains `is_alive=true` and `first_name`), `namesSplitGivenIntoFirstAndMiddle`, `unionNeverSendsStatus`.
-- [ ] **Step 2: Run** `$GRADLE :geni:testDebugUnitTest --tests '*GeniParamsTest*'` — FAIL.
-- [ ] **Step 3: Implement** `GeniParams`.
-- [ ] **Step 4: Run** the same command and the Task 2 tests — PASS.
-- [ ] **Step 5: Commit** `Map GEDCOM changes to Geni update parameters`.
+- [x] **Step 1: Write the failing tests** — `sendsOnlyChangedGroups` (only occupation changed → exactly `[occupation=Driver]`), `dateIsSentWhole` (birth year changed → `birth[date][day]`, `[month]`, `[year]`, `[circa]` all present), `placeClearsStructuredParts`, `deathSendsIsAliveFalse`, `aliveAgainSendsOnlyIsAlive`, `unparseableDateKeepsGeniDate` (new birth `"BEF 1900"`, same place → empty list; new place → only location params), `newProfileSendsIsAlive` (`isNew` with no `DEAT` → contains `is_alive=true` and `first_name`), `namesSplitGivenIntoFirstAndMiddle`, `unionNeverSendsStatus`.
+- [x] **Step 2: Run** `$GRADLE :geni:testDebugUnitTest --tests '*GeniParamsTest*'` — FAIL.
+- [x] **Step 3: Implement** `GeniParams`.
+- [x] **Step 4: Run** the same command and the Task 2 tests — PASS.
+- [x] **Step 5: Commit** `Map GEDCOM changes to Geni update parameters`.
 
 ### Task 4: Upload jobs in the sync store (Room v2)
 
@@ -134,11 +134,11 @@ Rules:
   - `SyncStore` gains `suspend fun linkByGedcomId(treeId: Int, gedcomId: String): GeniLink?`, `suspend fun jobs(treeId: Int): List<UploadJob>` (by `id`), `suspend fun allJobs(): List<UploadJob>`, `suspend fun saveJob(job: UploadJob): Long` (insert when `id == 0`, else replace; returns the ID), `suspend fun deleteJob(id: Long)`. `deleteTree` also deletes the tree's jobs.
 - Room: table `job` with a unique index on `(treeId, key)`; `anchors` and `params` stored as JSON (Gson) through a `TypeConverter`. Database version 2 with `Migration(1, 2)`: `ALTER TABLE link ADD COLUMN verifiedHash INTEGER` and `CREATE TABLE`/`CREATE UNIQUE INDEX` exactly as Room generates them for the entity (Room checks the schema on open). No destructive migration: existing links keep their snapshots.
 
-- [ ] **Step 1: Write the failing tests** — instrumented `migratesFromVersion1` (create a v1 database with the v1 `CREATE TABLE` statements through `SupportSQLiteOpenHelper`, insert a link, open with Room v2: the link is there with `verifiedHash == null`, a job can be saved and read back), `jobsRoundTrip` (params with brackets and empty values survive), `deleteTreeDeletesJobs`, `linkByGedcomId`; unit `mergeKeepsVerifiedHash` in `FamilyMergerTest`.
-- [ ] **Step 2: Run** `$GRADLE :geni:testDebugUnitTest --tests '*FamilyMergerTest*'` (FAIL) and, with the phone connected, `$GRADLE :geni:connectedDebugAndroidTest` (FAIL).
-- [ ] **Step 3: Implement** the entity, DAO queries, converter, migration and `InMemorySyncStore` methods.
-- [ ] **Step 4: Run** both commands — PASS.
-- [ ] **Step 5: Commit** `Store upload jobs and verified hashes in the sync database`.
+- [x] **Step 1: Write the failing tests** — instrumented `migratesFromVersion1` (create a v1 database with the v1 `CREATE TABLE` statements through `SupportSQLiteOpenHelper`, insert a link, open with Room v2: the link is there with `verifiedHash == null`, a job can be saved and read back), `jobsRoundTrip` (params with brackets and empty values survive), `deleteTreeDeletesJobs`, `linkByGedcomId`; unit `mergeKeepsVerifiedHash` in `FamilyMergerTest`.
+- [x] **Step 2: Run** `$GRADLE :geni:testDebugUnitTest --tests '*FamilyMergerTest*'` (FAIL) and, with the phone connected, `$GRADLE :geni:connectedDebugAndroidTest` (FAIL).
+- [x] **Step 3: Implement** the entity, DAO queries, converter, migration and `InMemorySyncStore` methods.
+- [x] **Step 4: Run** both commands — PASS.
+- [x] **Step 5: Commit** `Store upload jobs and verified hashes in the sync database`.
 
 ### Task 5: `UploadPlanner`
 
@@ -157,11 +157,11 @@ Rules:
 - `deleteKeys` also gets: `add:` keys whose person is gone or now linked, `profile:`/`union:` keys whose record is gone (deleted locally: not uploaded in this plan).
 - A family whose members are all linked but which has no Geni ID (a new link between existing profiles) gets no job.
 
-- [ ] **Step 1: Write the failing tests** — `unchangedPersonIsVerified`, `changedOccupationMakesUpdate` (params `[occupation=…]`, key `profile:profile-1`), `verifiedHashSkipsPerson` (keeps an existing job: not in `deleteKeys`), `revertedEditDeletesJob`, `newChildOfGeniUnionMakesAddChild`, `newParentOfGeniPersonMakesAddPartnerWithChildAnchor`, `chainOfNewPeopleIsOrdered` (new parent P and new child C of P's new family with a Geni partner: P's job before C's, C's anchors contain `partner:P`), `unconnectedNewPersonMakesNoJob`, `deletedPersonDropsItsJobs`, `linkBetweenExistingProfilesMakesNoJob`, `unparseableDateMakesNoJob`, `uploadedChangeIsNotPlannedAgain` (after the snapshot is replaced with the Geni version of the uploaded value, the plan is empty).
-- [ ] **Step 2: Run** `$GRADLE :geni:testDebugUnitTest --tests '*UploadPlannerTest*'` — FAIL.
-- [ ] **Step 3: Implement** `UploadPlanner`.
-- [ ] **Step 4: Run** the same command — PASS.
-- [ ] **Step 5: Commit** `Plan Geni uploads from the differences with the snapshots`.
+- [x] **Step 1: Write the failing tests** — `unchangedPersonIsVerified`, `changedOccupationMakesUpdate` (params `[occupation=…]`, key `profile:profile-1`), `verifiedHashSkipsPerson` (keeps an existing job: not in `deleteKeys`), `revertedEditDeletesJob`, `newChildOfGeniUnionMakesAddChild`, `newParentOfGeniPersonMakesAddPartnerWithChildAnchor`, `chainOfNewPeopleIsOrdered` (new parent P and new child C of P's new family with a Geni partner: P's job before C's, C's anchors contain `partner:P`), `unconnectedNewPersonMakesNoJob`, `deletedPersonDropsItsJobs`, `linkBetweenExistingProfilesMakesNoJob`, `unparseableDateMakesNoJob`, `uploadedChangeIsNotPlannedAgain` (after the snapshot is replaced with the Geni version of the uploaded value, the plan is empty).
+- [x] **Step 2: Run** `$GRADLE :geni:testDebugUnitTest --tests '*UploadPlannerTest*'` — FAIL.
+- [x] **Step 3: Implement** `UploadPlanner`.
+- [x] **Step 4: Run** the same command — PASS.
+- [x] **Step 5: Commit** `Plan Geni uploads from the differences with the snapshots`.
 
 ### Task 6: `Uploader` (runs one job)
 
@@ -179,11 +179,11 @@ Rules:
 - After an add: new profile ID = response `id`, union ID = `geniId(unions[0])`; fetch both with `profiles`/`unions`; in one `host.edit` set `_GENI_ID` on the person and, if not linked yet, on the family (skip records that no longer exist); save the person link (`fullyLoaded = false`, `loadedAtMillis = 0`) and the family link with their snapshots.
 - Errors: `GeniAuthRequiredException` → `NeedsLogin`; `GeniApiException` with code 400–499 except 408 and 429 → `Failed(body message)`; other `GeniApiException`, `IOException` → `Retry`, except an `IOException` on the POST of an add job: the request may have reached Geni and created the profile, so a retry could create a second one → `Failed("connection lost while adding; check Geni, then retry")` (from the PR 1 review). A 400 may have applied part of the change: the snapshot is not touched; the next load brings Geni's state.
 
-- [ ] **Step 1: Write the failing tests** (MockWebServer + `FakeTreeHost` + `InMemorySyncStore`) — `updateProfilePostsParamsAndSavesSnapshot`, `addChildToLinkedUnion` (path `/api/union-10106/add-child`; person gets `_GENI_ID`, links saved), `addParentCreatesUnionLink` (family not linked, anchor child linked → `/api/profile-36430/add-parent`; family gets the union ID from `unions[0]`), `childOfNewPersonUsesTheNewUnion` (after the parent's add linked the family, the child's job posts to `union-…/add-child`), `missingAnchorFails`, `http403Fails`, `http503Retries`, `http401NeedsLogin`, `connectionLostOnAddFails`.
-- [ ] **Step 2: Run** `$GRADLE :geni:testDebugUnitTest --tests '*UploaderTest*'` — FAIL.
-- [ ] **Step 3: Implement** `Uploader`.
-- [ ] **Step 4: Run** the same command — PASS.
-- [ ] **Step 5: Commit** `Upload profile changes and new relatives to Geni`.
+- [x] **Step 1: Write the failing tests** (MockWebServer + `FakeTreeHost` + `InMemorySyncStore`) — `updateProfilePostsParamsAndSavesSnapshot`, `addChildToLinkedUnion` (path `/api/union-10106/add-child`; person gets `_GENI_ID`, links saved), `addParentCreatesUnionLink` (family not linked, anchor child linked → `/api/profile-36430/add-parent`; family gets the union ID from `unions[0]`), `childOfNewPersonUsesTheNewUnion` (after the parent's add linked the family, the child's job posts to `union-…/add-child`), `missingAnchorFails`, `http403Fails`, `http503Retries`, `http401NeedsLogin`, `connectionLostOnAddFails`.
+- [x] **Step 2: Run** `$GRADLE :geni:testDebugUnitTest --tests '*UploaderTest*'` — FAIL.
+- [x] **Step 3: Implement** `Uploader`.
+- [x] **Step 4: Run** the same command — PASS.
+- [x] **Step 5: Commit** `Upload profile changes and new relatives to Geni`.
 
 ### Task 7: `SyncQueue` (reconcile and run)
 
@@ -202,11 +202,11 @@ Rules:
 - `runPending`: take the first `PENDING` job, run it without the lock; then under the lock re-read it: `Done` → `deleteJobIfVersion(id, version)` (a newer version planned meanwhile stays pending: the user edited during the upload); `Failed` → `state = FAILED`, `error`; `Retry` → return `RETRY_LATER`; `NeedsLogin` → return `NEEDS_LOGIN`. Loop until no pending job → `EMPTY`.
 - `retryFailed`: all `FAILED` → `PENDING`. `dismissFailed`: all `FAILED` → `DISMISSED` (kept so the same change is not planned again; a new edit of the record changes `params` and revives it).
 
-- [ ] **Step 1: Write the failing tests** (fake `Uploader` behaviour through MockWebServer or an `Uploader` subclass seam — make `Uploader.run` `open` for tests) — `samePlanTwiceKeepsOneJob`, `changedParamsResetFailedJob`, `dismissedJobStaysDismissedForSameParams`, `runsJobsInOrderAndDeletesDone`, `editDuringUploadKeepsNewerVersion` (`onSaved` with new params while `run` is suspended → after `Done` the job is still pending with the new params), `transientErrorKeepsJobPending`, `authErrorStopsTheQueue`, `failedJobIsKeptAndSkipped`.
-- [ ] **Step 2: Run** `$GRADLE :geni:testDebugUnitTest --tests '*SyncQueueTest*'` — FAIL.
-- [ ] **Step 3: Implement** `SyncQueue` and `Geni.queue`.
-- [ ] **Step 4: Run** `$GRADLE :geni:testDebugUnitTest` — all PASS.
-- [ ] **Step 5: Commit** `Queue Geni uploads with ordering, retries and failures`.
+- [x] **Step 1: Write the failing tests** (fake `Uploader` behaviour through MockWebServer or an `Uploader` subclass seam — make `Uploader.run` `open` for tests) — `samePlanTwiceKeepsOneJob`, `changedParamsResetFailedJob`, `dismissedJobStaysDismissedForSameParams`, `runsJobsInOrderAndDeletesDone`, `editDuringUploadKeepsNewerVersion` (`onSaved` with new params while `run` is suspended → after `Done` the job is still pending with the new params), `transientErrorKeepsJobPending`, `authErrorStopsTheQueue`, `failedJobIsKeptAndSkipped`.
+- [x] **Step 2: Run** `$GRADLE :geni:testDebugUnitTest --tests '*SyncQueueTest*'` — FAIL.
+- [x] **Step 3: Implement** `SyncQueue` and `Geni.queue`.
+- [x] **Step 4: Run** `$GRADLE :geni:testDebugUnitTest` — all PASS.
+- [x] **Step 5: Commit** `Queue Geni uploads with ordering, retries and failures`.
 
 ### Task 8: Hook on save and background runner in the app
 
