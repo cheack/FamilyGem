@@ -84,8 +84,8 @@ interface SyncDao {
     @Query("UPDATE link SET verifiedHash = :hash WHERE treeId = :treeId AND geniId = :geniId AND gedcomId = :gedcomId AND snapshot IS :snapshot")
     suspend fun setVerifiedHash(treeId: Int, geniId: String, gedcomId: String, snapshot: String?, hash: Int): Int
 
-    @Query("UPDATE link SET snapshot = :snapshot, geniUpdatedAt = :geniUpdatedAt, verifiedHash = NULL WHERE treeId = :treeId AND geniId = :geniId")
-    suspend fun updateSnapshot(treeId: Int, geniId: String, snapshot: String, geniUpdatedAt: String?)
+    @Query("UPDATE link SET snapshot = :snapshot, geniUpdatedAt = :geniUpdatedAt, verifiedHash = NULL WHERE treeId = :treeId AND geniId = :geniId AND snapshot IS :expected")
+    suspend fun updateSnapshot(treeId: Int, geniId: String, expected: String?, snapshot: String, geniUpdatedAt: String?): Int
 
     @Query("UPDATE link SET orphaned = :orphaned WHERE treeId = :treeId AND geniId = :geniId")
     suspend fun setOrphaned(treeId: Int, geniId: String, orphaned: Boolean)
@@ -177,8 +177,8 @@ class RoomSyncStore(private val dao: SyncDao) : SyncStore {
     override suspend fun setVerifiedHash(treeId: Int, geniId: String, gedcomId: String, snapshot: String?, hash: Int) =
         dao.setVerifiedHash(treeId, geniId, gedcomId, snapshot, hash) > 0
 
-    override suspend fun updateSnapshot(treeId: Int, geniId: String, snapshot: String, geniUpdatedAt: String?) =
-        dao.updateSnapshot(treeId, geniId, snapshot, geniUpdatedAt)
+    override suspend fun updateSnapshot(treeId: Int, geniId: String, expected: String?, snapshot: String, geniUpdatedAt: String?) =
+        dao.updateSnapshot(treeId, geniId, expected, snapshot, geniUpdatedAt) > 0
 
     override suspend fun setOrphaned(treeId: Int, geniId: String, orphaned: Boolean) = dao.setOrphaned(treeId, geniId, orphaned)
 

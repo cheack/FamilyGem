@@ -134,7 +134,9 @@ class RoomSyncStoreTest {
         assertFalse(store.setVerifiedHash(1, "profile-1", "I1", "old", 5))
         assertTrue(store.setVerifiedHash(1, "profile-1", "I1", "{}", 5))
         assertEquals(5, store.link(1, "profile-1")!!.verifiedHash)
-        store.updateSnapshot(1, "profile-1", """{"id":"profile-1"}""", "77")
+        assertFalse(store.updateSnapshot(1, "profile-1", "old", """{"id":"profile-1"}""", "77"))
+        assertEquals("{}", store.link(1, "profile-1")!!.snapshot)
+        assertTrue(store.updateSnapshot(1, "profile-1", "{}", """{"id":"profile-1"}""", "77"))
         val updated = store.link(1, "profile-1")!!
         assertEquals("""{"id":"profile-1"}""", updated.snapshot)
         assertEquals("77", updated.geniUpdatedAt)

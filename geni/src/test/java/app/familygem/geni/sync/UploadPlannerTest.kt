@@ -219,4 +219,48 @@ class UploadPlannerTest {
         assertEquals(listOf("profile-1"), plan.unorphaned)
         assertEquals(emptyList<String>(), plan.orphaned)
     }
+
+    @Test
+    fun returnedTaglessPersonKeepsOrphanedLink() {
+        // Ivan was removed and came back with the same GEDCOM ID but without his tag: same name as on Geni, so he is Ivan
+        val local = couple().let { it.copy(people = listOf(it.people[0].copy(geniId = null)) + it.people.drop(1)) }
+        val plan = plan(local, coupleLinks.map { if (it.geniId == "profile-1") it.copy(orphaned = true) else it })
+        assertEquals(emptyList<String>(), plan.staleLinks)
+        assertTrue(plan.upserts.none { it.key == "add:I1" })
+        assertEquals(listOf("profile-1"), plan.unorphaned)
+    }
+
+    @Test
+    fun orphanedLinkWithoutSnapshotMakesNoJob() {
+        val links = coupleLinks.map { if (it.geniId == "profile-1") it.copy(orphaned = true, snapshot = null) else it }
+        val local = LocalTree(listOf(person("I1", null, newFields), person("I2", "profile-2", anna)), listOf(family("F1", "union-1", listOf("I1", "I2"))))
+        val plan = plan(local, links)
+        assertEquals(emptyList<UploadJob>(), plan.upserts)
+        assertEquals(emptyList<String>(), plan.staleLinks)
+    }
+
+    @Test
+    fun ambiguousRecordKeepsItsJobs() {
+        val local = couple().let { it.copy(people = listOf(it.people[0].copy(geniId = null, fields = newFields)) + it.people.drop(1)) }
+        assertFalse("profile:profile-1" in plan(local, jobs = listOf(job("profile:profile-1"))).deleteKeys)
+    }
+
+    @Test
+    fun editedAddWithoutSnapshotMakesFullUpdate() {
+        // Added as New User; the snapshot could not be fetched, the link holds the hash of what was sent
+        val olya = newFields.copy(given = "Olya")
+        val links = coupleLinks + link("profile-3", "I3", null, newFields.hashCode())
+        val job = plan(couple(person("I3", "profile-3", olya)), links).upserts.single()
+        assertEquals("profile:profile-3", job.key)
+        assertEquals(JobKind.UPDATE_PROFILE, job.kind)
+        assertEquals("Olya", job.params.toMap()["first_name"])
+        assertEquals("User", job.params.toMap()["last_name"])
+        assertEquals("true", job.params.toMap()["is_alive"])
+    }
+
+    @Test
+    fun unchangedAddWithoutSnapshotMakesNoJob() {
+        val links = coupleLinks + link("profile-3", "I3", null, newFields.hashCode())
+        assertEquals(emptyList<UploadJob>(), plan(couple(person("I3", "profile-3", newFields)), links).upserts)
+    }
 }

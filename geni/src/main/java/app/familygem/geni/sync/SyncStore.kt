@@ -36,8 +36,11 @@ interface SyncStore {
     suspend fun deleteLink(treeId: Int, geniId: String)
     /** Sets the verified hash only if the link still has this GEDCOM ID and snapshot; true if it did. */
     suspend fun setVerifiedHash(treeId: Int, geniId: String, gedcomId: String, snapshot: String?, hash: Int): Boolean
-    /** Replaces only the snapshot and its update time, and clears the verified hash. */
-    suspend fun updateSnapshot(treeId: Int, geniId: String, snapshot: String, geniUpdatedAt: String?)
+    /**
+     * Replaces only the snapshot and its update time, and clears the verified hash,
+     * but only if the snapshot is still [expected]; true if it was.
+     */
+    suspend fun updateSnapshot(treeId: Int, geniId: String, expected: String?, snapshot: String, geniUpdatedAt: String?): Boolean
     suspend fun setOrphaned(treeId: Int, geniId: String, orphaned: Boolean)
     /** Deletes the tree with its links and jobs. */
     suspend fun deleteTree(treeId: Int)

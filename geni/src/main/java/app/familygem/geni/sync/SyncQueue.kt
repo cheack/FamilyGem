@@ -103,7 +103,13 @@ class SyncQueue(private val store: SyncStore, private val uploader: Uploader) {
                         // An added person is linked now: newer details of it go as an update. A newer version
                         // of an update planned during the upload stays pending and runs next
                         if (job.isAdd()) store.deleteJob(job.id) else store.deleteJobIfVersion(job.id, job.version)
-                        synchronized(lastLocal) { lastLocal[treeId] }?.let { plan(treeId, it) } // Links and snapshots changed
+                        // Links and snapshots changed. The saved tree was captured before the add tagged the person
+                        synchronized(lastLocal) { lastLocal[treeId] }?.let { local ->
+                            val current = if (job.isAdd()) withAddedTags(treeId, local, job).also { tagged ->
+                                synchronized(lastLocal) { lastLocal[treeId] = tagged }
+                            } else local
+                            plan(treeId, current)
+                        }
                     }
                     // A failed add may exist on Geni: recorded whatever its version, so it is never sent again by itself
                     is Outcome.Failed -> if (current != null && (unchanged || job.isAdd()))
@@ -118,6 +124,16 @@ class SyncQueue(private val store: SyncStore, private val uploader: Uploader) {
                 else -> Unit
             }
         }
+    }
+
+    /** The saved tree with the tags an add gave to its person and family, as the live tree has them now. */
+    private suspend fun withAddedTags(treeId: Int, local: LocalTree, job: UploadJob): LocalTree {
+        val person = job.personGedcomId?.let { store.linkByGedcomId(treeId, it) }?.geniId?.takeIf { it.startsWith("profile-") }
+        val family = job.familyGedcomId?.let { store.linkByGedcomId(treeId, it) }?.geniId?.takeIf { it.startsWith("union-") }
+        return local.copy(
+            people = local.people.map { if (it.gedcomId == job.personGedcomId && it.geniId == null && person != null) it.copy(geniId = person) else it },
+            families = local.families.map { if (it.gedcomId == job.familyGedcomId && it.geniId == null && family != null) it.copy(geniId = family) else it }
+        )
     }
 
     private fun UploadJob.isAdd() = kind == JobKind.ADD_CHILD || kind == JobKind.ADD_PARTNER

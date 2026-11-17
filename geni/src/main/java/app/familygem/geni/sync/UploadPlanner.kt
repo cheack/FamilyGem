@@ -40,20 +40,24 @@ object UploadPlanner {
 
         /**
          * Link of a record: by its tag, or by its GEDCOM ID when the tag was lost (an unsaved edit after an add).
-         * A GEDCOM ID is reused by the next new record after a delete. A link whose record was seen missing (orphaned)
-         * belongs to the deleted record: the new one is new. Otherwise the link counts if [sameRecord] agrees with the
-         * snapshot (or there is none yet); if not, nobody can tell, and the record gets no job at all (no update that
-         * could overwrite another profile, no add that could duplicate this one).
+         * A GEDCOM ID is reused by the next new record after a delete, so [sameRecord] compares the record with the
+         * snapshot. A link whose record was seen missing (orphaned) counts only if they agree: the record came back;
+         * if they differ the record is new and the link stale. A link never orphaned counts unless they differ.
+         * Otherwise nobody can tell: the record gets no new job and its jobs are kept (no update that could
+         * overwrite another profile, no add that could duplicate this one).
          */
         fun linkOf(gedcomId: String, geniId: String?, prefix: String, sameRecord: (String) -> Boolean): GeniLink? {
             if (geniId != null) return byGeniId[geniId]?.takeIf { it.gedcomId == gedcomId }
             val link = byGedcomId[gedcomId]?.takeIf { it.geniId.startsWith(prefix) } ?: return null
-            if (link.orphaned) {
-                staleLinks += link.geniId
-                return null
+            val same = link.snapshot?.let(sameRecord)
+            when {
+                same == true || (same == null && !link.orphaned) -> return link
+                same == false && link.orphaned -> staleLinks += link.geniId
+                else -> {
+                    ambiguous += gedcomId
+                    linkedKeys += (if (prefix == "profile-") "profile:" else "union:") + link.geniId
+                }
             }
-            if (link.snapshot == null || sameRecord(link.snapshot)) return link
-            ambiguous += gedcomId
             return null
         }
 
@@ -81,7 +85,13 @@ object UploadPlanner {
                     peopleGeniIds[person.gedcomId] = link.geniId
                     val key = "profile:${link.geniId}"
                     val hash = person.fields.hashCode()
-                    check(link, key, hash, { link.snapshot?.let { ProfileFields.ofSnapshot(it) }?.let { GeniParams.profile(it, person.fields) } }) {
+                    // Without a snapshot only a hash of what an add sent is known: a change sends every field again
+                    val params = {
+                        if (link.snapshot != null) ProfileFields.ofSnapshot(link.snapshot)?.let { GeniParams.profile(it, person.fields) }
+                        else if (link.verifiedHash != null) GeniParams.profile(ProfileFields.EMPTY, person.fields, isNew = true)
+                        else null
+                    }
+                    check(link, key, hash, params) {
                         UploadJob(treeId = treeId, key = key, kind = JobKind.UPDATE_PROFILE, geniId = link.geniId, params = it,
                             label = person.label, localHash = hash)
                     }
@@ -139,7 +149,7 @@ object UploadPlanner {
         // Orphan marks: a link whose record is missing now, or back again
         val present = local.people.map { it.gedcomId }.toSet() + local.families.map { it.gedcomId }
         val orphaned = links.filter { !it.orphaned && it.gedcomId !in present }.map { it.geniId }
-        val unorphaned = links.filter { it.orphaned && it.geniId !in staleLinks && it.gedcomId in present }.map { it.geniId }
+        val unorphaned = links.filter { it.orphaned && it.geniId !in staleLinks && it.gedcomId in present && it.gedcomId !in ambiguous }.map { it.geniId }
         return Plan(upserts, deleteKeys, verified, staleLinks, orphaned, unorphaned)
     }
 }

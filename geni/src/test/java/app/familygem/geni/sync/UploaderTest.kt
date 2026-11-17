@@ -28,7 +28,12 @@ class UploaderTest {
     private val server = MockWebServer()
     private val tokens = InMemoryTokenStore().apply { save(AuthResult.Success("abc", Long.MAX_VALUE)) }
     private var failLinkSave = false
+    private var beforeSnapshotWrite: suspend () -> Unit = {}
     private val store = object : InMemorySyncStore() {
+        override suspend fun updateSnapshot(treeId: Int, geniId: String, expected: String?, snapshot: String, geniUpdatedAt: String?): Boolean {
+            beforeSnapshotWrite()
+            return super.updateSnapshot(treeId, geniId, expected, snapshot, geniUpdatedAt)
+        }
         override suspend fun saveLinks(links: List<GeniLink>) {
             if (failLinkSave) error("disk full")
             super.saveLinks(links)
@@ -325,5 +330,33 @@ class UploaderTest {
         val saved = store.link(1, "profile-36430")!!
         assertEquals(5L, saved.loadedAtMillis)
         assertEquals("9", saved.geniUpdatedAt)
+    }
+
+    @Test
+    fun addStoresSentHashOnLink() = runTest {
+        tree()
+        store.saveLinks(listOf(link("union-10106", "F1")))
+        server.enqueue(ok("""{"id":"profile-50","unions":["union-10106"]}"""))
+        server.enqueue(error(503))
+        assertEquals(Outcome.Done, uploader().run(job(JobKind.ADD_CHILD, "add:I3", person = "I3", family = "F1", anchors = listOf("partner:I1"))))
+        val saved = store.link(1, "profile-50")!!
+        assertNull(saved.snapshot)
+        assertEquals(1, saved.verifiedHash) // The job's localHash: what Geni has now, until a snapshot replaces it
+    }
+
+    @Test
+    fun snapshotRefreshNeverOverwritesANewerSnapshot() = runTest {
+        tree()
+        store.saveLinks(listOf(link("profile-36430", "I1")))
+        server.enqueue(ok("""{"id":"profile-36430"}"""))
+        server.enqueue(ok("""{"id":"profile-36430","occupation":"Old"}"""))
+        server.enqueue(ok("""{"id":"profile-36430","occupation":"Fresh"}"""))
+        var loads = 0
+        beforeSnapshotWrite = {
+            // A load stores a newer snapshot after the uploader fetched its own
+            if (loads++ == 0) store.saveLinks(listOf(store.link(1, "profile-36430")!!.copy(snapshot = """{"id":"profile-36430","occupation":"Loaded"}""")))
+        }
+        assertEquals(Outcome.Done, uploader().run(updateProfile))
+        assertEquals("""{"id":"profile-36430","occupation":"Fresh"}""", store.link(1, "profile-36430")!!.snapshot)
     }
 }

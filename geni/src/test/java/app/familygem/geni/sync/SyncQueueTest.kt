@@ -326,4 +326,49 @@ class SyncQueueTest {
         queue.onSaved(1, tree())
         assertFalse(store.link(1, "profile-2")!!.orphaned)
     }
+
+    @Test
+    fun editDuringAddIsSentAsUpdate() = runTest {
+        linkBoth()
+        queue.onSaved(1, withSpouse("Olga"))
+        uploader.answer = {
+            queue.onSaved(1, withSpouse("Olya")) // Renamed while the add is sent; the saved tree has no tag yet
+            store.saveLinks(listOf(GeniLink(1, "profile-60", "I6", false, null, """{"id":"profile-60","first_name":"Olga","is_alive":true}""", 0)))
+            uploader.answer = uploader.geniApplies
+            Outcome.Done
+        }
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        assertEquals(listOf(JobKind.ADD_PARTNER, JobKind.UPDATE_PROFILE), uploader.ran.map { it.kind })
+        assertEquals("Olya", uploader.ran[1].params.toMap()["first_name"])
+        assertEquals("profile-60", uploader.ran[1].geniId)
+    }
+
+    @Test
+    fun editDuringAddWithoutSnapshotStaysQueued() = runTest {
+        linkBoth()
+        queue.onSaved(1, withSpouse("Olga"))
+        uploader.answer = { job ->
+            queue.onSaved(1, withSpouse("Olya"))
+            store.saveLinks(listOf(GeniLink(1, "profile-60", "I6", false, null, null, 0, verifiedHash = job.localHash)))
+            uploader.answer = { Outcome.Retry("offline") }
+            Outcome.Done
+        }
+        assertEquals(RunResult.RETRY_LATER, queue.runPending(1))
+        queue.onSaved(1, withSpouse("Olya")) // Saved again, still without the tag
+        val job = store.jobs(1).single()
+        assertEquals("profile:profile-60", job.key)
+        assertEquals(JobState.PENDING, job.state)
+        assertEquals("Olya", job.params.toMap()["first_name"])
+    }
+
+    @Test
+    fun editOfDismissedAddKeepsItHidden() = runTest {
+        linkBoth()
+        queue.onSaved(1, withSpouse("Olga"))
+        store.saveJob(store.jobs(1).single().copy(state = JobState.DISMISSED))
+        queue.onSaved(1, withSpouse("Olya"))
+        assertEquals(JobState.DISMISSED, store.jobs(1).single().state)
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        assertEquals(emptyList<UploadJob>(), uploader.ran)
+    }
 }

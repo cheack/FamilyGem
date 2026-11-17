@@ -101,7 +101,8 @@ open class Uploader(
         val linkFamily = familyLink == null && unionId != null && familyId != null
 
         // Links first: once stored, this person can never be added again; the tags in the tree follow
-        val links = mutableListOf(GeniLink(treeId, profileId, personId, false, null, null, 0))
+        // The hash of what was sent stands for Geni's version until a snapshot comes: an edit made meanwhile goes as an update
+        val links = mutableListOf(GeniLink(treeId, profileId, personId, false, null, null, 0, verifiedHash = job.localHash))
         if (linkFamily) links += GeniLink(treeId, unionId!!, familyId!!, true, null, null, now())
         try {
             store.saveLinks(links)
@@ -135,14 +136,22 @@ open class Uploader(
         return store.linkByGedcomId(job.treeId, partners[0].substringAfter(':'))?.takeIf { it.geniId.startsWith("profile-") }
     }
 
-    /** Fetches the full Geni version of a linked record (write responses lack fields) and stores it as the snapshot. */
+    /**
+     * Fetches the full Geni version of a linked record (write responses lack fields) and stores it as the snapshot.
+     * A load may store a newer snapshot during the fetch: the write happens only over the snapshot read before it,
+     * else the record is fetched again (a few times at most; then the stored snapshot is newer anyway).
+     */
     private suspend fun refreshSnapshot(treeId: Int, geniId: String) {
-        if (geniId.startsWith("profile-")) {
-            val (profile, raw) = client.profiles(listOf(geniId))[geniId] ?: return
-            store.updateSnapshot(treeId, geniId, raw, profile.updatedAt)
-        } else {
-            val (_, raw) = client.unions(listOf(geniId))[geniId] ?: return
-            store.updateSnapshot(treeId, geniId, raw, store.link(treeId, geniId)?.geniUpdatedAt)
+        repeat(3) {
+            val before = store.link(treeId, geniId) ?: return
+            val written = if (geniId.startsWith("profile-")) {
+                val (profile, raw) = client.profiles(listOf(geniId))[geniId] ?: return
+                store.updateSnapshot(treeId, geniId, before.snapshot, raw, profile.updatedAt)
+            } else {
+                val (_, raw) = client.unions(listOf(geniId))[geniId] ?: return
+                store.updateSnapshot(treeId, geniId, before.snapshot, raw, before.geniUpdatedAt)
+            }
+            if (written) return
         }
     }
 
