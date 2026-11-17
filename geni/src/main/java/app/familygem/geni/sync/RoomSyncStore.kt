@@ -1,6 +1,7 @@
 package app.familygem.geni.sync
 
 import android.content.Context
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -28,7 +29,8 @@ data class GeniLinkEntity(
     val geniUpdatedAt: String?,
     val snapshot: String?,
     val loadedAtMillis: Long,
-    val verifiedHash: Int?
+    val verifiedHash: Int?,
+    @ColumnInfo(defaultValue = "0") val orphaned: Boolean
 )
 
 /** Upload job; anchors and params are JSON. */
@@ -79,6 +81,18 @@ interface SyncDao {
     @Query("DELETE FROM tree WHERE treeId = :treeId")
     suspend fun deleteTreeRow(treeId: Int)
 
+    @Query("UPDATE link SET verifiedHash = :hash WHERE treeId = :treeId AND geniId = :geniId AND gedcomId = :gedcomId AND snapshot IS :snapshot")
+    suspend fun setVerifiedHash(treeId: Int, geniId: String, gedcomId: String, snapshot: String?, hash: Int): Int
+
+    @Query("UPDATE link SET snapshot = :snapshot, geniUpdatedAt = :geniUpdatedAt, verifiedHash = NULL WHERE treeId = :treeId AND geniId = :geniId AND snapshot IS :expected")
+    suspend fun updateSnapshot(treeId: Int, geniId: String, expected: String?, snapshot: String, geniUpdatedAt: String?): Int
+
+    @Query("UPDATE link SET orphaned = :orphaned WHERE treeId = :treeId AND geniId = :geniId")
+    suspend fun setOrphaned(treeId: Int, geniId: String, orphaned: Boolean)
+
+    @Query("DELETE FROM link WHERE treeId = :treeId AND geniId = :geniId")
+    suspend fun deleteLink(treeId: Int, geniId: String)
+
     @Query("SELECT * FROM link WHERE treeId = :treeId AND gedcomId = :gedcomId LIMIT 1")
     suspend fun linkByGedcomId(treeId: Int, gedcomId: String): GeniLinkEntity?
 
@@ -101,7 +115,7 @@ interface SyncDao {
     suspend fun deleteJobs(treeId: Int)
 }
 
-@Database(entities = [GeniTreeEntity::class, GeniLinkEntity::class, UploadJobEntity::class], version = 2, exportSchema = false)
+@Database(entities = [GeniTreeEntity::class, GeniLinkEntity::class, UploadJobEntity::class], version = 3, exportSchema = false)
 abstract class SyncDatabase : RoomDatabase() {
     abstract fun dao(): SyncDao
 
@@ -119,6 +133,16 @@ abstract class SyncDatabase : RoomDatabase() {
                 connection.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_job_treeId_key` ON `job` (`treeId`, `key`)")
             }
         }
+
+        /** Version 3: links of records deleted locally are marked, so a reused GEDCOM ID is not taken for them. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL("ALTER TABLE `link` ADD COLUMN `orphaned` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        /** Every migration, in order: the app and the tests open the database with this same list. */
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
     }
 }
 
@@ -127,7 +151,7 @@ class RoomSyncStore(private val dao: SyncDao) : SyncStore {
 
     constructor(context: Context) : this(
         Room.databaseBuilder(context.applicationContext, SyncDatabase::class.java, "geni_sync.db")
-            .addMigrations(SyncDatabase.MIGRATION_1_2).build().dao()
+            .addMigrations(*SyncDatabase.MIGRATIONS).build().dao()
     )
 
     override suspend fun tree(treeId: Int) = dao.tree(treeId)?.let { GeniTreeInfo(it.treeId, it.rootGeniId, it.prefetchDepth) }
@@ -143,10 +167,20 @@ class RoomSyncStore(private val dao: SyncDao) : SyncStore {
     override suspend fun unionLinks(treeId: Int) = dao.unionLinks(treeId).map { it.toLink() }
 
     override suspend fun saveLinks(links: List<GeniLink>) = dao.saveLinks(links.map {
-        GeniLinkEntity(it.treeId, it.geniId, it.gedcomId, it.fullyLoaded, it.geniUpdatedAt, it.snapshot, it.loadedAtMillis, it.verifiedHash)
+        GeniLinkEntity(it.treeId, it.geniId, it.gedcomId, it.fullyLoaded, it.geniUpdatedAt, it.snapshot, it.loadedAtMillis, it.verifiedHash, it.orphaned)
     })
 
     override suspend fun linkByGedcomId(treeId: Int, gedcomId: String) = dao.linkByGedcomId(treeId, gedcomId)?.toLink()
+
+    override suspend fun deleteLink(treeId: Int, geniId: String) = dao.deleteLink(treeId, geniId)
+
+    override suspend fun setVerifiedHash(treeId: Int, geniId: String, gedcomId: String, snapshot: String?, hash: Int) =
+        dao.setVerifiedHash(treeId, geniId, gedcomId, snapshot, hash) > 0
+
+    override suspend fun updateSnapshot(treeId: Int, geniId: String, expected: String?, snapshot: String, geniUpdatedAt: String?) =
+        dao.updateSnapshot(treeId, geniId, expected, snapshot, geniUpdatedAt) > 0
+
+    override suspend fun setOrphaned(treeId: Int, geniId: String, orphaned: Boolean) = dao.setOrphaned(treeId, geniId, orphaned)
 
     override suspend fun deleteTree(treeId: Int) {
         dao.deleteJobs(treeId)
@@ -170,7 +204,7 @@ class RoomSyncStore(private val dao: SyncDao) : SyncStore {
 
     override suspend fun deleteJobIfVersion(id: Long, version: Int) = dao.deleteJobIfVersion(id, version) > 0
 
-    private fun GeniLinkEntity.toLink() = GeniLink(treeId, geniId, gedcomId, fullyLoaded, geniUpdatedAt, snapshot, loadedAtMillis, verifiedHash)
+    private fun GeniLinkEntity.toLink() = GeniLink(treeId, geniId, gedcomId, fullyLoaded, geniUpdatedAt, snapshot, loadedAtMillis, verifiedHash, orphaned)
 
     private val gson = Gson()
     private val anchorsType = object : TypeToken<List<String>>() {}.type

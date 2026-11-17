@@ -1,7 +1,7 @@
 package app.familygem.geni.sync
 
 /** Sync store for tests. */
-class InMemorySyncStore : SyncStore {
+open class InMemorySyncStore : SyncStore {
     val trees = mutableMapOf<Int, GeniTreeInfo>()
     val linkMap = linkedMapOf<Pair<Int, String>, GeniLink>()
     override suspend fun tree(treeId: Int) = trees[treeId]
@@ -14,6 +14,22 @@ class InMemorySyncStore : SyncStore {
     override suspend fun unionLinks(treeId: Int) = links(treeId).filter { it.geniId.startsWith("union-") }
     override suspend fun saveLinks(links: List<GeniLink>) = links.forEach { linkMap[it.treeId to it.geniId] = it }
     override suspend fun linkByGedcomId(treeId: Int, gedcomId: String) = links(treeId).firstOrNull { it.gedcomId == gedcomId }
+    override suspend fun deleteLink(treeId: Int, geniId: String) {
+        linkMap.remove(treeId to geniId)
+    }
+    override suspend fun setVerifiedHash(treeId: Int, geniId: String, gedcomId: String, snapshot: String?, hash: Int): Boolean {
+        val link = linkMap[treeId to geniId]?.takeIf { it.gedcomId == gedcomId && it.snapshot == snapshot } ?: return false
+        linkMap[treeId to geniId] = link.copy(verifiedHash = hash)
+        return true
+    }
+    override suspend fun updateSnapshot(treeId: Int, geniId: String, expected: String?, snapshot: String, geniUpdatedAt: String?): Boolean {
+        val link = linkMap[treeId to geniId]?.takeIf { it.snapshot == expected } ?: return false
+        linkMap[treeId to geniId] = link.copy(snapshot = snapshot, geniUpdatedAt = geniUpdatedAt, verifiedHash = null)
+        return true
+    }
+    override suspend fun setOrphaned(treeId: Int, geniId: String, orphaned: Boolean) {
+        linkMap[treeId to geniId]?.let { linkMap[treeId to geniId] = it.copy(orphaned = orphaned) }
+    }
     override suspend fun deleteTree(treeId: Int) {
         trees.remove(treeId)
         linkMap.keys.removeAll { it.first == treeId }

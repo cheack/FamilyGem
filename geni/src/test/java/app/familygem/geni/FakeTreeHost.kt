@@ -3,7 +3,7 @@ package app.familygem.geni
 import org.folg.gedcom.model.Gedcom
 
 /** Tree host for tests: trees in memory. */
-class FakeTreeHost : TreeHost {
+open class FakeTreeHost : TreeHost {
     val trees = mutableMapOf<Int, Gedcom>()
     val titles = mutableMapOf<Int, String>()
     val roots = mutableMapOf<Int, String>()

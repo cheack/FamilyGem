@@ -91,10 +91,10 @@ class RoomSyncStoreTest {
             v1.execSQL("INSERT INTO link VALUES (1, 'profile-1', 'I1', 1, '170', '{\"id\":\"profile-1\"}', 5)")
             v1.version = 1
         }
-        val migrated = Room.databaseBuilder(context, SyncDatabase::class.java, name).addMigrations(SyncDatabase.MIGRATION_1_2).build()
+        val migrated = Room.databaseBuilder(context, SyncDatabase::class.java, name).addMigrations(*SyncDatabase.MIGRATIONS).build()
         try {
             val migratedStore = RoomSyncStore(migrated.dao())
-            assertEquals(listOf(GeniLink(1, "profile-1", "I1", true, "170", """{"id":"profile-1"}""", 5, null)), migratedStore.links(1))
+            assertEquals(listOf(GeniLink(1, "profile-1", "I1", true, "170", """{"id":"profile-1"}""", 5, null, orphaned = false)), migratedStore.links(1))
             val id = migratedStore.saveJob(job("profile:profile-1"))
             assertEquals(id, migratedStore.jobs(1).single().id)
         } finally {
@@ -119,5 +119,30 @@ class RoomSyncStoreTest {
         assertEquals(1, store.jobs(1).size)
         assertTrue(store.deleteJobIfVersion(id, 1))
         assertEquals(emptyList<UploadJob>(), store.jobs(1))
+    }
+
+    @Test
+    fun deleteLink() = runTest {
+        store.saveLinks(listOf(link("profile-1", "I1"), link("profile-2", "I2")))
+        store.deleteLink(1, "profile-1")
+        assertEquals(listOf("profile-2"), store.links(1).map { it.geniId })
+    }
+
+    @Test
+    fun conditionalLinkWrites() = runTest {
+        store.saveLinks(listOf(link("profile-1", "I1").copy(fullyLoaded = true, loadedAtMillis = 9)))
+        assertFalse(store.setVerifiedHash(1, "profile-1", "I1", "old", 5))
+        assertTrue(store.setVerifiedHash(1, "profile-1", "I1", "{}", 5))
+        assertEquals(5, store.link(1, "profile-1")!!.verifiedHash)
+        assertFalse(store.updateSnapshot(1, "profile-1", "old", """{"id":"profile-1"}""", "77"))
+        assertEquals("{}", store.link(1, "profile-1")!!.snapshot)
+        assertTrue(store.updateSnapshot(1, "profile-1", "{}", """{"id":"profile-1"}""", "77"))
+        val updated = store.link(1, "profile-1")!!
+        assertEquals("""{"id":"profile-1"}""", updated.snapshot)
+        assertEquals("77", updated.geniUpdatedAt)
+        assertNull(updated.verifiedHash)
+        assertEquals(9L, updated.loadedAtMillis)
+        store.setOrphaned(1, "profile-1", true)
+        assertTrue(store.link(1, "profile-1")!!.orphaned)
     }
 }
