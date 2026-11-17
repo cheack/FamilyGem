@@ -40,4 +40,6 @@ interface SyncStore {
     /** Inserts a job with ID 0, else replaces the job with that ID; returns the ID. */
     suspend fun saveJob(job: UploadJob): Long
     suspend fun deleteJob(id: Long)
+    /** Deletes the job only if it still has this version (no newer change was planned meanwhile); true if deleted. */
+    suspend fun deleteJobIfVersion(id: Long, version: Int): Boolean
 }

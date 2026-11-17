@@ -7,6 +7,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -108,5 +109,15 @@ class RoomSyncStoreTest {
         val error = runCatching { store.saveJob(job("profile:profile-1")) }.exceptionOrNull()
         assertTrue(error is IllegalStateException)
         assertEquals(1, store.jobs(1).size)
+    }
+
+    @Test
+    fun deleteJobIfVersionKeepsNewerVersion() = runTest {
+        val id = store.saveJob(job("profile:profile-1"))
+        store.saveJob(store.jobs(1).single().copy(version = 1))
+        assertFalse(store.deleteJobIfVersion(id, 0))
+        assertEquals(1, store.jobs(1).size)
+        assertTrue(store.deleteJobIfVersion(id, 1))
+        assertEquals(emptyList<UploadJob>(), store.jobs(1))
     }
 }

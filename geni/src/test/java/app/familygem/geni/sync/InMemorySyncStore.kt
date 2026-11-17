@@ -33,4 +33,6 @@ class InMemorySyncStore : SyncStore {
     override suspend fun deleteJob(id: Long) {
         jobMap.remove(id)
     }
+    override suspend fun deleteJobIfVersion(id: Long, version: Int): Boolean =
+        jobMap[id]?.takeIf { it.version == version }?.let { jobMap.remove(id); true } ?: false
 }

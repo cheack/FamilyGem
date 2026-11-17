@@ -57,7 +57,7 @@ object FamilyMerger {
                 geniUpdatedAt = profile.updatedAt,
                 snapshot = rawProfiles[profile.id],
                 loadedAtMillis = if (isFocus) nowMillis else link?.loadedAtMillis ?: 0,
-                verifiedHash = link?.verifiedHash
+                verifiedHash = keptHash(link, rawProfiles[profile.id])
             )
         }
         val personFor = { geniId: String -> people[geniId] ?: taggedPeople[geniId] }
@@ -72,10 +72,13 @@ object FamilyMerger {
             val previous = if (link != null && fam.id == link.gedcomId) link.snapshot?.let { parse(it, GeniUnion::class.java) } else null
             GeniMapper.applyUnion(gedcom, fam, union, previous, personFor)
             GeniMapper.setGeniId(fam, union.id)
-            links += GeniLink(treeId, union.id, fam.id, true, null, rawUnions[union.id], nowMillis, link?.verifiedHash)
+            links += GeniLink(treeId, union.id, fam.id, true, null, rawUnions[union.id], nowMillis, keptHash(link, rawUnions[union.id]))
         }
         return links
     }
+
+    /** The verified hash holds only for the snapshot it was checked against: a new snapshot needs a new check. */
+    private fun keptHash(link: GeniLink?, snapshot: String?): Int? = link?.verifiedHash?.takeIf { link.snapshot == snapshot }
 
     private val gson = Gson()
 

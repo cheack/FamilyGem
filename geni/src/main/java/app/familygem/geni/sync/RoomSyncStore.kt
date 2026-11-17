@@ -94,6 +94,9 @@ interface SyncDao {
     @Query("DELETE FROM job WHERE id = :id")
     suspend fun deleteJob(id: Long)
 
+    @Query("DELETE FROM job WHERE id = :id AND version = :version")
+    suspend fun deleteJobIfVersion(id: Long, version: Int): Int
+
     @Query("DELETE FROM job WHERE treeId = :treeId")
     suspend fun deleteJobs(treeId: Int)
 }
@@ -164,6 +167,8 @@ class RoomSyncStore(private val dao: SyncDao) : SyncStore {
     }
 
     override suspend fun deleteJob(id: Long) = dao.deleteJob(id)
+
+    override suspend fun deleteJobIfVersion(id: Long, version: Int) = dao.deleteJobIfVersion(id, version) > 0
 
     private fun GeniLinkEntity.toLink() = GeniLink(treeId, geniId, gedcomId, fullyLoaded, geniUpdatedAt, snapshot, loadedAtMillis, verifiedHash)
 

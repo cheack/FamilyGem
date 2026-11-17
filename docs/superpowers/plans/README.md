@@ -72,7 +72,7 @@ Plan: [2026-11-17-geni-3-write-path.md](2026-11-17-geni-3-write-path.md)
 ### Deferred from the review of PR 1 (Tasks 1–4)
 
 - [ ] Real round-trip test: upload params → simulated Geni profile → `ofSnapshot` equals the local projection
-- [ ] `FamilyMerger`: clear `verifiedHash` when the snapshot changes
+- [x] `FamilyMerger`: clear `verifiedHash` when the snapshot changes (CodeRabbit, PR 1)
 - [ ] `parseDate`: reject days that do not exist in the month (31 FEB)
 - [ ] Name text after the closing slash ("Ivan /Petrov/ Jr") is invisible to sync
 
