@@ -105,9 +105,9 @@
 - Produces: `data class FieldConflict(val group: String, val mine: String, val geni: String)` (display texts: dates and places joined, empty as "—");
   `class ConflictResolver(client, store, host)`: `suspend fun details(job: UploadJob): List<FieldConflict>` (fetches Geni; reads the record inside `host.edit` without changing it); `suspend fun resolve(job: UploadJob, keepMine: Set<String>)`: fetches Geni, applies it to the record except the kept groups (`previous` = snapshot), stores Geni's version as the snapshot, sets the job `PENDING` (the next plan sends only the kept groups and other local edits).
 
-- [ ] **Step 1: Write the failing tests** `detailsListOnlyConflictingGroups`, `keepMineSendsMineOnly`, `takeGeniAppliesGeniAndLeavesNothingToSend`.
-- [ ] **Step 2–4:** run (FAIL), implement, run all `:geni` tests (PASS).
-- [ ] **Step 5: Commit** `Resolve Geni conflicts field by field`.
+- [x] **Step 1: Write the failing tests** `detailsListOnlyConflictingGroups`, `keepMineSendsMineOnly`, `takeGeniAppliesGeniAndLeavesNothingToSend`.
+- [x] **Step 2–4:** run (FAIL), implement, run all `:geni` tests (PASS).
+- [x] **Step 5: Commit** `Resolve Geni conflicts field by field`.
 
 ### Task 6: Conflicts on the account screen
 
