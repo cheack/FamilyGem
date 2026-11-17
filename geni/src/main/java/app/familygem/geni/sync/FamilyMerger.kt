@@ -4,6 +4,13 @@ import app.familygem.geni.api.GeniProfile
 import app.familygem.geni.api.GeniUnion
 import app.familygem.geni.api.ImmediateFamily
 import app.familygem.geni.map.GeniMapper
+import app.familygem.geni.map.ProfileFields
+import app.familygem.geni.map.UnionFields
+import app.familygem.geni.map.UnionGroup
+import app.familygem.geni.map.ProfileGroup
+import app.familygem.geni.map.ThreeWay
+import app.familygem.geni.map.filled
+import app.familygem.geni.map.threeWay
 import com.google.gson.Gson
 import org.folg.gedcom.model.Family
 import org.folg.gedcom.model.Gedcom
@@ -44,20 +51,26 @@ object FamilyMerger {
                     gedcom.addPerson(this)
                 }
             // The previous Geni version counts only if the record is the linked one
-            val previous = if (link != null && person.id == link.gedcomId) link.snapshot?.let { parse(it, GeniProfile::class.java) } else null
-            GeniMapper.applyProfile(gedcom, person, profile, previous)
+            val linked = link != null && person.id == link.gedcomId
+            val previous = if (linked) link!!.snapshot?.let { parse(it, GeniProfile::class.java) } else null
+            val decision = if (linked) decide(link!!, ProfileFields.of(person), rawProfiles[profile.id], ProfileFields::ofSnapshot,
+                { a, b, c -> threeWay(a, b, c) }, { it.filled() }) else Decision.NONE
+            val keep = decision.keep
+            if (keep != Keep.CONFLICT)
+                GeniMapper.applyProfile(gedcom, person, profile, previous, decision.groups.filterIsInstance<ProfileGroup>().toSet())
             GeniMapper.setGeniId(person, profile.id)
             people[profile.id] = person
             val isFocus = profile.id == family.focusId
+            val snapshot = if (keep == Keep.CONFLICT) link!!.snapshot else rawProfiles[profile.id]
             links += GeniLink(
                 treeId = treeId,
                 geniId = profile.id,
                 gedcomId = person.id,
                 fullyLoaded = isFocus || link?.fullyLoaded == true,
-                geniUpdatedAt = profile.updatedAt,
-                snapshot = rawProfiles[profile.id],
+                geniUpdatedAt = if (keep == Keep.CONFLICT) link!!.geniUpdatedAt else profile.updatedAt,
+                snapshot = snapshot,
                 loadedAtMillis = if (isFocus) nowMillis else link?.loadedAtMillis ?: 0,
-                verifiedHash = keptHash(link, rawProfiles[profile.id])
+                verifiedHash = keptHash(link, snapshot)
             )
         }
         val personFor = { geniId: String -> people[geniId] ?: taggedPeople[geniId] }
@@ -69,12 +82,56 @@ object FamilyMerger {
                     id = "F${++lastFamily}"
                     gedcom.addFamily(this)
                 }
-            val previous = if (link != null && fam.id == link.gedcomId) link.snapshot?.let { parse(it, GeniUnion::class.java) } else null
-            GeniMapper.applyUnion(gedcom, fam, union, previous, personFor)
+            val linked = link != null && fam.id == link.gedcomId
+            val previous = if (linked) link!!.snapshot?.let { parse(it, GeniUnion::class.java) } else null
+            val decision = if (linked) decide(link!!, UnionFields.of(fam), rawUnions[union.id], UnionFields::ofSnapshot,
+                { a, b, c -> threeWay(a, b, c) }, { it.filled() }) else Decision.NONE
+            val keep = decision.keep
+            // Partners and children are always linked; in a conflict marriage and divorce stay as they are
+            val kept = if (keep == Keep.CONFLICT) UnionGroup.values().toSet() else decision.groups.filterIsInstance<UnionGroup>().toSet()
+            GeniMapper.applyUnion(gedcom, fam, union, previous, keep = kept, personFor = personFor)
             GeniMapper.setGeniId(fam, union.id)
-            links += GeniLink(treeId, union.id, fam.id, true, null, rawUnions[union.id], nowMillis, keptHash(link, rawUnions[union.id]))
+            val snapshot = if (keep == Keep.CONFLICT) link!!.snapshot else rawUnions[union.id]
+            links += GeniLink(treeId, union.id, fam.id, true, null, snapshot, nowMillis, keptHash(link, snapshot))
         }
         return links
+    }
+
+    /** How a load treats a linked record: apply Geni's changes, or keep the local fields because they hold unsent edits. */
+    private enum class Keep {
+        NONE,
+        /** Geni changed a field the user also changed: nothing applied, the old snapshot stays, the upload stops as a conflict. */
+        CONFLICT,
+        /** Added by the app without a snapshot and edited since: Geni fills only empty fields, its version becomes the snapshot. */
+        LOCAL
+    }
+
+    /** [keep] and the field groups the mapper must leave as they are. */
+    private class Decision(val keep: Keep, val groups: Set<Any> = emptySet()) {
+        companion object {
+            val NONE = Decision(Keep.NONE)
+        }
+    }
+
+    /**
+     * Three-way check of a linked record against its snapshot and Geni's version. Without a conflict Geni's changes are
+     * applied except to the groups changed locally (Geni changed none of them, or to the same value; raw text Geni only
+     * reformatted must not replace a local edit). Without a snapshot the hash of what the app sent tells whether the
+     * record was edited since; then nobody knows which local fields are edits, and Geni only fills the empty ones.
+     */
+    private fun <F> decide(
+        link: GeniLink, local: F, raw: String?, project: (String) -> F?,
+        threeWay: (F, F, F) -> ThreeWay<*>, filled: (F) -> Set<*>
+    ): Decision {
+        raw ?: return Decision.NONE
+        val geni = project(raw) ?: return Decision.NONE
+        val snapshot = link.snapshot?.let(project)
+        if (snapshot == null) {
+            val edited = link.snapshot == null && link.verifiedHash != null && local.hashCode() != link.verifiedHash
+            return if (edited) Decision(Keep.LOCAL, filled(local).filterNotNull().toSet()) else Decision.NONE
+        }
+        val result = threeWay(snapshot, local, geni)
+        return if (result.conflicts.isEmpty()) Decision(Keep.NONE, result.local.filterNotNull().toSet()) else Decision(Keep.CONFLICT)
     }
 
     /** The verified hash holds only for the snapshot it was checked against: a new snapshot needs a new check. */

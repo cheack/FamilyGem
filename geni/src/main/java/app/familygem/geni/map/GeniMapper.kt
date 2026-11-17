@@ -50,23 +50,23 @@ object GeniMapper {
     /**
      * Applies a Geni profile to a person, as a three-way merge: a field changes only if Geni changed it since [previous],
      * the Geni version of the last load (null on the first load: every field is applied).
-     * Facts are updated in place, keeping their notes, sources and media.
+     * Facts are updated in place, keeping their notes, sources and media. Groups in [keep] are left as they are.
      */
-    fun applyProfile(gedcom: Gedcom, person: Person, profile: GeniProfile, previous: GeniProfile? = null) {
-        fun changed(field: (GeniProfile) -> Any?) = previous == null || field(previous) != field(profile)
-        if (changed { listOf(it.firstName, it.middleName, it.lastName, it.maidenName, it.suffix, it.nicknames) })
+    fun applyProfile(gedcom: Gedcom, person: Person, profile: GeniProfile, previous: GeniProfile? = null, keep: Set<ProfileGroup> = emptySet()) {
+        fun changed(group: ProfileGroup, field: (GeniProfile) -> Any?) = group !in keep && (previous == null || field(previous) != field(profile))
+        if (changed(ProfileGroup.NAMES) { listOf(it.firstName, it.middleName, it.lastName, it.maidenName, it.suffix, it.nicknames) })
             updateNames(person, profile)
-        if (profile.gender != null && changed { it.gender })
+        if (profile.gender != null && changed(ProfileGroup.SEX) { it.gender })
             setFact(person, "SEX", value = if (profile.gender == "male") "M" else if (profile.gender == "female") "F" else "U")
         else if (person.eventsFacts.orEmpty().none { it.tag == "SEX" })
             setFact(person, "SEX", value = "U")
-        if (changed { it.birth }) setEvent(person, "BIRT", profile.birth)
-        if (changed { it.baptism }) setEvent(person, "BAPM", profile.baptism)
-        if (changed { it.occupation }) {
+        if (changed(ProfileGroup.BIRTH) { it.birth }) setEvent(person, "BIRT", profile.birth)
+        if (changed(ProfileGroup.BAPTISM) { it.baptism }) setEvent(person, "BAPM", profile.baptism)
+        if (changed(ProfileGroup.OCCUPATION) { it.occupation }) {
             val occupation = profile.occupation?.takeIf { it.isNotBlank() }
             if (occupation != null) setFact(person, "OCCU", value = occupation) else removeFacts(person, "OCCU")
         }
-        if (changed { listOf(it.death, it.isAlive, it.causeOfDeath) }) {
+        if (changed(ProfileGroup.DEATH) { listOf(it.death, it.isAlive, it.causeOfDeath) }) {
             val dead = profile.isAlive == false || !profile.causeOfDeath.isNullOrBlank()
             val date = gedcomDate(profile.death?.date)
             val place = place(profile.death?.location)
@@ -74,8 +74,8 @@ object GeniMapper {
             else setFact(person, "DEAT", value = if (date == null && place == null) "Y" else null, date = date, place = place,
                 cause = profile.causeOfDeath?.takeIf { it.isNotBlank() })
         }
-        if (changed { it.burial }) setEvent(person, "BURI", profile.burial)
-        if (changed { it.aboutMe }) setTag(person, ABOUT_TAG, profile.aboutMe?.takeIf { it.isNotBlank() })
+        if (changed(ProfileGroup.BURIAL) { it.burial }) setEvent(person, "BURI", profile.burial)
+        if (changed(ProfileGroup.ABOUT) { it.aboutMe }) setTag(person, ABOUT_TAG, profile.aboutMe?.takeIf { it.isNotBlank() })
     }
 
     /** Updates the main name and the birth (maiden) name in place, keeping their sub-records. */
@@ -145,7 +145,10 @@ object GeniMapper {
         if (surname.isNullOrBlank()) given else "$given /$surname/".trim()
 
     /** Links partners and children (never removes links) and merges marriage and divorce like [applyProfile]. */
-    fun applyUnion(gedcom: Gedcom, family: Family, union: GeniUnion, previous: GeniUnion? = null, personFor: (String) -> Person?) {
+    fun applyUnion(
+        gedcom: Gedcom, family: Family, union: GeniUnion, previous: GeniUnion? = null,
+        keep: Set<UnionGroup> = emptySet(), personFor: (String) -> Person?
+    ) {
         union.partners.orEmpty().mapNotNull { personFor(geniId(it)) }.forEach { partner ->
             if (family.husbandRefs.orEmpty().any { it.ref == partner.id } || family.wifeRefs.orEmpty().any { it.ref == partner.id }) return@forEach
             val sex = partner.eventsFacts.orEmpty().firstOrNull { it.tag == "SEX" }?.value
@@ -164,8 +167,8 @@ object GeniMapper {
             if (child.parentFamilyRefs.orEmpty().none { it.ref == family.id })
                 child.addParentFamilyRef(ParentFamilyRef().apply { ref = family.id })
         }
-        if (previous == null || previous.marriage != union.marriage) setEvent(family, "MARR", union.marriage)
-        if (previous == null || previous.divorce != union.divorce || previous.status != union.status) {
+        if (UnionGroup.MARRIAGE !in keep && (previous == null || previous.marriage != union.marriage)) setEvent(family, "MARR", union.marriage)
+        if (UnionGroup.DIVORCE !in keep && (previous == null || previous.divorce != union.divorce || previous.status != union.status)) {
             val date = gedcomDate(union.divorce?.date)
             val place = place(union.divorce?.location)
             if (date != null || place != null) setFact(family, "DIV", date = date, place = place)

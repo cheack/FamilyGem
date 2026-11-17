@@ -82,6 +82,9 @@ class UploaderTest {
         UploadJob(id = 3, treeId = 1, key = key, kind = kind, geniId = geniId, personGedcomId = person, familyGedcomId = family, anchors = anchors,
             params = listOf("first_name" to "New", "is_alive" to "true"), label = "New", localHash = 1)
 
+    /** The job as the queue keeps it, so the uploader finds it unchanged before posting. */
+    private suspend fun stored(job: UploadJob) = job.copy(id = store.saveJob(job.copy(id = 0)))
+
     private val updateProfile = UploadJob(id = 1, treeId = 1, key = "profile:profile-36430", kind = JobKind.UPDATE_PROFILE,
         geniId = "profile-36430", params = listOf("occupation" to "Driver"), label = "Test User", localHash = 1)
 
@@ -89,10 +92,12 @@ class UploaderTest {
     fun updateProfilePostsParamsAndSavesSnapshot() = runTest {
         tree()
         store.saveLinks(listOf(link("profile-36430", "I1")))
+        server.enqueue(ok("""{"id":"profile-36430"}""")) // Check: Geni unchanged since the snapshot
         server.enqueue(ok("""{"id":"profile-36430","occupation":"Driver"}"""))
         val full = """{"id":"profile-36430","occupation":"Driver","about_me":"Hi","updated_at":"1795000000"}"""
         server.enqueue(ok(full))
-        assertEquals(Outcome.Done, uploader().run(updateProfile))
+        assertEquals(Outcome.Done, uploader().run(stored(updateProfile)))
+        assertEquals("GET", server.takeRequest().method)
         val post = server.takeRequest()
         assertEquals("POST", post.method)
         assertEquals("/api/profile-36430/update", post.url.encodedPath)
@@ -110,10 +115,12 @@ class UploaderTest {
     fun updateUnionPostsToUnion() = runTest {
         tree()
         store.saveLinks(listOf(link("union-10106", "F1")))
+        server.enqueue(ok("""{"id":"union-10106"}""")) // Check
         server.enqueue(ok("""{"id":"union-10106"}"""))
         server.enqueue(ok("""{"id":"union-10106","marriage":{"date":{"year":2012}}}"""))
         val job = updateProfile.copy(key = "union:union-10106", kind = JobKind.UPDATE_UNION, geniId = "union-10106", params = listOf("marriage[date][year]" to "2012"))
-        assertEquals(Outcome.Done, uploader().run(job))
+        assertEquals(Outcome.Done, uploader().run(stored(job)))
+        server.takeRequest()
         assertEquals("/api/union-10106/update", server.takeRequest().url.encodedPath)
         assertTrue(store.link(1, "union-10106")!!.snapshot!!.contains("2012"))
     }
@@ -197,7 +204,7 @@ class UploaderTest {
         tree()
         store.saveLinks(listOf(link("profile-36430", "I1")))
         server.enqueue(error(403, """{"error":{"type":"ApiException","message":"Access Denied"}}"""))
-        assertEquals(Outcome.Failed("Access Denied"), uploader().run(updateProfile))
+        assertEquals(Outcome.Failed("Access Denied"), uploader().run(stored(updateProfile)))
         assertEquals("{}", store.link(1, "profile-36430")!!.snapshot)
     }
 
@@ -205,21 +212,21 @@ class UploaderTest {
     fun http503Retries() = runTest {
         tree()
         server.enqueue(error(503))
-        assertTrue(uploader().run(updateProfile) is Outcome.Retry)
+        assertTrue(uploader().run(stored(updateProfile)) is Outcome.Retry)
     }
 
     @Test
     fun http401NeedsLogin() = runTest {
         tree()
         server.enqueue(error(401))
-        assertEquals(Outcome.NeedsLogin, uploader().run(updateProfile))
+        assertEquals(Outcome.NeedsLogin, uploader().run(stored(updateProfile)))
     }
 
     @Test
     fun connectionLostOnUpdateRetries() = runTest {
         tree()
         server.close()
-        assertTrue(uploader().run(updateProfile) is Outcome.Retry)
+        assertTrue(uploader().run(stored(updateProfile)) is Outcome.Retry)
     }
 
     @Test
@@ -311,13 +318,27 @@ class UploaderTest {
     }
 
     @Test
-    fun updateSnapshotFetchFailureRetries() = runTest {
+    fun updateSnapshotFetchFailureKeepsSentFields() = runTest {
+        tree()
+        store.saveLinks(listOf(link("profile-36430", "I1")))
+        server.enqueue(ok("""{"id":"profile-36430"}""")) // Check
+        server.enqueue(ok("""{"id":"profile-36430"}"""))
+        server.enqueue(error(503))
+        // Geni took the change: done. The old snapshot would make it look like someone else's change later
+        assertEquals(Outcome.Done, uploader().run(stored(updateProfile)))
+        val link = store.link(1, "profile-36430")!!
+        assertEquals("Driver", app.familygem.geni.map.ProfileFields.ofSnapshot(link.snapshot!!)!!.occupation)
+    }
+
+    @Test
+    fun updateIsNotSentWhenJobChangedDuringCheck() = runTest {
         tree()
         store.saveLinks(listOf(link("profile-36430", "I1")))
         server.enqueue(ok("""{"id":"profile-36430"}"""))
-        server.enqueue(error(503))
-        assertTrue(uploader().run(updateProfile) is Outcome.Retry)
-        assertEquals("{}", store.link(1, "profile-36430")!!.snapshot)
+        val job = stored(updateProfile)
+        store.saveJob(job.copy(params = listOf("occupation" to "Pilot"), version = 1)) // Saved during the check
+        assertEquals(Outcome.Superseded, uploader().run(job))
+        assertEquals(1, server.requestCount)
     }
 
     @Test
@@ -345,30 +366,33 @@ class UploaderTest {
     fun snapshotRefreshKeepsOtherLinkFields() = runTest {
         tree()
         store.saveLinks(listOf(link("profile-36430", "I1")))
+        server.enqueue(ok("""{"id":"profile-36430"}""")) // Check
         server.enqueue(ok("""{"id":"profile-36430"}"""))
         server.enqueue(ok("""{"id":"profile-36430","occupation":"Driver","updated_at":"9"}"""))
-        assertEquals(Outcome.Done, uploader().run(updateProfile))
+        assertEquals(Outcome.Done, uploader().run(stored(updateProfile)))
         val saved = store.link(1, "profile-36430")!!
         assertEquals(5L, saved.loadedAtMillis)
         assertEquals("9", saved.geniUpdatedAt)
     }
 
     @Test
-    fun addStoresSentHashOnLink() = runTest {
+    fun addStoresSentFieldsAsSnapshot() = runTest {
         tree()
         store.saveLinks(listOf(link("union-10106", "F1")))
         server.enqueue(ok("""{"id":"profile-50","unions":["union-10106"]}"""))
         server.enqueue(error(503))
         assertEquals(Outcome.Done, uploader().run(job(JobKind.ADD_CHILD, "add:I3", person = "I3", family = "F1", anchors = listOf("partner:I1"))))
         val saved = store.link(1, "profile-50")!!
-        assertNull(saved.snapshot)
-        assertEquals(1, saved.verifiedHash) // The job's localHash: what Geni has now, until a snapshot replaces it
+        // Geni's full version could not be fetched: what was sent is Geni's version for later comparisons
+        assertEquals(app.familygem.geni.map.ProfileFields.EMPTY.copy(given = "New"), app.familygem.geni.map.ProfileFields.ofSnapshot(saved.snapshot!!))
+        assertNull(saved.verifiedHash)
     }
 
     @Test
     fun snapshotRefreshNeverOverwritesANewerSnapshot() = runTest {
         tree()
         store.saveLinks(listOf(link("profile-36430", "I1")))
+        server.enqueue(ok("""{"id":"profile-36430"}""")) // Check
         server.enqueue(ok("""{"id":"profile-36430"}"""))
         server.enqueue(ok("""{"id":"profile-36430","occupation":"Old"}"""))
         server.enqueue(ok("""{"id":"profile-36430","occupation":"Fresh"}"""))
@@ -377,7 +401,7 @@ class UploaderTest {
             // A load stores a newer snapshot after the uploader fetched its own
             if (loads++ == 0) store.saveLinks(listOf(store.link(1, "profile-36430")!!.copy(snapshot = """{"id":"profile-36430","occupation":"Loaded"}""")))
         }
-        assertEquals(Outcome.Done, uploader().run(updateProfile))
+        assertEquals(Outcome.Done, uploader().run(stored(updateProfile)))
         assertEquals("""{"id":"profile-36430","occupation":"Fresh"}""", store.link(1, "profile-36430")!!.snapshot)
     }
 
@@ -385,11 +409,12 @@ class UploaderTest {
     fun snapshotConflictEveryTimeRetries() = runTest {
         tree()
         store.saveLinks(listOf(link("profile-36430", "I1")))
+        server.enqueue(ok("""{"id":"profile-36430"}""")) // Check
         server.enqueue(ok("""{"id":"profile-36430"}"""))
         repeat(3) { server.enqueue(ok("""{"id":"profile-36430","occupation":"Driver"}""")) }
         var loads = 0
         beforeSnapshotWrite = { store.saveLinks(listOf(store.link(1, "profile-36430")!!.copy(snapshot = """{"loaded":${loads++}}"""))) }
-        assertTrue(uploader().run(updateProfile) is Outcome.Retry)
+        assertTrue(uploader().run(stored(updateProfile)) is Outcome.Retry)
     }
 
     @Test
@@ -397,9 +422,72 @@ class UploaderTest {
         tree()
         store.saveLinks(listOf(link("profile-36430", "I1", snapshot = null)))
         server.enqueue(ok("""{"id":"profile-36430","first_name":"Olga"}"""))
-        assertEquals(Outcome.Done, uploader().run(updateProfile.copy(params = emptyList())))
+        assertEquals(Outcome.Done, uploader().run(stored(updateProfile.copy(params = emptyList()))))
         assertEquals("GET", server.takeRequest().method)
         assertEquals(1, server.requestCount)
         assertEquals("""{"id":"profile-36430","first_name":"Olga"}""", store.link(1, "profile-36430")!!.snapshot)
+    }
+
+    // Check of Geni's version before an update
+
+    private fun treeWithOccupation(occupation: String) = tree().also { gedcom ->
+        gedcom.people.single { it.id == "I1" }.addEventFact(org.folg.gedcom.model.EventFact().apply { tag = "OCCU"; value = occupation })
+    }
+    private val engineer = """{"id":"profile-36430","occupation":"Engineer"}"""
+    private val driverJob = updateProfile.copy(params = listOf("occupation" to "Driver"))
+
+    @Test
+    fun updateSendsWhenGeniUnchanged() = runTest {
+        treeWithOccupation("Driver")
+        store.saveLinks(listOf(link("profile-36430", "I1", snapshot = engineer)))
+        server.enqueue(ok(engineer))
+        server.enqueue(ok("""{"id":"profile-36430"}"""))
+        server.enqueue(ok("""{"id":"profile-36430","occupation":"Driver"}"""))
+        assertEquals(Outcome.Done, uploader().run(stored(driverJob)))
+        assertEquals("GET", server.takeRequest().method)
+        assertEquals("occupation=Driver", server.takeRequest().body!!.utf8())
+    }
+
+    @Test
+    fun updateStopsOnConflict() = runTest {
+        val gedcom = treeWithOccupation("Driver")
+        store.saveLinks(listOf(link("profile-36430", "I1", snapshot = engineer)))
+        server.enqueue(ok(engineer.replace("Engineer", "Pilot")))
+        assertEquals(Outcome.Conflict(listOf("OCCUPATION")), uploader().run(stored(driverJob)))
+        assertEquals(1, server.requestCount) // Nothing sent
+        assertEquals(engineer, store.link(1, "profile-36430")!!.snapshot)
+        assertEquals("Driver", gedcom.people.single { it.id == "I1" }.eventsFacts.single { it.tag == "OCCU" }.value)
+    }
+
+    @Test
+    fun updateMergesOtherGeniChangeFirst() = runTest {
+        val gedcom = treeWithOccupation("Driver")
+        store.saveLinks(listOf(link("profile-36430", "I1", snapshot = engineer)))
+        val withBirth = """{"id":"profile-36430","occupation":"Engineer","birth":{"date":{"year":1960}}}"""
+        server.enqueue(ok(withBirth))
+        server.enqueue(ok("""{"id":"profile-36430"}"""))
+        server.enqueue(ok(withBirth.replace("Engineer", "Driver")))
+        val uploader = uploader()
+        var reported: LocalTree? = null
+        uploader.onTreeEdited = { _, local -> reported = local }
+        assertEquals(Outcome.Done, uploader.run(stored(driverJob)))
+        server.takeRequest()
+        assertEquals("occupation=Driver", server.takeRequest().body!!.utf8()) // Only the user's change
+        val person = gedcom.people.single { it.id == "I1" }
+        assertEquals("1960", person.eventsFacts.single { it.tag == "BIRT" }.date)
+        assertEquals("Driver", person.eventsFacts.single { it.tag == "OCCU" }.value)
+        assertEquals("1960", reported!!.people.single { it.gedcomId == "I1" }.fields.birth?.date)
+    }
+
+    @Test
+    fun conflictAgainstAnOutdatedBaseRetries() = runTest {
+        val gedcom = treeWithOccupation("Engineer")
+        gedcom.people.single { it.id == "I1" }.addEventFact(org.folg.gedcom.model.EventFact().apply { tag = "BIRT"; date = "1961" })
+        store.saveLinks(listOf(link("profile-36430", "I1", snapshot = engineer)))
+        val geni = """{"id":"profile-36430","occupation":"Engineer","birth":{"date":{"year":1960}}}"""
+        server.enqueue(ok(geni))
+        // A load stores Geni's version while the uploader compares against the snapshot it read before
+        editHook = { kotlinx.coroutines.runBlocking { store.saveLinks(listOf(store.link(1, "profile-36430")!!.copy(snapshot = geni))) } }
+        assertTrue(uploader().run(stored(driverJob)) is Outcome.Retry)
     }
 }

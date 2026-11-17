@@ -418,4 +418,91 @@ class SyncQueueTest {
         assertEquals(RunResult.EMPTY, queue.runPending(1))
         assertEquals(emptyList<UploadJob>(), uploader.ran)
     }
+
+    @Test
+    fun conflictJobIsKeptUntilChangedAgain() = runTest {
+        linkBoth()
+        queue.onSaved(1, tree(driver))
+        uploader.answer = { Outcome.Conflict(listOf("OCCUPATION")) }
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        val job = store.jobs(1).single()
+        assertEquals(JobState.CONFLICT, job.state)
+        assertTrue(job.error!!.contains("occupation"))
+        queue.onSaved(1, tree(driver))
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        assertEquals(1, uploader.ran.size) // A conflict never runs by itself
+        queue.onSaved(1, tree(pilot))
+        assertEquals(JobState.PENDING, store.jobs(1).single().state)
+    }
+
+    @Test
+    fun queuePlansWithTreeReportedByUploader() = runTest {
+        linkBoth()
+        queue.onSaved(1, tree(driver))
+        uploader.answer = { job ->
+            uploader.geniApplies(job)
+            // The upload merged a change into the tree: the next plan must see it, not the tree saved before
+            queue.setLocal(1, tree(driver, anna.copy(occupation = "Nurse")))
+            uploader.answer = { Outcome.Retry("offline") }
+            Outcome.Done
+        }
+        queue.runPending(1)
+        assertEquals("profile:profile-2", uploader.ran.last().key)
+    }
+
+    @Test
+    fun olderCaptureNeverReplacesNewerOne() = runTest {
+        linkBoth()
+        queue.onSaved(1, tree(driver).copy(stamp = 5))
+        // Saved earlier but planned later (captures are planned in background), and an older tree from the uploader
+        queue.onSaved(1, tree(pilot).copy(stamp = 3))
+        queue.setLocal(1, tree(pilot).copy(stamp = 4))
+        assertEquals(listOf("occupation" to "Driver"), store.jobs(1).single().params)
+        uploader.answer = { Outcome.Retry("offline") }
+        queue.runPending(1)
+        assertEquals(listOf("occupation" to "Driver"), uploader.ran.single().params)
+    }
+
+    @Test
+    fun supersededJobRunsAgainWithNewParams() = runTest {
+        linkBoth()
+        queue.onSaved(1, tree(driver))
+        uploader.answer = {
+            queue.onSaved(1, tree(pilot)) // Saved during the check: the uploader posts nothing
+            uploader.answer = uploader.geniApplies
+            Outcome.Superseded
+        }
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        assertEquals(listOf("occupation" to "Pilot"), uploader.ran.last().params)
+    }
+
+    @Test
+    fun treeReportedByAFailedUploadIsPlanned() = runTest {
+        linkBoth()
+        queue.onSaved(1, tree(driver).copy(stamp = 1))
+        uploader.answer = {
+            // The uploader's tree already holds Anna's edit, saved but not planned yet
+            queue.setLocal(1, tree(driver, anna.copy(occupation = "Nurse")).copy(stamp = 5))
+            uploader.answer = { Outcome.Retry("offline") }
+            Outcome.Failed("Access Denied")
+        }
+        queue.runPending(1)
+        assertTrue(store.jobs(1).any { it.key == "profile:profile-2" })
+    }
+
+    @Test
+    fun supersededJobIsPlannedAgainstTheNewSnapshot() = runTest {
+        linkBoth()
+        queue.onSaved(1, tree(driver))
+        val withBirth = driver.copy(birth = app.familygem.geni.map.EventFields("1960", null))
+        uploader.answer = {
+            // The check merged Geni's birth into the tree; a save planned it against the old snapshot, then the snapshot moved
+            queue.onSaved(1, tree(withBirth))
+            store.saveLinks(listOf(store.link(1, "profile-1")!!.copy(snapshot = ivanJson.replace("}", ""","birth":{"date":{"year":1960}}}"""))))
+            uploader.answer = uploader.geniApplies
+            Outcome.Superseded
+        }
+        queue.runPending(1)
+        assertEquals(listOf("occupation" to "Driver"), uploader.ran.last().params)
+    }
 }

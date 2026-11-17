@@ -104,6 +104,15 @@ class RoomSyncStoreTest {
     }
 
     @Test
+    fun conflictJobRoundTrips() = runTest {
+        val id = store.saveJob(job("profile:profile-1", JobState.CONFLICT).copy(error = "changed on Geni meanwhile: occupation"))
+        val saved = store.jobs(1).single()
+        assertEquals(id, saved.id)
+        assertEquals(JobState.CONFLICT, saved.state)
+        assertEquals("changed on Geni meanwhile: occupation", saved.error)
+    }
+
+    @Test
     fun saveJobWithTakenKeyThrows() = runTest {
         store.saveJob(job("profile:profile-1"))
         val error = runCatching { store.saveJob(job("profile:profile-1")) }.exceptionOrNull()

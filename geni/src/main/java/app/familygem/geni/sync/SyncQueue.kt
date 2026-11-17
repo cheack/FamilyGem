@@ -34,17 +34,31 @@ class SyncQueue(
     private val lastLocal = mutableMapOf<Int, LocalTree>()
     /** Key of the job being uploaded in each tree. */
     private val running = mutableMapOf<Int, String>()
+    /** Stamp of the last tree each plan started from: a tree accepted later must still be planned. */
+    private val planned = mutableMapOf<Int, Long>()
 
     private fun lock(treeId: Int) = synchronized(locks) { locks.getOrPut(treeId) { Mutex() } }
 
     /** Plans the jobs for a saved tree and merges them into the queue by key. */
     suspend fun onSaved(treeId: Int, local: LocalTree) = lock(treeId).withLock {
-        synchronized(lastLocal) { lastLocal[treeId] = local }
-        plan(treeId, local)
+        if (newer(treeId, local)) plan(treeId, local)
+    }
+
+    /** Stores [local] as the last saved tree unless a later capture is already stored; true if stored. */
+    private fun newer(treeId: Int, local: LocalTree): Boolean = synchronized(lastLocal) {
+        if (local.stamp < (lastLocal[treeId]?.stamp ?: Long.MIN_VALUE)) return false
+        lastLocal[treeId] = local
+        true
+    }
+
+    /** Takes a tree the uploader just edited as the last saved one, so the next plan starts from it. */
+    fun setLocal(treeId: Int, local: LocalTree) {
+        newer(treeId, local)
     }
 
     /** Called with the tree lock held. */
     private suspend fun plan(treeId: Int, local: LocalTree) {
+        synchronized(planned) { planned[treeId] = local.stamp }
         val existing = store.jobs(treeId).associateBy { it.key }
         val plan = UploadPlanner.plan(treeId, local, store.links(treeId), existing.values.toList())
         for (wanted in plan.upserts) {
@@ -122,9 +136,19 @@ class SyncQueue(
                     // A failed add may exist on Geni: recorded whatever its version, so it is never sent again by itself
                     is Outcome.Failed -> if (current != null && (unchanged || job.isAdd()))
                         store.saveJob(current.copy(state = JobState.FAILED, error = outcome.message))
+                    // Waits for the user; a new change of the record plans it again
+                    is Outcome.Conflict -> if (current != null && unchanged)
+                        store.saveJob(current.copy(state = JobState.CONFLICT, error = "changed on Geni meanwhile: " +
+                                outcome.groups.joinToString(", ") { it.lowercase() }))
+                    // The check may have moved the snapshot after the new version was planned: plan it again against it
+                    Outcome.Superseded -> synchronized(lastLocal) { lastLocal[treeId] }?.let { plan(treeId, it) }
                     is Outcome.Retry, Outcome.NeedsLogin ->
                         if (current?.state == JobState.SENDING) store.saveJob(current.copy(state = JobState.PENDING)) // Not sent
                 }
+                // A tree the uploader reported, newer than any plan (its save may not be planned yet), whatever the outcome
+                synchronized(lastLocal) { lastLocal[treeId] }
+                    ?.takeIf { it.stamp > synchronized(planned) { planned[treeId] ?: Long.MIN_VALUE } }
+                    ?.let { plan(treeId, it) }
             }
             when (outcome) {
                 is Outcome.Retry -> return RunResult.RETRY_LATER
