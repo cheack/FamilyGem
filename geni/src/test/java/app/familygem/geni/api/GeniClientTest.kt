@@ -143,4 +143,13 @@ class GeniClientTest {
         assertEquals(400, (error as GeniApiException).code)
         assertEquals(body, error.message)
     }
+
+    @Test
+    fun requestToAnotherHostIsRefused() = runTest {
+        tokens.save(app.familygem.geni.auth.AuthResult.Success("secret", Long.MAX_VALUE))
+        val error = runCatching { client().getJson("https://other.example/collect") }.exceptionOrNull()
+        assertTrue(error is IllegalArgumentException)
+        assertEquals(0, server.requestCount)
+        assertTrue(runCatching { client().post("http://other.example/x", emptyList()) }.exceptionOrNull() is IllegalArgumentException)
+    }
 }

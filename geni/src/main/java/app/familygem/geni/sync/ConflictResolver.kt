@@ -13,6 +13,10 @@ import app.familygem.geni.map.UnionGroup
 import app.familygem.geni.map.threeWay
 import app.familygem.geni.map.value
 import com.google.gson.Gson
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import org.folg.gedcom.model.Gedcom
 
 /** A field group changed both in the app and on Geni: the two values as the user reads them. */
@@ -30,6 +34,12 @@ class ConflictResolver(
 ) {
 
     private val gson = Gson()
+
+    private companion object {
+        /** One resolution at a time: each checks and moves the snapshot its tree change is based on. */
+        val mutex = Mutex()
+        const val CHANGED = "Geni changed again meanwhile; open the conflict again"
+    }
 
     /** The groups in conflict, with the app's and Geni's values. Needs the network. */
     suspend fun details(job: UploadJob): List<FieldConflict> {
@@ -56,26 +66,34 @@ class ConflictResolver(
      * Applies Geni's version to the record except the groups in [keepMine], stores it as the snapshot
      * and plans the job again. Throws if Geni or the snapshot changed meanwhile (the user tries again).
      */
-    suspend fun resolve(job: UploadJob, keepMine: Set<String>) {
+    suspend fun resolve(job: UploadJob, keepMine: Set<String>, shown: Set<String>? = null) = mutex.withLock {
         val (link, raw) = fetch(job)
         val snapshot = link.snapshot ?: error("no snapshot")
-        host.edit(job.treeId) { gedcom -> apply(gedcom, link, snapshot, raw, keepMine) }
+        // The snapshot may have moved during the fetch: never apply Geni's version over a newer resolution
+        check(store.link(job.treeId, link.geniId)?.snapshot == snapshot) { CHANGED }
+        host.edit(job.treeId) { gedcom -> apply(gedcom, link, snapshot, raw, keepMine, shown) }
         val updatedAt = if (link.geniId.startsWith("profile-")) gson.fromJson(raw, GeniProfile::class.java).updatedAt else link.geniUpdatedAt
-        check(store.updateSnapshot(job.treeId, link.geniId, snapshot, raw, updatedAt)) { "the record changed meanwhile, try again" }
-        host.refreshScreens()
-        queue.afterResolve(job.treeId, job.key)
+        check(store.updateSnapshot(job.treeId, link.geniId, snapshot, raw, updatedAt)) { CHANGED }
+        // The tree and the snapshot changed: the job must leave the conflict state even if the screen is closed now
+        withContext(NonCancellable) {
+            host.refreshScreens()
+            queue.afterResolve(job.treeId, job.key)
+        }
     }
 
-    private fun apply(gedcom: Gedcom, link: GeniLink, snapshot: String, raw: String, keepMine: Set<String>) {
+    /** Throws before changing anything if the conflicts are not the [shown] ones (Geni changed again since the dialog). */
+    private fun apply(gedcom: Gedcom, link: GeniLink, snapshot: String, raw: String, keepMine: Set<String>, shown: Set<String>?) {
         if (link.geniId.startsWith("profile-")) {
             val person = gedcom.people.orEmpty().firstOrNull { it.id == link.gedcomId } ?: error("the person is no longer in the tree")
             // Local edits outside the conflict stay too, also when Geni only reformatted the same field
             val result = threeWay(ProfileFields.ofSnapshot(snapshot)!!, ProfileFields.of(person), ProfileFields.ofSnapshot(raw)!!)
+            check(shown == null || result.conflicts.map { it.name }.toSet() == shown) { CHANGED }
             val keep = (result.local - result.conflicts) + ProfileGroup.values().filter { it.name in keepMine }
             GeniMapper.applyProfile(gedcom, person, gson.fromJson(raw, GeniProfile::class.java), gson.fromJson(snapshot, GeniProfile::class.java), keep)
         } else {
             val family = gedcom.families.orEmpty().firstOrNull { it.id == link.gedcomId } ?: error("the family is no longer in the tree")
             val result = threeWay(UnionFields.ofSnapshot(snapshot)!!, UnionFields.of(family), UnionFields.ofSnapshot(raw)!!)
+            check(shown == null || result.conflicts.map { it.name }.toSet() == shown) { CHANGED }
             val keep = (result.local - result.conflicts) + UnionGroup.values().filter { it.name in keepMine }
             GeniMapper.applyUnion(gedcom, family, gson.fromJson(raw, GeniUnion::class.java), gson.fromJson(snapshot, GeniUnion::class.java), keep) { null }
         }

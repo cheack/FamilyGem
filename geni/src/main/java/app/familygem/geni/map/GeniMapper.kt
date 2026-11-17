@@ -115,7 +115,21 @@ object GeniMapper {
         if (tag == "DEAT") fact.cause = cause
     }
 
-    private fun removeFacts(container: Any, tag: String) = setFacts(container, facts(container).filter { it.tag != tag })
+    /**
+     * Removes the facts with this tag. A birth, baptism, burial, marriage or occupation fact that holds local data
+     * (notes, sources, media) is emptied instead: Geni does not have that data. An empty fact projects as no value.
+     * Death and divorce facts are removed anyway: an empty one would still mean "dead" or "divorced".
+     */
+    private fun removeFacts(container: Any, tag: String) {
+        val kept = if (tag in EMPTIABLE) facts(container).filter { it.tag == tag && hasLocalData(it) } else emptyList()
+        kept.forEach { it.value = null; it.date = null; it.place = null }
+        setFacts(container, facts(container).filter { it.tag != tag || it in kept })
+    }
+
+    private val EMPTIABLE = setOf("BIRT", "BAPM", "BURI", "MARR", "OCCU")
+
+    private fun hasLocalData(fact: EventFact) = fact.notes.orEmpty().isNotEmpty() || fact.noteRefs.orEmpty().isNotEmpty() ||
+            fact.sourceCitations.orEmpty().isNotEmpty() || fact.media.orEmpty().isNotEmpty() || fact.mediaRefs.orEmpty().isNotEmpty()
 
     private fun facts(container: Any): List<EventFact> = when (container) {
         is Person -> container.eventsFacts.orEmpty()

@@ -65,7 +65,16 @@ class GeniClient(
     }
 
     /** Raw JSON response of a GET request to an API path relative to the base, like "profile-1/immediate-family". */
-    suspend fun getJson(path: String): String = execute(Request.Builder().url(baseUrl.resolve(path)!!))
+    suspend fun getJson(path: String): String = execute(Request.Builder().url(apiUrl(path)))
+
+    /** The URL of a path relative to the API; any other origin is refused, so the token never leaves Geni. */
+    private fun apiUrl(path: String): HttpUrl {
+        val url = baseUrl.resolve(path)
+        require(url != null && url.scheme == baseUrl.scheme && url.host == baseUrl.host && url.port == baseUrl.port) {
+            "request outside the Geni API"
+        }
+        return url
+    }
 
     /**
      * Raw JSON response of a form POST to an API path relative to the base, like "profile-1/update".
@@ -73,7 +82,7 @@ class GeniClient(
      */
     suspend fun post(path: String, params: List<Pair<String, String>>): String {
         val form = FormBody.Builder().apply { params.forEach { (key, value) -> add(key, value) } }.build()
-        return execute(Request.Builder().url(baseUrl.resolve(path)!!).post(form))
+        return execute(Request.Builder().url(apiUrl(path)).post(form))
     }
 
     /** Sends the request with the token; 401 clears the token, 429 is retried once after the rate window. */

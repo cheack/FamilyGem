@@ -182,4 +182,16 @@ class GeniMapperTest {
         GeniMapper.applyProfile(Gedcom(), person, profiles.getValue("profile-36431").copy(gender = null))
         assertEquals("M", person.fact("SEX").value)
     }
+
+    @Test
+    fun clearedEventKeepsAFactWithLocalData() {
+        val person = Person()
+        val withBirth = com.google.gson.Gson().fromJson("""{"id":"profile-1","birth":{"date":{"year":1960}}}""", GeniProfile::class.java)
+        GeniMapper.applyProfile(Gedcom(), person, withBirth)
+        person.fact("BIRT").addNote(org.folg.gedcom.model.Note().apply { value = "Parish book" })
+        GeniMapper.applyProfile(Gedcom(), person, withBirth.copy(birth = null), withBirth)
+        assertEquals("Parish book", person.fact("BIRT").notes.single().value)
+        assertEquals(null, person.fact("BIRT").date)
+        assertEquals(null, app.familygem.geni.map.ProfileFields.of(person).birth) // An empty fact counts as no birth
+    }
 }

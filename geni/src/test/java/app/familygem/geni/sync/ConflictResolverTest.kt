@@ -16,6 +16,7 @@ import org.folg.gedcom.model.Gedcom
 import org.folg.gedcom.model.Person
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -104,5 +105,16 @@ class ConflictResolverTest {
         resolver.resolve(job, keepMine = emptySet())
         assertEquals("Local", GeniMapper.getTag(person, GeniMapper.ABOUT_TAG))
         assertEquals("Pilot", person.eventsFacts.single { it.tag == "OCCU" }.value)
+    }
+
+    @Test
+    fun resolveRefusesWhenTheConflictsChangedSinceShown() = runTest {
+        val (resolver, job) = setUpConflict()
+        person.eventsFacts.single { it.tag == "BIRT" }.date = "1959" // A local birth edit: Geni changed birth too since the dialog
+        server.enqueue(ok(geni))
+        val error = runCatching { resolver.resolve(job, keepMine = emptySet(), shown = setOf("OCCUPATION")) }.exceptionOrNull()
+        assertTrue(error is IllegalStateException)
+        assertEquals("1959", person.eventsFacts.single { it.tag == "BIRT" }.date)
+        assertEquals("Driver", person.eventsFacts.single { it.tag == "OCCU" }.value)
     }
 }

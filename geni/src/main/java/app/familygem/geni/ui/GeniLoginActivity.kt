@@ -281,18 +281,18 @@ class GeniLoginActivity : AppCompatActivity() {
                 .setTitle(job.label)
                 .setView(ScrollView(this@GeniLoginActivity).apply { addView(layout) })
                 .setPositiveButton(R.string.geni_conflict_apply) { _, _ ->
-                    resolveConflict(job, mineButtons.filterValues { it.isChecked }.keys)
+                    resolveConflict(job, mineButtons.filterValues { it.isChecked }.keys, fields.map { it.group }.toSet())
                 }
                 .setNegativeButton(R.string.geni_close, null)
                 .show()
         }
     }
 
-    private fun resolveConflict(job: UploadJob, keepMine: Set<String>) {
+    private fun resolveConflict(job: UploadJob, keepMine: Set<String>, shown: Set<String>? = null) {
         progress.visibility = View.VISIBLE
         lifecycleScope.launch {
             try {
-                Geni.resolver(applicationContext).resolve(job, keepMine)
+                Geni.resolver(applicationContext).resolve(job, keepMine, shown)
                 Geni.resumeUploads?.invoke()
             } catch (e: CancellationException) {
                 throw e
