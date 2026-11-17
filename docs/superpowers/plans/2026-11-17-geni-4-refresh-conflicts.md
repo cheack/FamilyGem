@@ -90,8 +90,8 @@
 
 ### Task 4: Open PR 1
 
-- [ ] Instrumented `RoomSyncStoreTest` on the phone (job with state `CONFLICT` round-trips).
-- [ ] Push `geni-refresh-1`, open the PR into `geni`, follow CodeRabbit, merge.
+- [x] Instrumented `RoomSyncStoreTest` on the phone (job with state `CONFLICT` round-trips).
+- [x] Push `geni-refresh-1`, open the PR into `geni`, follow CodeRabbit, merge.
 
 ## PR 2 (`geni-refresh-2`): resolving conflicts — Tasks 5–7
 
