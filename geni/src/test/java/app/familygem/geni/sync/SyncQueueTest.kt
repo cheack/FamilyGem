@@ -489,4 +489,20 @@ class SyncQueueTest {
         queue.runPending(1)
         assertTrue(store.jobs(1).any { it.key == "profile:profile-2" })
     }
+
+    @Test
+    fun supersededJobIsPlannedAgainstTheNewSnapshot() = runTest {
+        linkBoth()
+        queue.onSaved(1, tree(driver))
+        val withBirth = driver.copy(birth = app.familygem.geni.map.EventFields("1960", null))
+        uploader.answer = {
+            // The check merged Geni's birth into the tree; a save planned it against the old snapshot, then the snapshot moved
+            queue.onSaved(1, tree(withBirth))
+            store.saveLinks(listOf(store.link(1, "profile-1")!!.copy(snapshot = ivanJson.replace("}", ""","birth":{"date":{"year":1960}}}"""))))
+            uploader.answer = uploader.geniApplies
+            Outcome.Superseded
+        }
+        queue.runPending(1)
+        assertEquals(listOf("occupation" to "Driver"), uploader.ran.last().params)
+    }
 }

@@ -140,7 +140,8 @@ class SyncQueue(
                     is Outcome.Conflict -> if (current != null && unchanged)
                         store.saveJob(current.copy(state = JobState.CONFLICT, error = "changed on Geni meanwhile: " +
                                 outcome.groups.joinToString(", ") { it.lowercase() }))
-                    Outcome.Superseded -> Unit // The new version of the job runs next
+                    // The check may have moved the snapshot after the new version was planned: plan it again against it
+                    Outcome.Superseded -> synchronized(lastLocal) { lastLocal[treeId] }?.let { plan(treeId, it) }
                     is Outcome.Retry, Outcome.NeedsLogin ->
                         if (current?.state == JobState.SENDING) store.saveJob(current.copy(state = JobState.PENDING)) // Not sent
                 }
