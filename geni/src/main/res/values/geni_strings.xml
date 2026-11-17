@@ -22,4 +22,20 @@
     <string name="geni_close">Close</string>
     <string name="geni_retry_adds_warning">Some of these changes add people. Geni may have created them already: check on Geni first, or they may be added twice.</string>
     <string name="geni_retry_anyway">Retry anyway</string>
+    <string name="geni_conflicts">Conflicts (%1$d)</string>
+    <string name="geni_conflict_intro">Someone changed these fields on Geni while you were editing them. Choose the value to keep.</string>
+    <string name="geni_conflict_mine">Mine: %1$s</string>
+    <string name="geni_conflict_geni">On Geni: %1$s</string>
+    <string name="geni_conflict_apply">Apply</string>
+    <string name="geni_conflict_failed">Not resolved: %1$s</string>
+    <string name="geni_group_NAMES">Name</string>
+    <string name="geni_group_SEX">Sex</string>
+    <string name="geni_group_BIRTH">Birth</string>
+    <string name="geni_group_BAPTISM">Baptism</string>
+    <string name="geni_group_DEATH">Death</string>
+    <string name="geni_group_BURIAL">Burial</string>
+    <string name="geni_group_OCCUPATION">Occupation</string>
+    <string name="geni_group_ABOUT">About</string>
+    <string name="geni_group_MARRIAGE">Marriage</string>
+    <string name="geni_group_DIVORCE">Divorce</string>
 </resources>
