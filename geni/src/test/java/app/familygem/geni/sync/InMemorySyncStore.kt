@@ -27,6 +27,11 @@ open class InMemorySyncStore : SyncStore {
         linkMap[treeId to geniId] = link.copy(snapshot = snapshot, geniUpdatedAt = geniUpdatedAt, verifiedHash = null)
         return true
     }
+    override suspend fun forgetSnapshot(treeId: Int, geniId: String, expected: String?, hash: Int): Boolean {
+        val link = linkMap[treeId to geniId]?.takeIf { it.snapshot == expected } ?: return false
+        linkMap[treeId to geniId] = link.copy(snapshot = null, verifiedHash = hash)
+        return true
+    }
     override suspend fun setOrphaned(treeId: Int, geniId: String, orphaned: Boolean) {
         linkMap[treeId to geniId]?.let { linkMap[treeId to geniId] = it.copy(orphaned = orphaned) }
     }

@@ -23,8 +23,15 @@ fun ProfileFields.value(group: ProfileGroup): Any? = when (group) {
 
 fun UnionFields.value(group: UnionGroup): Any? = when (group) {
     UnionGroup.MARRIAGE -> marriage
-    UnionGroup.DIVORCE -> divorce
+    UnionGroup.DIVORCE -> listOf(divorce, divorced)
 }
+
+private fun filled(value: Any?): Boolean = value != null && (value !is List<*> || value.any { it != null && it != false })
+
+/** Groups with a value. */
+fun ProfileFields.filled(): Set<ProfileGroup> = ProfileGroup.values().filter { filled(value(it)) }.toSet()
+
+fun UnionFields.filled(): Set<UnionGroup> = UnionGroup.values().filter { filled(value(it)) }.toSet()
 
 /** Groups changed locally and on Geni since the snapshot, and the conflicts: changed on both sides to different values. */
 data class ThreeWay<G>(val local: Set<G>, val geni: Set<G>, val conflicts: Set<G>)

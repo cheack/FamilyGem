@@ -154,7 +154,7 @@ class FamilyMergerTest {
     }
 
     @Test
-    fun loadOfEditedPersonWithoutSnapshotKeepsLocal() {
+    fun loadOfEditedPersonWithoutSnapshotKeepsLocalAndFillsBlanks() {
         val gedcom = Gedcom()
         val links = mergeOne(gedcom, ivan)
         val person = gedcom.people.single()
@@ -165,7 +165,8 @@ class FamilyMergerTest {
         val geni = ivan.replace("}", ""","birth":{"date":{"year":1960}}}""")
         val again = mergeOne(gedcom, geni, added)
         assertEquals("Driver", person.fact("OCCU")!!.value)
-        assertEquals(null, person.fact("BIRT"))
+        // Empty here, filled on Geni: taken, so the next upload does not clear it on Geni
+        assertEquals("1960", person.fact("BIRT")!!.date)
         assertEquals(geni, again.getValue("profile-1").snapshot)
     }
 
@@ -190,5 +191,27 @@ class FamilyMergerTest {
         assertEquals("2001", family.eventsFacts.single { it.tag == "MARR" }.date)
         assertEquals(union, again.getValue("union-1").snapshot)
         assertEquals(1, family.husbandRefs.orEmpty().size + family.wifeRefs.orEmpty().size) // Partners are still linked
+    }
+
+    @Test
+    fun loadKeepsLocalEditWhenGeniOnlyReformattedTheField() {
+        val gedcom = Gedcom()
+        val snapshot = ivan.replace("}", ""","about_me":"A\r\nB"}""")
+        val links = mergeOne(gedcom, snapshot)
+        val person = gedcom.people.single()
+        GeniMapper.setTag(person, GeniMapper.ABOUT_TAG, "Local")
+        mergeOne(gedcom, ivan.replace("}", ""","about_me":"A\nB"}"""), links)
+        assertEquals("Local", GeniMapper.getTag(person, GeniMapper.ABOUT_TAG))
+    }
+
+    @Test
+    fun loadKeepsDatedDivorceWhenGeniOnlyMarksExSpouse() {
+        val union = """{"id":"union-1","status":"spouse","partners":["profile-1"]}"""
+        val gedcom = Gedcom()
+        val links = mergeOne(gedcom, ivan, unionJson = union)
+        val family = gedcom.families.single()
+        family.addEventFact(org.folg.gedcom.model.EventFact().apply { tag = "DIV"; date = "2010" })
+        mergeOne(gedcom, ivan, links, union.replace("\"spouse\"", "\"ex_spouse\""))
+        assertEquals("2010", family.eventsFacts.single { it.tag == "DIV" }.date)
     }
 }

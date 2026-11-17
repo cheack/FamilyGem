@@ -462,4 +462,17 @@ class SyncQueueTest {
         queue.runPending(1)
         assertEquals(listOf("occupation" to "Driver"), uploader.ran.single().params)
     }
+
+    @Test
+    fun supersededJobRunsAgainWithNewParams() = runTest {
+        linkBoth()
+        queue.onSaved(1, tree(driver))
+        uploader.answer = {
+            queue.onSaved(1, tree(pilot)) // Saved during the check: the uploader posts nothing
+            uploader.answer = uploader.geniApplies
+            Outcome.Superseded
+        }
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        assertEquals(listOf("occupation" to "Pilot"), uploader.ran.last().params)
+    }
 }

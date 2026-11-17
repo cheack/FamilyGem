@@ -82,6 +82,9 @@ class UploaderTest {
         UploadJob(id = 3, treeId = 1, key = key, kind = kind, geniId = geniId, personGedcomId = person, familyGedcomId = family, anchors = anchors,
             params = listOf("first_name" to "New", "is_alive" to "true"), label = "New", localHash = 1)
 
+    /** The job as the queue keeps it, so the uploader finds it unchanged before posting. */
+    private suspend fun stored(job: UploadJob) = job.copy(id = store.saveJob(job.copy(id = 0)))
+
     private val updateProfile = UploadJob(id = 1, treeId = 1, key = "profile:profile-36430", kind = JobKind.UPDATE_PROFILE,
         geniId = "profile-36430", params = listOf("occupation" to "Driver"), label = "Test User", localHash = 1)
 
@@ -93,7 +96,7 @@ class UploaderTest {
         server.enqueue(ok("""{"id":"profile-36430","occupation":"Driver"}"""))
         val full = """{"id":"profile-36430","occupation":"Driver","about_me":"Hi","updated_at":"1795000000"}"""
         server.enqueue(ok(full))
-        assertEquals(Outcome.Done, uploader().run(updateProfile))
+        assertEquals(Outcome.Done, uploader().run(stored(updateProfile)))
         assertEquals("GET", server.takeRequest().method)
         val post = server.takeRequest()
         assertEquals("POST", post.method)
@@ -116,7 +119,7 @@ class UploaderTest {
         server.enqueue(ok("""{"id":"union-10106"}"""))
         server.enqueue(ok("""{"id":"union-10106","marriage":{"date":{"year":2012}}}"""))
         val job = updateProfile.copy(key = "union:union-10106", kind = JobKind.UPDATE_UNION, geniId = "union-10106", params = listOf("marriage[date][year]" to "2012"))
-        assertEquals(Outcome.Done, uploader().run(job))
+        assertEquals(Outcome.Done, uploader().run(stored(job)))
         server.takeRequest()
         assertEquals("/api/union-10106/update", server.takeRequest().url.encodedPath)
         assertTrue(store.link(1, "union-10106")!!.snapshot!!.contains("2012"))
@@ -201,7 +204,7 @@ class UploaderTest {
         tree()
         store.saveLinks(listOf(link("profile-36430", "I1")))
         server.enqueue(error(403, """{"error":{"type":"ApiException","message":"Access Denied"}}"""))
-        assertEquals(Outcome.Failed("Access Denied"), uploader().run(updateProfile))
+        assertEquals(Outcome.Failed("Access Denied"), uploader().run(stored(updateProfile)))
         assertEquals("{}", store.link(1, "profile-36430")!!.snapshot)
     }
 
@@ -209,21 +212,21 @@ class UploaderTest {
     fun http503Retries() = runTest {
         tree()
         server.enqueue(error(503))
-        assertTrue(uploader().run(updateProfile) is Outcome.Retry)
+        assertTrue(uploader().run(stored(updateProfile)) is Outcome.Retry)
     }
 
     @Test
     fun http401NeedsLogin() = runTest {
         tree()
         server.enqueue(error(401))
-        assertEquals(Outcome.NeedsLogin, uploader().run(updateProfile))
+        assertEquals(Outcome.NeedsLogin, uploader().run(stored(updateProfile)))
     }
 
     @Test
     fun connectionLostOnUpdateRetries() = runTest {
         tree()
         server.close()
-        assertTrue(uploader().run(updateProfile) is Outcome.Retry)
+        assertTrue(uploader().run(stored(updateProfile)) is Outcome.Retry)
     }
 
     @Test
@@ -315,13 +318,28 @@ class UploaderTest {
     }
 
     @Test
-    fun updateSnapshotFetchFailureRetries() = runTest {
+    fun updateSnapshotFetchFailureKeepsSentHash() = runTest {
+        tree()
+        store.saveLinks(listOf(link("profile-36430", "I1")))
+        server.enqueue(ok("""{"id":"profile-36430"}""")) // Check
+        server.enqueue(ok("""{"id":"profile-36430"}"""))
+        server.enqueue(error(503))
+        // Geni took the change: done. The old snapshot would make it look like someone else's change later
+        assertEquals(Outcome.Done, uploader().run(stored(updateProfile)))
+        val link = store.link(1, "profile-36430")!!
+        assertEquals(null, link.snapshot)
+        assertEquals(updateProfile.localHash, link.verifiedHash)
+    }
+
+    @Test
+    fun updateIsNotSentWhenJobChangedDuringCheck() = runTest {
         tree()
         store.saveLinks(listOf(link("profile-36430", "I1")))
         server.enqueue(ok("""{"id":"profile-36430"}"""))
-        server.enqueue(error(503))
-        assertTrue(uploader().run(updateProfile) is Outcome.Retry)
-        assertEquals("{}", store.link(1, "profile-36430")!!.snapshot)
+        val job = stored(updateProfile)
+        store.saveJob(job.copy(params = listOf("occupation" to "Pilot"), version = 1)) // Saved during the check
+        assertEquals(Outcome.Superseded, uploader().run(job))
+        assertEquals(1, server.requestCount)
     }
 
     @Test
@@ -352,7 +370,7 @@ class UploaderTest {
         server.enqueue(ok("""{"id":"profile-36430"}""")) // Check
         server.enqueue(ok("""{"id":"profile-36430"}"""))
         server.enqueue(ok("""{"id":"profile-36430","occupation":"Driver","updated_at":"9"}"""))
-        assertEquals(Outcome.Done, uploader().run(updateProfile))
+        assertEquals(Outcome.Done, uploader().run(stored(updateProfile)))
         val saved = store.link(1, "profile-36430")!!
         assertEquals(5L, saved.loadedAtMillis)
         assertEquals("9", saved.geniUpdatedAt)
@@ -383,7 +401,7 @@ class UploaderTest {
             // A load stores a newer snapshot after the uploader fetched its own
             if (loads++ == 0) store.saveLinks(listOf(store.link(1, "profile-36430")!!.copy(snapshot = """{"id":"profile-36430","occupation":"Loaded"}""")))
         }
-        assertEquals(Outcome.Done, uploader().run(updateProfile))
+        assertEquals(Outcome.Done, uploader().run(stored(updateProfile)))
         assertEquals("""{"id":"profile-36430","occupation":"Fresh"}""", store.link(1, "profile-36430")!!.snapshot)
     }
 
@@ -391,11 +409,12 @@ class UploaderTest {
     fun snapshotConflictEveryTimeRetries() = runTest {
         tree()
         store.saveLinks(listOf(link("profile-36430", "I1")))
+        server.enqueue(ok("""{"id":"profile-36430"}""")) // Check
         server.enqueue(ok("""{"id":"profile-36430"}"""))
         repeat(3) { server.enqueue(ok("""{"id":"profile-36430","occupation":"Driver"}""")) }
         var loads = 0
         beforeSnapshotWrite = { store.saveLinks(listOf(store.link(1, "profile-36430")!!.copy(snapshot = """{"loaded":${loads++}}"""))) }
-        assertTrue(uploader().run(updateProfile) is Outcome.Retry)
+        assertTrue(uploader().run(stored(updateProfile)) is Outcome.Retry)
     }
 
     @Test
@@ -403,7 +422,7 @@ class UploaderTest {
         tree()
         store.saveLinks(listOf(link("profile-36430", "I1", snapshot = null)))
         server.enqueue(ok("""{"id":"profile-36430","first_name":"Olga"}"""))
-        assertEquals(Outcome.Done, uploader().run(updateProfile.copy(params = emptyList())))
+        assertEquals(Outcome.Done, uploader().run(stored(updateProfile.copy(params = emptyList()))))
         assertEquals("GET", server.takeRequest().method)
         assertEquals(1, server.requestCount)
         assertEquals("""{"id":"profile-36430","first_name":"Olga"}""", store.link(1, "profile-36430")!!.snapshot)
@@ -424,7 +443,7 @@ class UploaderTest {
         server.enqueue(ok(engineer))
         server.enqueue(ok("""{"id":"profile-36430"}"""))
         server.enqueue(ok("""{"id":"profile-36430","occupation":"Driver"}"""))
-        assertEquals(Outcome.Done, uploader().run(driverJob))
+        assertEquals(Outcome.Done, uploader().run(stored(driverJob)))
         assertEquals("GET", server.takeRequest().method)
         assertEquals("occupation=Driver", server.takeRequest().body!!.utf8())
     }
@@ -434,7 +453,7 @@ class UploaderTest {
         val gedcom = treeWithOccupation("Driver")
         store.saveLinks(listOf(link("profile-36430", "I1", snapshot = engineer)))
         server.enqueue(ok(engineer.replace("Engineer", "Pilot")))
-        assertEquals(Outcome.Conflict(listOf("OCCUPATION")), uploader().run(driverJob))
+        assertEquals(Outcome.Conflict(listOf("OCCUPATION")), uploader().run(stored(driverJob)))
         assertEquals(1, server.requestCount) // Nothing sent
         assertEquals(engineer, store.link(1, "profile-36430")!!.snapshot)
         assertEquals("Driver", gedcom.people.single { it.id == "I1" }.eventsFacts.single { it.tag == "OCCU" }.value)
@@ -451,7 +470,7 @@ class UploaderTest {
         val uploader = uploader()
         var reported: LocalTree? = null
         uploader.onTreeEdited = { _, local -> reported = local }
-        assertEquals(Outcome.Done, uploader.run(driverJob))
+        assertEquals(Outcome.Done, uploader.run(stored(driverJob)))
         server.takeRequest()
         assertEquals("occupation=Driver", server.takeRequest().body!!.utf8()) // Only the user's change
         val person = gedcom.people.single { it.id == "I1" }

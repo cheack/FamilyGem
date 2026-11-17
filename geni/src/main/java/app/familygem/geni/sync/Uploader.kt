@@ -29,9 +29,13 @@ sealed interface Outcome {
     data object NeedsLogin : Outcome
     /** Geni changed these field groups since the snapshot, and the user changed them too: nothing was sent. */
     data class Conflict(val groups: List<String>) : Outcome
+    /** The job changed while it was checked: nothing was sent, the new version runs next. */
+    data object Superseded : Outcome
 }
 
 private val gson = Gson()
+
+private class SnapshotConflict : Exception("the snapshot kept changing during the refresh")
 
 private const val CHECK_GENI = "check on Geni whether the person was created, then retry or dismiss"
 
@@ -72,13 +76,32 @@ open class Uploader(
      */
     private suspend fun update(job: UploadJob): Outcome {
         val geniId = job.geniId ?: return Outcome.Failed("no Geni ID")
-        if (job.params.isNotEmpty()) {
-            mergeGeniChanges(job.treeId, geniId)?.let { return it }
-            client.post("$geniId/update", job.params)
-        }
-        // Without the new snapshot a later revert of this edit would look unchanged; an update can be sent again safely
+        if (job.params.isEmpty()) return refreshOnly(job.treeId, geniId)
+        mergeGeniChanges(job.treeId, geniId)?.let { return it }
+        // A save during the check replaced the params: never post the old ones
+        val current = store.jobs(job.treeId).firstOrNull { it.id == job.id }
+        if (current == null || current.version != job.version) return Outcome.Superseded
+        val before = store.link(job.treeId, geniId)?.snapshot
+        client.post("$geniId/update", job.params)
+        // Geni took the change. Without its new version, the old snapshot would make this change look like someone else's:
+        // the link keeps the hash of what was sent instead, like after an add
         return try {
             refreshSnapshot(job.treeId, geniId)
+            Outcome.Done
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: SnapshotConflict) {
+            Outcome.Retry(e.message!!) // Loads keep storing other versions: send again later, that is safe
+        } catch (e: Exception) {
+            store.forgetSnapshot(job.treeId, geniId, before, job.localHash)
+            Outcome.Done
+        }
+    }
+
+    /** An update without parameters only fetches the snapshot (after an add whose snapshot could not be fetched). */
+    private suspend fun refreshOnly(treeId: Int, geniId: String): Outcome {
+        return try {
+            refreshSnapshot(treeId, geniId)
             Outcome.Done
         } catch (e: CancellationException) {
             throw e
@@ -175,17 +198,17 @@ open class Uploader(
             val conflicts = if (isProfile) {
                 val person = gedcom.people.orEmpty().firstOrNull { it.id == link.gedcomId } ?: return@edit null
                 val geni = gson.fromJson(raw, GeniProfile::class.java)
-                threeWay(ProfileFields.ofSnapshot(snapshot)!!, ProfileFields.of(person), ProfileFields.ofSnapshot(raw)!!).conflicts
-                    .map { it.name }.ifEmpty {
-                        GeniMapper.applyProfile(gedcom, person, geni, gson.fromJson(snapshot, GeniProfile::class.java))
+                val result = threeWay(ProfileFields.ofSnapshot(snapshot)!!, ProfileFields.of(person), ProfileFields.ofSnapshot(raw)!!)
+                result.conflicts.map { it.name }.ifEmpty {
+                        GeniMapper.applyProfile(gedcom, person, geni, gson.fromJson(snapshot, GeniProfile::class.java), result.local)
                         emptyList()
                     }
             } else {
                 val family = gedcom.families.orEmpty().firstOrNull { it.id == link.gedcomId } ?: return@edit null
                 val geni = gson.fromJson(raw, GeniUnion::class.java)
-                threeWay(UnionFields.ofSnapshot(snapshot)!!, UnionFields.of(family), UnionFields.ofSnapshot(raw)!!).conflicts
-                    .map { it.name }.ifEmpty {
-                        GeniMapper.applyUnion(gedcom, family, geni, gson.fromJson(snapshot, GeniUnion::class.java)) { null }
+                val result = threeWay(UnionFields.ofSnapshot(snapshot)!!, UnionFields.of(family), UnionFields.ofSnapshot(raw)!!)
+                result.conflicts.map { it.name }.ifEmpty {
+                        GeniMapper.applyUnion(gedcom, family, geni, gson.fromJson(snapshot, GeniUnion::class.java), result.local) { null }
                         emptyList()
                     }
             }
@@ -226,7 +249,7 @@ open class Uploader(
             }
             if (written) return
         }
-        error("the snapshot kept changing during the refresh")
+        throw SnapshotConflict()
     }
 
     private suspend fun bestEffort(block: suspend () -> Unit) {

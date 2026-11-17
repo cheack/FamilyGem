@@ -73,14 +73,15 @@ data class ProfileFields(
     }
 }
 
-data class UnionFields(val marriage: EventFields?, val divorce: EventFields?) {
+/** @param divorced Any divorce fact, also one without date and place ("DIV Y", Geni's ex-spouse status) */
+data class UnionFields(val marriage: EventFields?, val divorce: EventFields?, val divorced: Boolean = false) {
     companion object {
         val EMPTY = UnionFields(null, null)
 
         /** A divorce without date and place ("DIV Y") counts as no divorce event: Geni would need `status` for it. */
         fun of(family: Family): UnionFields {
             val facts = family.eventsFacts.orEmpty()
-            return UnionFields(event(facts.firstOrNull { it.tag == "MARR" }), event(facts.firstOrNull { it.tag == "DIV" }))
+            return UnionFields(event(facts.firstOrNull { it.tag == "MARR" }), event(facts.firstOrNull { it.tag == "DIV" }), facts.any { it.tag == "DIV" })
         }
 
         fun ofSnapshot(json: String): UnionFields? {

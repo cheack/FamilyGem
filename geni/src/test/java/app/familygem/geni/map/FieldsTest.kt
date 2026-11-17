@@ -99,7 +99,7 @@ class FieldsTest {
             addEventFact(fact("MARR", date = "1 may 2016", place = "Kazan"))
             addEventFact(fact("DIV", date = "2020"))
         }
-        assertEquals(UnionFields(EventFields("1 MAY 2016", "Kazan"), EventFields("2020", null)), UnionFields.of(family))
+        assertEquals(UnionFields(EventFields("1 MAY 2016", "Kazan"), EventFields("2020", null), divorced = true), UnionFields.of(family))
     }
 
     @Test

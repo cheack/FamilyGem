@@ -49,4 +49,16 @@ class FieldGroupsTest {
         val result = threeWay(married, married.copy(divorce = EventFields("2010", null)), married.copy(divorce = EventFields("2011", null)))
         assertEquals(setOf(UnionGroup.DIVORCE), result.conflicts)
     }
+
+    @Test
+    fun undatedDivorceOnGeniConflictsWithLocalDivorceDate() {
+        val married = UnionFields(EventFields("2000", null), null)
+        val result = threeWay(married, married.copy(divorce = EventFields("2010", null), divorced = true), married.copy(divorced = true))
+        assertEquals(setOf(UnionGroup.DIVORCE), result.conflicts)
+    }
+
+    @Test
+    fun filledGroupsSkipEmptyValues() {
+        assertEquals(setOf(ProfileGroup.NAMES, ProfileGroup.BIRTH, ProfileGroup.OCCUPATION), base.filled())
+    }
 }
