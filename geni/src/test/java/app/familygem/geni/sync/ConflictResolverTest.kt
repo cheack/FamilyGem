@@ -117,4 +117,34 @@ class ConflictResolverTest {
         assertEquals("1959", person.eventsFacts.single { it.tag == "BIRT" }.date)
         assertEquals("Driver", person.eventsFacts.single { it.tag == "OCCU" }.value)
     }
+
+    private val deleted = geni.replace("}", ""","deleted":true}""")
+
+    @Test
+    fun deletedProfileIsOneGoneConflict() = runTest {
+        val (resolver, job) = setUpConflict()
+        server.enqueue(ok(deleted))
+        assertEquals(listOf(FieldConflict("GONE", "", "")), resolver.details(job))
+    }
+
+    @Test
+    fun removingGonePersonDropsItFromTheTree() = runTest {
+        val (resolver, job) = setUpConflict()
+        server.enqueue(ok(deleted))
+        resolver.resolve(job, keepMine = emptySet())
+        assertEquals(emptyList<Person>(), host.trees.getValue(1).people.orEmpty())
+        assertEquals(null, store.link(1, "profile-1"))
+        assertEquals(emptyList<UploadJob>(), store.jobs(1))
+    }
+
+    @Test
+    fun keepingGonePersonLeavesALocalPerson() = runTest {
+        val (resolver, job) = setUpConflict()
+        server.enqueue(ok(deleted))
+        resolver.resolve(job, keepMine = setOf("GONE"))
+        assertEquals(listOf(person), host.trees.getValue(1).people)
+        assertEquals("Driver", person.eventsFacts.single { it.tag == "OCCU" }.value)
+        assertEquals(null, store.link(1, "profile-1"))
+        assertEquals(emptyList<UploadJob>(), store.jobs(1)) // Never uploaded again: no link, no add for a tagged person
+    }
 }

@@ -490,4 +490,13 @@ class UploaderTest {
         editHook = { kotlinx.coroutines.runBlocking { store.saveLinks(listOf(store.link(1, "profile-36430")!!.copy(snapshot = geni))) } }
         assertTrue(uploader().run(stored(driverJob)) is Outcome.Retry)
     }
+
+    @Test
+    fun updateOfDeletedProfileIsConflict() = runTest {
+        treeWithOccupation("Driver")
+        store.saveLinks(listOf(link("profile-36430", "I1", snapshot = engineer)))
+        server.enqueue(ok(engineer.replace("}", ""","deleted":true}""")))
+        assertEquals(Outcome.Conflict(listOf("GONE")), uploader().run(stored(driverJob)))
+        assertEquals(1, server.requestCount)
+    }
 }

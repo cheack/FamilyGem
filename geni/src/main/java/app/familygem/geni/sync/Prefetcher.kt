@@ -25,6 +25,7 @@ class Prefetcher(
                         is LoadResult.Loaded -> loads++
                         LoadResult.NeedsLogin, LoadResult.NotAGeniTree -> return loads
                         is LoadResult.Failed -> Unit // Skipped; its known relatives are still visited
+                        is LoadResult.Gone -> Unit
                     }
                 }
                 if (step < depth - 1) relatives(geniId).filter { visited.add(it) }.forEach { next += it } // Last level: not needed

@@ -24,6 +24,7 @@ import app.familygem.geni.auth.AuthResult
 import app.familygem.geni.auth.EncryptedTokenStore
 import app.familygem.geni.auth.OAuth
 import app.familygem.geni.auth.TokenStore
+import app.familygem.geni.sync.GONE
 import app.familygem.geni.sync.JobKind
 import app.familygem.geni.sync.JobState
 import app.familygem.geni.sync.SyncQueue
@@ -255,6 +256,16 @@ class GeniLoginActivity : AppCompatActivity() {
                 return@launch
             }
             progress.visibility = View.GONE
+            if (fields.singleOrNull()?.group == GONE) {
+                AlertDialog.Builder(this@GeniLoginActivity)
+                    .setTitle(job.label)
+                    .setMessage(R.string.geni_gone_message)
+                    .setPositiveButton(R.string.geni_gone_keep) { _, _ -> resolveConflict(job, setOf(GONE)) }
+                    .setNegativeButton(R.string.geni_gone_remove) { _, _ -> resolveConflict(job, emptySet()) }
+                    .setNeutralButton(R.string.geni_close, null)
+                    .show()
+                return@launch
+            }
             val padding = (16 * resources.displayMetrics.density).toInt()
             val layout = LinearLayout(this@GeniLoginActivity).apply {
                 orientation = LinearLayout.VERTICAL

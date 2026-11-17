@@ -44,6 +44,7 @@ class ConflictResolver(
     /** The groups in conflict, with the app's and Geni's values. Needs the network. */
     suspend fun details(job: UploadJob): List<FieldConflict> {
         val (link, raw) = fetch(job)
+        if (isGone(link, raw)) return listOf(FieldConflict(GONE, "", ""))
         val snapshot = link.snapshot ?: return emptyList()
         return host.edit(job.treeId) { gedcom ->
             if (link.geniId.startsWith("profile-")) {
@@ -66,8 +67,9 @@ class ConflictResolver(
      * Applies Geni's version to the record except the groups in [keepMine], stores it as the snapshot
      * and plans the job again. Throws if Geni or the snapshot changed meanwhile (the user tries again).
      */
-    suspend fun resolve(job: UploadJob, keepMine: Set<String>, shown: Set<String>? = null) = mutex.withLock {
+    suspend fun resolve(job: UploadJob, keepMine: Set<String>, shown: Set<String>? = null): Unit = mutex.withLock {
         val (link, raw) = fetch(job)
+        if (isGone(link, raw)) return@withLock resolveGone(job, link, keep = GONE in keepMine)
         val snapshot = link.snapshot ?: error("no snapshot")
         // The snapshot may have moved during the fetch: never apply Geni's version over a newer resolution
         check(store.link(job.treeId, link.geniId)?.snapshot == snapshot) { CHANGED }
@@ -75,6 +77,27 @@ class ConflictResolver(
         val updatedAt = if (link.geniId.startsWith("profile-")) gson.fromJson(raw, GeniProfile::class.java).updatedAt else link.geniUpdatedAt
         check(store.updateSnapshot(job.treeId, link.geniId, snapshot, raw, updatedAt)) { CHANGED }
         // The tree and the snapshot changed: the job must leave the conflict state even if the screen is closed now
+        withContext(NonCancellable) {
+            host.refreshScreens()
+            queue.afterResolve(job.treeId, job.key)
+        }
+    }
+
+    private fun isGone(link: GeniLink, raw: String) =
+        link.geniId.startsWith("profile-") && gson.fromJson(raw, GeniProfile::class.java).deleted == true
+
+    /**
+     * A profile deleted or merged on Geni: the person stays as a local person (the tag stays, the link goes: never
+     * uploaded again, as a new person neither), or leaves the tree. The job is then planned away.
+     */
+    private suspend fun resolveGone(job: UploadJob, link: GeniLink, keep: Boolean) {
+        var emptied = emptyList<String>()
+        host.edit(job.treeId) { gedcom ->
+            if (!keep) emptied = GoneProfiles.remove(gedcom, link.gedcomId)
+            queue.setLocal(job.treeId, LocalTree.capture(gedcom))
+        }
+        store.deleteLink(job.treeId, link.geniId)
+        emptied.forEach { family -> store.linkByGedcomId(job.treeId, family)?.let { store.deleteLink(job.treeId, it.geniId) } }
         withContext(NonCancellable) {
             host.refreshScreens()
             queue.afterResolve(job.treeId, job.key)

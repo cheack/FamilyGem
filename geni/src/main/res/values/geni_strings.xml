@@ -38,4 +38,8 @@
     <string name="geni_group_ABOUT">About</string>
     <string name="geni_group_MARRIAGE">Marriage</string>
     <string name="geni_group_DIVORCE">Divorce</string>
+    <string name="geni_gone_message">This profile was deleted on Geni or merged into another one. Your changes to it cannot be uploaded.</string>
+    <string name="geni_gone_remove">Remove from device</string>
+    <string name="geni_gone_keep">Keep as local person</string>
+    <string name="geni_gone_card">Deleted on Geni</string>
 </resources>
