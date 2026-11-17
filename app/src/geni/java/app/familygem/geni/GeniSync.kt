@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 
 /**
@@ -91,8 +92,10 @@ object GeniSync {
                     Log.d(TAG, "Tree $treeId retries in ${wait / 1000} s")
                     val retry = scope.launch(start = CoroutineStart.LAZY) {
                         delay(wait)
-                        synchronized(retries) { retries.remove(treeId) }
-                        kick(app, treeId)
+                        // Only the registered retry runs: one replaced or cancelled meanwhile stops here
+                        val self = coroutineContext.job
+                        val current = synchronized(retries) { (retries[treeId] === self).also { if (it) retries.remove(treeId) } }
+                        if (current) kick(app, treeId)
                     }
                     synchronized(retries) { retries.put(treeId, retry) }?.cancel()
                     retry.start()
