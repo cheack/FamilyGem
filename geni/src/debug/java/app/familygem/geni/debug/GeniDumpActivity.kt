@@ -12,9 +12,9 @@ import java.io.File
 
 /**
  * Debug builds only. Saves the raw JSON of a Geni API GET request, for exploring the API:
- * adb shell am start -n app.familygem/app.familygem.geni.debug.GeniDumpActivity --es path profile --es name me
+ * adb shell am start -n net.cheack.treekin/app.familygem.geni.debug.GeniDumpActivity --es path profile --es name me
  * Output: files/geni-dump/<name>.json (or <name>.error.txt), read with
- * adb shell run-as app.familygem cat files/geni-dump/<name>.json
+ * adb shell run-as net.cheack.treekin cat files/geni-dump/<name>.json
  * The token is never written.
  */
 class GeniDumpActivity : AppCompatActivity() {

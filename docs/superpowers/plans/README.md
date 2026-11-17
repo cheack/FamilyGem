@@ -94,5 +94,8 @@ Plan: not written yet.
 ## Other tasks
 
 - [x] Register a Geni sandbox app and fill `geni.properties` (`geniAppId`, `geniHost=sandbox.geni.com`)
+- [x] Own app ID `net.cheack.treekin` and name "Treekin" (in `app/geni.gradle` and `app/src/geni/res`)
+- [ ] Redirect scheme `net.cheack.treekin://authorize` instead of `app.familygem.geni://` (also change the Callback URL in the Geni app)
+- [ ] Rename the GitHub repository; replace "Family Gem" in other strings (example tree, Premium, about screen)
 - [ ] Take the transparent `NumberPicker` divider fix from Sternbach-Software/GeniForAndroid
 - [ ] CI: weekly trial merge of `upstream/master`, build and tests

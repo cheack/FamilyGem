@@ -1,9 +1,16 @@
 // Geni fork additions to the app module, applied from app/build.gradle (GENI-HOOK).
 // Keep fork-specific build changes here instead of editing app/build.gradle.
 android {
+    defaultConfig {
+        // Own app ID and name: installs next to upstream Family Gem and can be published separately
+        applicationId = 'net.cheack.treekin'
+    }
     sourceSets {
         // Glue code that connects :geni with upstream classes (Global, Settings, TreeUtil)
         main.kotlin.directories.add('src/geni/java')
+        // Resources that override upstream ones (app name); build type source sets win over main without duplicate errors
+        debug.res.srcDir('src/geni/res')
+        release.res.srcDir('src/geni/res')
     }
 }
 
