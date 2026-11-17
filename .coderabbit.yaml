@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit review settings for the Geni fork of FamilyGem.
+language: "en-US"
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "geni"
+      - "master"
+    # Merges from upstream FamilyGem are large and not ours to review
+    ignore_title_keywords:
+      - "upstream"
+  path_filters:
+    - "!docs/**"
+    - "!fastlane/**"
+    - "!geni/src/test/resources/**"
+    - "!app/src/main/res/values-*/**"
+  path_instructions:
+    - path: "geni/**"
+      instructions: |
+        Geni.com integration module. Check correctness, thread safety and Android lifecycle.
+        Secrets (Geni app secret, tokens) must never be in code, logs or URLs; the token goes only in the Authorization header.
+        Respect Geni rate limits (X-API-Rate-* headers) and never upload user data the user did not change.
+        Geni data is mapped into GEDCOM in place: data Geni does not have (notes, sources, media, other facts) must be kept.
+    - path: "app/src/geni/**"
+      instructions: |
+        Glue between the geni module and upstream FamilyGem classes (Global, Settings, TreeUtil).
+        Global.gc and Settings are main-thread state; file writes belong on IO.
+    - path: "app/src/main/**"
+      instructions: |
+        Upstream FamilyGem code. The fork may change it only with one-line hooks marked `// GENI-HOOK`,
+        each listed in geni/UPSTREAM-HOOKS.md. Flag any other change, reformatting, renaming or translation of upstream code.
+    - path: "**/*.gradle"
+      instructions: |
+        Upstream build files may change only with one-line `// GENI-HOOK` lines; fork build changes belong in app/geni.gradle and geni/build.gradle.
+        No secrets in build files; credentials come from git-ignored properties files.
