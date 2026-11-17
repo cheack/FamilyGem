@@ -20,4 +20,19 @@ class LoadPolicyTest {
 
     @Test
     fun personWithoutLinkSkips() = assertFalse(LoadPolicy.shouldLoad(null, nowMillis = 10 * day))
+
+    @Test
+    fun openedCardRefreshesAfterAnHour() {
+        val hour = 3600 * 1000L
+        assertFalse(LoadPolicy.shouldLoad(link(true, 10 * day - hour + 1000), 10 * day, LoadPolicy.OPEN_REFRESH_MILLIS))
+        assertTrue(LoadPolicy.shouldLoad(link(true, 10 * day - hour - 1000), 10 * day, LoadPolicy.OPEN_REFRESH_MILLIS))
+    }
+
+    @Test
+    fun dailyRefreshOnlyOnceADayAndNotOnMeteredNetwork() {
+        assertTrue(LoadPolicy.dailyRefreshDue(lastMillis = null, nowMillis = 10 * day, metered = false))
+        assertTrue(LoadPolicy.dailyRefreshDue(lastMillis = 9 * day - 1, nowMillis = 10 * day, metered = false))
+        assertFalse(LoadPolicy.dailyRefreshDue(lastMillis = 9 * day + 1, nowMillis = 10 * day, metered = false))
+        assertFalse(LoadPolicy.dailyRefreshDue(lastMillis = null, nowMillis = 10 * day, metered = true))
+    }
 }

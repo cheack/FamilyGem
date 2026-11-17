@@ -139,6 +139,7 @@ object GeniSync {
                 override fun onAvailable(network: Network) {
                     Log.d(TAG, "Network available: resuming uploads")
                     resume(app)
+                    GeniPrefetch.dailyRefresh(app) // Wi-Fi may be back after a day
                 }
             })
         } catch (e: Exception) {

@@ -131,7 +131,7 @@
 **Interfaces:**
 - Produces: `LoadPolicy.OPEN_REFRESH_MILLIS = 1 h` used when a card opens (was 1 day); daily refresh: at app start, once per 24 h (time kept in the tree row or app prefs) and only on an unmetered network, `GeniPrefetch.enqueue(tree, root, prefetchDepth)` with freshness of 24 h.
 
-- [ ] Steps: failing `LoadPolicyTest` cases for both intervals → implement → PASS → commit `Refresh Geni trees daily on Wi-Fi and cards hourly`.
+- [x] Steps: failing `LoadPolicyTest` cases for both intervals → implement → PASS → commit `Refresh Geni trees daily on Wi-Fi and cards hourly`.
 
 ### Task 9: Merged and deleted profiles
 
