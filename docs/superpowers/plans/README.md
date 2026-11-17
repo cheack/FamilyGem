@@ -80,7 +80,7 @@ Plan: [2026-11-17-geni-3-write-path.md](2026-11-17-geni-3-write-path.md)
 
 - [ ] A new person in two families is added through one; the other relation stays local without notice (Geni has no call to link existing profiles): show it to the user
 - [x] `Uploader.refreshSnapshot` read-modify-write can overwrite a loader's link write made at the same time (`fullyLoaded`, `loadedAtMillis`)
-- [ ] A load of a profile added without a snapshot applies every Geni field (`FamilyMerger` with `previous = null`) and can overwrite a local edit not uploaded yet (CodeRabbit, PR 2)
+- [x] A load of a profile added without a snapshot applies every Geni field (`FamilyMerger` with `previous = null`) and can overwrite a local edit not uploaded yet (CodeRabbit, PR 2)
 - [ ] A person deleted during the add request whose GEDCOM ID is reused at once gets the new link and tag (CodeRabbit, PR 2)
 - [ ] When the tag write after an add fails and the person is renamed, the record is ambiguous and its edits are not uploaded: show it to the user (CodeRabbit, PR 2)
 

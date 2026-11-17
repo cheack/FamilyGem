@@ -63,11 +63,11 @@
   `FamilyMerger.merge` for a person linked with a snapshot: three-way of snapshot, `ProfileFields.of(person)`, Geni; with conflicts the person is not changed and the link keeps its old snapshot, `geniUpdatedAt` and verified hash; without conflicts as today (local-only groups are not touched because Geni did not change them).
   Linked without snapshot (added by the app, refresh failed): if `ProfileFields.of(person).hashCode() != link.verifiedHash` the person is not changed but the new snapshot is stored; otherwise everything is applied. Same rules for unions (marriage, divorce; partner and child links are always merged).
 
-- [ ] **Step 1: Write the failing tests** `loadKeepsQueuedEditOfSameField` (local occupation edited, Geni changed occupation too: person unchanged, link snapshot unchanged), `loadAppliesOtherFieldBesideLocalEdit` (local occupation edited, Geni changed birth: birth applied, occupation kept, snapshot new), `loadOfEditedPersonWithoutSnapshotKeepsLocal`, `loadOfUnchangedPersonWithoutSnapshotAppliesAll`, `loadKeepsQueuedMarriageEdit`.
-- [ ] **Step 2: Run** `--tests '*FamilyMergerTest'` — Expected: the new tests FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** all `:geni` unit tests — Expected: PASS.
-- [ ] **Step 5: Commit** `Never let a Geni load overwrite a queued local edit`; tick the roadmap's deferred item about loads without snapshot.
+- [x] **Step 1: Write the failing tests** `loadKeepsQueuedEditOfSameField` (local occupation edited, Geni changed occupation too: person unchanged, link snapshot unchanged), `loadAppliesOtherFieldBesideLocalEdit` (local occupation edited, Geni changed birth: birth applied, occupation kept, snapshot new), `loadOfEditedPersonWithoutSnapshotKeepsLocal`, `loadOfUnchangedPersonWithoutSnapshotAppliesAll`, `loadKeepsQueuedMarriageEdit`.
+- [x] **Step 2: Run** `--tests '*FamilyMergerTest'` — Expected: the new tests FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** all `:geni` unit tests — Expected: PASS.
+- [x] **Step 5: Commit** `Never let a Geni load overwrite a queued local edit`; tick the roadmap's deferred item about loads without snapshot.
 
 ### Task 3: Check Geni before uploading an update
 

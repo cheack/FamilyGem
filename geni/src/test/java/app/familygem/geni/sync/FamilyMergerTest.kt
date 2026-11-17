@@ -112,4 +112,83 @@ class FamilyMergerTest {
         assertEquals(null, second.getValue("union-10105").verifiedHash)
         assertEquals(42, second.getValue("profile-36430").verifiedHash)
     }
+
+    // Three-way merge with unsent local edits: a load never overwrites them
+
+    private val ivan = """{"id":"profile-1","first_name":"Ivan","gender":"male","is_alive":true,"occupation":"Engineer"}"""
+
+    private fun mergeOne(gedcom: Gedcom, json: String, existing: Map<String, GeniLink> = emptyMap(), unionJson: String? = null): Map<String, GeniLink> {
+        val profile = com.google.gson.Gson().fromJson(json, GeniProfile::class.java)
+        val union = unionJson?.let { com.google.gson.Gson().fromJson(it, GeniUnion::class.java) }
+        val family = ImmediateFamily(profile.id, listOf(profile.id), listOfNotNull(union?.id))
+        return FamilyMerger.merge(gedcom, 7, family, listOf(profile), listOfNotNull(union), mapOf(profile.id to json),
+            union?.let { mapOf(it.id to unionJson!!) }.orEmpty(), existing, nowMillis = 2_000L).associateBy { it.geniId }
+    }
+
+    private fun Person.fact(tag: String) = eventsFacts.orEmpty().firstOrNull { it.tag == tag }
+
+    @Test
+    fun loadKeepsQueuedEditOfSameField() {
+        val gedcom = Gedcom()
+        val links = mergeOne(gedcom, ivan)
+        val person = gedcom.people.single()
+        person.fact("OCCU")!!.value = "Driver" // Edited, not uploaded yet
+        val geni = ivan.replace("Engineer", "Pilot").replace("}", ""","birth":{"date":{"year":1960}}}""")
+        val again = mergeOne(gedcom, geni, links)
+        assertEquals("Driver", person.fact("OCCU")!!.value)
+        assertEquals(null, person.fact("BIRT")) // Nothing of the conflicting profile is applied
+        assertEquals(ivan, again.getValue("profile-1").snapshot)
+    }
+
+    @Test
+    fun loadAppliesOtherFieldBesideLocalEdit() {
+        val gedcom = Gedcom()
+        val links = mergeOne(gedcom, ivan)
+        val person = gedcom.people.single()
+        person.fact("OCCU")!!.value = "Driver"
+        val geni = ivan.replace("}", ""","birth":{"date":{"year":1960}}}""")
+        val again = mergeOne(gedcom, geni, links)
+        assertEquals("Driver", person.fact("OCCU")!!.value)
+        assertEquals("1960", person.fact("BIRT")!!.date)
+        assertEquals(geni, again.getValue("profile-1").snapshot)
+    }
+
+    @Test
+    fun loadOfEditedPersonWithoutSnapshotKeepsLocal() {
+        val gedcom = Gedcom()
+        val links = mergeOne(gedcom, ivan)
+        val person = gedcom.people.single()
+        val sentHash = app.familygem.geni.map.ProfileFields.of(person).hashCode()
+        person.fact("OCCU")!!.value = "Driver"
+        // Added by the app; the snapshot could not be fetched, the link holds the hash of what was sent
+        val added = links.mapValues { it.value.copy(snapshot = null, verifiedHash = sentHash) }
+        val geni = ivan.replace("}", ""","birth":{"date":{"year":1960}}}""")
+        val again = mergeOne(gedcom, geni, added)
+        assertEquals("Driver", person.fact("OCCU")!!.value)
+        assertEquals(null, person.fact("BIRT"))
+        assertEquals(geni, again.getValue("profile-1").snapshot)
+    }
+
+    @Test
+    fun loadOfUnchangedPersonWithoutSnapshotAppliesAll() {
+        val gedcom = Gedcom()
+        val links = mergeOne(gedcom, ivan)
+        val person = gedcom.people.single()
+        val added = links.mapValues { it.value.copy(snapshot = null, verifiedHash = app.familygem.geni.map.ProfileFields.of(person).hashCode()) }
+        mergeOne(gedcom, ivan.replace("Engineer", "Pilot"), added)
+        assertEquals("Pilot", person.fact("OCCU")!!.value)
+    }
+
+    @Test
+    fun loadKeepsQueuedMarriageEdit() {
+        val union = """{"id":"union-1","status":"spouse","partners":["profile-1"],"marriage":{"date":{"year":2000}}}"""
+        val gedcom = Gedcom()
+        val links = mergeOne(gedcom, ivan, unionJson = union)
+        val family = gedcom.families.single()
+        family.eventsFacts.single { it.tag == "MARR" }.date = "2001"
+        val again = mergeOne(gedcom, ivan, links, union.replace("2000", "2002"))
+        assertEquals("2001", family.eventsFacts.single { it.tag == "MARR" }.date)
+        assertEquals(union, again.getValue("union-1").snapshot)
+        assertEquals(1, family.husbandRefs.orEmpty().size + family.wifeRefs.orEmpty().size) // Partners are still linked
+    }
 }
