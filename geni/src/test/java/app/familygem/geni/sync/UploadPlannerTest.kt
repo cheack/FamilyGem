@@ -1,0 +1,199 @@
+package app.familygem.geni.sync
+
+import app.familygem.geni.map.EventFields
+import app.familygem.geni.map.ProfileFields
+import app.familygem.geni.map.UnionFields
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class UploadPlannerTest {
+
+    private val ivanJson = """{"id":"profile-1","first_name":"Ivan","last_name":"User","gender":"male","is_alive":true,
+        "occupation":"Engineer","birth":{"date":{"year":1960}}}"""
+    private val annaJson = """{"id":"profile-2","first_name":"Anna","last_name":"User","gender":"female","is_alive":true}"""
+    private val unionJson = """{"id":"union-1","status":"spouse","partners":["profile-1","profile-2"],"children":[]}"""
+    private val ivan = ProfileFields.ofSnapshot(ivanJson)!!
+    private val anna = ProfileFields.ofSnapshot(annaJson)!!
+    private val newFields = ProfileFields.EMPTY.copy(given = "New", surname = "User")
+
+    private fun person(id: String, geniId: String?, fields: ProfileFields) = LocalPerson(id, geniId, listOfNotNull(fields.given, fields.surname).joinToString(" ").ifEmpty { id }, fields)
+    private fun family(id: String, geniId: String?, partners: List<String>, children: List<String> = emptyList(), fields: UnionFields = UnionFields.EMPTY) =
+        LocalFamily(id, geniId, partners, children, fields)
+    private fun link(geniId: String, gedcomId: String, snapshot: String?, hash: Int? = null) =
+        GeniLink(1, geniId, gedcomId, true, null, snapshot, 0, hash)
+    private fun job(key: String) = UploadJob(id = 5, treeId = 1, key = key, kind = JobKind.UPDATE_PROFILE, params = listOf("a" to "b"), label = "x", localHash = 0)
+
+    private val coupleLinks = listOf(link("profile-1", "I1", ivanJson), link("profile-2", "I2", annaJson), link("union-1", "F1", unionJson))
+    private fun couple(vararg extraPeople: LocalPerson, ivanFields: ProfileFields = ivan, children: List<String> = emptyList(), extraFamilies: List<LocalFamily> = emptyList()) =
+        LocalTree(
+            listOf(person("I1", "profile-1", ivanFields), person("I2", "profile-2", anna)) + extraPeople,
+            listOf(family("F1", "union-1", listOf("I1", "I2"), children)) + extraFamilies
+        )
+
+    private fun plan(local: LocalTree, links: List<GeniLink> = coupleLinks, jobs: List<UploadJob> = emptyList()) =
+        UploadPlanner.plan(1, local, links, jobs)
+
+    @Test
+    fun unchangedPersonIsVerified() {
+        val plan = plan(couple())
+        assertEquals(emptyList<UploadJob>(), plan.upserts)
+        assertTrue("profile:profile-1" in plan.deleteKeys)
+        assertEquals(ivan.hashCode(), plan.verified.single { it.geniId == "profile-1" }.verifiedHash)
+        assertEquals(UnionFields.EMPTY.hashCode(), plan.verified.single { it.geniId == "union-1" }.verifiedHash)
+    }
+
+    @Test
+    fun changedOccupationMakesUpdate() {
+        val changed = ivan.copy(occupation = "Driver")
+        val job = plan(couple(ivanFields = changed)).upserts.single()
+        assertEquals("profile:profile-1", job.key)
+        assertEquals(JobKind.UPDATE_PROFILE, job.kind)
+        assertEquals("profile-1", job.geniId)
+        assertEquals(listOf("occupation" to "Driver"), job.params)
+        assertEquals(changed.hashCode(), job.localHash)
+        assertEquals("Ivan User", job.label)
+        assertEquals(0L, job.id)
+    }
+
+    @Test
+    fun changedMarriageMakesUnionUpdate() {
+        val local = couple().let { it.copy(families = listOf(it.families[0].copy(fields = UnionFields(EventFields("2012", null), null)))) }
+        val job = plan(local).upserts.single()
+        assertEquals("union:union-1", job.key)
+        assertEquals(JobKind.UPDATE_UNION, job.kind)
+        assertEquals("2012", job.params.toMap()["marriage[date][year]"])
+        assertEquals("Ivan User & Anna User", job.label)
+    }
+
+    @Test
+    fun verifiedHashSkipsPerson() {
+        val changed = ivan.copy(occupation = "Driver")
+        val links = coupleLinks.map { if (it.geniId == "profile-1") it.copy(verifiedHash = changed.hashCode()) else it }
+        val plan = plan(couple(ivanFields = changed), links, listOf(job("profile:profile-1")))
+        assertEquals(emptyList<UploadJob>(), plan.upserts)
+        assertFalse("profile:profile-1" in plan.deleteKeys)
+    }
+
+    @Test
+    fun revertedEditDeletesJob() {
+        assertTrue("profile:profile-1" in plan(couple(), jobs = listOf(job("profile:profile-1"))).deleteKeys)
+    }
+
+    @Test
+    fun personWithLostTagIsStillLinked() {
+        val local = couple().let { it.copy(people = listOf(it.people[0].copy(geniId = null, fields = ivan.copy(occupation = "Driver"))) + it.people.drop(1)) }
+        val job = plan(local).upserts.single()
+        assertEquals("profile:profile-1", job.key)
+    }
+
+    @Test
+    fun taggedPersonWithoutLinkIsSkipped() {
+        val local = couple(person("I9", "profile-9", newFields))
+        assertEquals(emptyList<UploadJob>(), plan(local).upserts)
+    }
+
+    @Test
+    fun newChildOfGeniUnionMakesAddChild() {
+        val job = plan(couple(person("I3", null, newFields), children = listOf("I3"))).upserts.single()
+        assertEquals("add:I3", job.key)
+        assertEquals(JobKind.ADD_CHILD, job.kind)
+        assertEquals("I3", job.personGedcomId)
+        assertEquals("F1", job.familyGedcomId)
+        assertEquals(listOf("partner:I1", "partner:I2"), job.anchors)
+        assertEquals("true", job.params.toMap()["is_alive"])
+        assertEquals("New", job.params.toMap()["first_name"])
+    }
+
+    @Test
+    fun newParentOfGeniPersonMakesAddPartnerWithChildAnchor() {
+        val local = couple(person("I5", null, newFields), extraFamilies = listOf(family("F2", null, listOf("I5"), listOf("I1"))))
+        val job = plan(local).upserts.single()
+        assertEquals(JobKind.ADD_PARTNER, job.kind)
+        assertEquals("F2", job.familyGedcomId)
+        assertEquals(listOf("child:I1"), job.anchors)
+    }
+
+    @Test
+    fun chainOfNewPeopleIsOrdered() {
+        // A new spouse P of Ivan, and their new child C, in a new family
+        val local = couple(
+            person("I6", null, newFields), person("I7", null, newFields.copy(given = "Kid")),
+            extraFamilies = listOf(family("F3", null, listOf("I1", "I6"), listOf("I7")))
+        )
+        val jobs = plan(local).upserts
+        assertEquals(listOf("add:I6", "add:I7"), jobs.map { it.key })
+        assertEquals(listOf("child:I7", "partner:I1"), jobs[0].anchors)
+        assertEquals(listOf("partner:I1", "partner:I6"), jobs[1].anchors)
+    }
+
+    @Test
+    fun chainThroughLaterFamilyIsOrdered() {
+        // F5 (new person B, child of new person A) comes before F4 (A, child of the Geni couple) in the file
+        val local = couple(
+            person("I10", null, newFields.copy(given = "A")), person("I11", null, newFields.copy(given = "B")),
+            children = listOf("I10"),
+            extraFamilies = listOf(family("F5", null, listOf("I10"), listOf("I11")))
+        ).let { it.copy(families = it.families.reversed()) }
+        assertEquals(listOf("add:I10", "add:I11"), plan(local).upserts.map { it.key })
+    }
+
+    @Test
+    fun unconnectedNewPersonMakesNoJob() {
+        assertEquals(emptyList<UploadJob>(), plan(couple(person("I8", null, newFields))).upserts)
+    }
+
+    @Test
+    fun deletedPersonDropsItsJobs() {
+        val links = coupleLinks + link("profile-9", "I9", annaJson)
+        val plan = plan(couple(), links, listOf(job("profile:profile-9"), job("add:I8")))
+        assertTrue("profile:profile-9" in plan.deleteKeys)
+        assertTrue("add:I8" in plan.deleteKeys)
+    }
+
+    @Test
+    fun linkedPersonDropsItsAddJob() {
+        assertTrue("add:I1" in plan(couple(), jobs = listOf(job("add:I1"))).deleteKeys)
+    }
+
+    @Test
+    fun linkBetweenExistingProfilesMakesNoJob() {
+        val local = couple(extraFamilies = listOf(family("F9", null, listOf("I1", "I2"))))
+        assertEquals(emptyList<UploadJob>(), plan(local).upserts)
+    }
+
+    @Test
+    fun unparseableDateMakesNoJob() {
+        assertEquals(emptyList<UploadJob>(), plan(couple(ivanFields = ivan.copy(birth = EventFields("BEF 1960", null)))).upserts)
+    }
+
+    @Test
+    fun uploadedChangeIsNotPlannedAgain() {
+        val changed = ivan.copy(occupation = "Driver", nicknames = "Vanya, Vano")
+        val afterUpload = ivanJson.replace("\"Engineer\"", "\"Driver\", \"nicknames\": [\"Vanya\", \"Vano\"]")
+        val links = coupleLinks.map { if (it.geniId == "profile-1") it.copy(snapshot = afterUpload) else it }
+        val plan = plan(couple(ivanFields = changed), links, listOf(job("profile:profile-1")))
+        assertEquals(emptyList<UploadJob>(), plan.upserts)
+        assertTrue("profile:profile-1" in plan.deleteKeys)
+    }
+
+    @Test
+    fun reusedGedcomIdIsNotLinkedToOldProfile() {
+        // Ivan (I1) was deleted locally; a new person got the free ID I1 and has no tag
+        val local = LocalTree(listOf(person("I1", null, newFields), person("I2", "profile-2", anna)), listOf(family("F1", "union-1", listOf("I1", "I2"))))
+        val plan = plan(local)
+        assertTrue(plan.upserts.none { it.key == "profile:profile-1" })
+        assertEquals(listOf("profile-1"), plan.staleLinks)
+        assertEquals(listOf("add:I1"), plan.upserts.map { it.key })
+    }
+
+    @Test
+    fun lostTagWithoutSnapshotIsLinkedWithoutJob() {
+        val links = coupleLinks.map { if (it.geniId == "profile-1") it.copy(snapshot = null) else it }
+        val local = couple().let { it.copy(people = listOf(it.people[0].copy(geniId = null, fields = newFields)) + it.people.drop(1)) }
+        val plan = plan(local, links)
+        assertEquals(emptyList<UploadJob>(), plan.upserts)
+        assertEquals(emptyList<String>(), plan.staleLinks)
+    }
+}
