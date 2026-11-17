@@ -449,4 +449,17 @@ class SyncQueueTest {
         queue.runPending(1)
         assertEquals("profile:profile-2", uploader.ran.last().key)
     }
+
+    @Test
+    fun olderCaptureNeverReplacesNewerOne() = runTest {
+        linkBoth()
+        queue.onSaved(1, tree(driver).copy(stamp = 5))
+        // Saved earlier but planned later (captures are planned in background), and an older tree from the uploader
+        queue.onSaved(1, tree(pilot).copy(stamp = 3))
+        queue.setLocal(1, tree(pilot).copy(stamp = 4))
+        assertEquals(listOf("occupation" to "Driver"), store.jobs(1).single().params)
+        uploader.answer = { Outcome.Retry("offline") }
+        queue.runPending(1)
+        assertEquals(listOf("occupation" to "Driver"), uploader.ran.single().params)
+    }
 }

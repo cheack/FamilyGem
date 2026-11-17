@@ -39,12 +39,20 @@ class SyncQueue(
 
     /** Plans the jobs for a saved tree and merges them into the queue by key. */
     suspend fun onSaved(treeId: Int, local: LocalTree) = lock(treeId).withLock {
-        synchronized(lastLocal) { lastLocal[treeId] = local }
-        plan(treeId, local)
+        if (newer(treeId, local)) plan(treeId, local)
+    }
+
+    /** Stores [local] as the last saved tree unless a later capture is already stored; true if stored. */
+    private fun newer(treeId: Int, local: LocalTree): Boolean = synchronized(lastLocal) {
+        if (local.stamp < (lastLocal[treeId]?.stamp ?: Long.MIN_VALUE)) return false
+        lastLocal[treeId] = local
+        true
     }
 
     /** Takes a tree the uploader just edited as the last saved one, so the next plan starts from it. */
-    fun setLocal(treeId: Int, local: LocalTree) = synchronized(lastLocal) { lastLocal[treeId] = local }
+    fun setLocal(treeId: Int, local: LocalTree) {
+        newer(treeId, local)
+    }
 
     /** Called with the tree lock held. */
     private suspend fun plan(treeId: Int, local: LocalTree) {

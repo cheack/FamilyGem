@@ -4,6 +4,7 @@ import app.familygem.geni.map.GeniMapper
 import app.familygem.geni.map.ProfileFields
 import app.familygem.geni.map.UnionFields
 import org.folg.gedcom.model.Gedcom
+import java.util.concurrent.atomic.AtomicLong
 
 /** A person of a saved tree, reduced to what the upload planner needs. */
 data class LocalPerson(val gedcomId: String, val geniId: String?, val label: String, val fields: ProfileFields)
@@ -17,10 +18,16 @@ data class LocalFamily(
     val fields: UnionFields
 )
 
-/** Snapshot of a saved tree taken on the saving thread, so planning can run later without touching the live tree. */
-data class LocalTree(val people: List<LocalPerson>, val families: List<LocalFamily>) {
+/**
+ * Snapshot of a saved tree taken on the saving thread, so planning can run later without touching the live tree.
+ * @param stamp Order of the capture: captures are planned in background and may arrive out of order
+ */
+data class LocalTree(val people: List<LocalPerson>, val families: List<LocalFamily>, val stamp: Long = 0) {
     companion object {
+        private val captures = AtomicLong()
+
         fun capture(gedcom: Gedcom): LocalTree = LocalTree(
+            stamp = captures.incrementAndGet(),
             people = gedcom.people.orEmpty().map { person ->
                 val fields = ProfileFields.of(person)
                 val label = listOfNotNull(fields.given, fields.surname).joinToString(" ").ifEmpty { person.id }
