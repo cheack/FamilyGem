@@ -102,7 +102,7 @@ class SyncQueue(private val store: SyncStore, private val uploader: Uploader) {
                         sent[job.key] = job.params
                         // An added person is linked now: newer details of it go as an update. A newer version
                         // of an update planned during the upload stays pending and runs next
-                        if (job.isAdd()) store.deleteJob(job.id) else store.deleteJobIfVersion(job.id, job.version)
+                        if (!job.isAdd()) store.deleteJobIfVersion(job.id, job.version)
                         // Links and snapshots changed. The saved tree was captured before the add tagged the person
                         synchronized(lastLocal) { lastLocal[treeId] }?.let { local ->
                             val current = if (job.isAdd()) withAddedTags(treeId, local, job).also { tagged ->
@@ -110,6 +110,8 @@ class SyncQueue(private val store: SyncStore, private val uploader: Uploader) {
                             } else local
                             plan(treeId, current)
                         }
+                        // Only now, with an update of newer details stored: an add left by a stopped app finds its link and is not sent
+                        if (job.isAdd()) store.deleteJob(job.id)
                     }
                     // A failed add may exist on Geni: recorded whatever its version, so it is never sent again by itself
                     is Outcome.Failed -> if (current != null && (unchanged || job.isAdd()))

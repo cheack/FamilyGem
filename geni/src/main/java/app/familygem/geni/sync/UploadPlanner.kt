@@ -40,19 +40,18 @@ object UploadPlanner {
 
         /**
          * Link of a record: by its tag, or by its GEDCOM ID when the tag was lost (an unsaved edit after an add).
-         * A GEDCOM ID is reused by the next new record after a delete, so [sameRecord] compares the record with the
-         * snapshot. A link whose record was seen missing (orphaned) counts only if they agree: the record came back;
-         * if they differ the record is new and the link stale. A link never orphaned counts unless they differ.
-         * Otherwise nobody can tell: the record gets no new job and its jobs are kept (no update that could
+         * A GEDCOM ID is reused by the next new record after a delete. A link whose record was seen missing (orphaned)
+         * belongs to the deleted record: an untagged record with its ID is new, whatever its name (a deleted record
+         * cannot come back without its tag). A link never orphaned counts unless [sameRecord] finds the snapshot
+         * differs; then nobody can tell, and the record gets no new job and keeps its jobs (no update that could
          * overwrite another profile, no add that could duplicate this one).
          */
         fun linkOf(gedcomId: String, geniId: String?, prefix: String, sameRecord: (String) -> Boolean): GeniLink? {
             if (geniId != null) return byGeniId[geniId]?.takeIf { it.gedcomId == gedcomId }
             val link = byGedcomId[gedcomId]?.takeIf { it.geniId.startsWith(prefix) } ?: return null
-            val same = link.snapshot?.let(sameRecord)
             when {
-                same == true || (same == null && !link.orphaned) -> return link
-                same == false && link.orphaned -> staleLinks += link.geniId
+                link.orphaned -> staleLinks += link.geniId
+                link.snapshot == null || sameRecord(link.snapshot) -> return link
                 else -> {
                     ambiguous += gedcomId
                     linkedKeys += (if (prefix == "profile-") "profile:" else "union:") + link.geniId
@@ -85,16 +84,14 @@ object UploadPlanner {
                     peopleGeniIds[person.gedcomId] = link.geniId
                     val key = "profile:${link.geniId}"
                     val hash = person.fields.hashCode()
-                    // Without a snapshot only a hash of what an add sent is known: a change sends every field again
-                    val params = {
-                        if (link.snapshot != null) ProfileFields.ofSnapshot(link.snapshot)?.let { GeniParams.profile(it, person.fields) }
-                        else if (link.verifiedHash != null) GeniParams.profile(ProfileFields.EMPTY, person.fields, isNew = true)
-                        else null
-                    }
-                    check(link, key, hash, params) {
-                        UploadJob(treeId = treeId, key = key, kind = JobKind.UPDATE_PROFILE, geniId = link.geniId, params = it,
-                            label = person.label, localHash = hash)
-                    }
+                    fun update(params: List<Pair<String, String>>) = UploadJob(treeId = treeId, key = key, kind = JobKind.UPDATE_PROFILE,
+                        geniId = link.geniId, params = params, label = person.label, localHash = hash)
+                    if (link.snapshot == null && link.verifiedHash != null && link.verifiedHash != hash) {
+                        // Changed after an add whose snapshot could not be fetched (the link holds the hash of what was sent):
+                        // an update without parameters only fetches it; the changed fields follow with the next plan
+                        linkedKeys += key
+                        upserts += update(emptyList())
+                    } else check(link, key, hash, { link.snapshot?.let { ProfileFields.ofSnapshot(it) }?.let { GeniParams.profile(it, person.fields) } }, ::update)
                 }
                 person.geniId == null && person.gedcomId !in ambiguous -> newPeople[person.gedcomId] = person
                 // A tag without a link: skipped until a load links it again

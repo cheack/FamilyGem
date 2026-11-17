@@ -49,10 +49,10 @@ open class Uploader(
         Outcome.Retry(e.message ?: e.javaClass.simpleName)
     }
 
-    /** Sends the changed fields, then stores Geni's new version as the snapshot. The tree is not touched. */
+    /** Sends the changed fields (if any), then stores Geni's new version as the snapshot. The tree is not touched. */
     private suspend fun update(job: UploadJob): Outcome {
         val geniId = job.geniId ?: return Outcome.Failed("no Geni ID")
-        client.post("$geniId/update", job.params)
+        if (job.params.isNotEmpty()) client.post("$geniId/update", job.params)
         // Without the new snapshot a later revert of this edit would look unchanged; an update can be sent again safely
         return try {
             refreshSnapshot(job.treeId, geniId)
@@ -139,7 +139,7 @@ open class Uploader(
     /**
      * Fetches the full Geni version of a linked record (write responses lack fields) and stores it as the snapshot.
      * A load may store a newer snapshot during the fetch: the write happens only over the snapshot read before it,
-     * else the record is fetched again (a few times at most; then the stored snapshot is newer anyway).
+     * else the record is fetched again; after a few conflicts it throws, so an update is retried later.
      */
     private suspend fun refreshSnapshot(treeId: Int, geniId: String) {
         repeat(3) {
@@ -153,6 +153,7 @@ open class Uploader(
             }
             if (written) return
         }
+        error("the snapshot kept changing during the refresh")
     }
 
     private suspend fun bestEffort(block: suspend () -> Unit) {

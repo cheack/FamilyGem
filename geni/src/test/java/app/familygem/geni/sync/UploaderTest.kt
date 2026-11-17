@@ -359,4 +359,26 @@ class UploaderTest {
         assertEquals(Outcome.Done, uploader().run(updateProfile))
         assertEquals("""{"id":"profile-36430","occupation":"Fresh"}""", store.link(1, "profile-36430")!!.snapshot)
     }
+
+    @Test
+    fun snapshotConflictEveryTimeRetries() = runTest {
+        tree()
+        store.saveLinks(listOf(link("profile-36430", "I1")))
+        server.enqueue(ok("""{"id":"profile-36430"}"""))
+        repeat(3) { server.enqueue(ok("""{"id":"profile-36430","occupation":"Driver"}""")) }
+        var loads = 0
+        beforeSnapshotWrite = { store.saveLinks(listOf(store.link(1, "profile-36430")!!.copy(snapshot = """{"loaded":${loads++}}"""))) }
+        assertTrue(uploader().run(updateProfile) is Outcome.Retry)
+    }
+
+    @Test
+    fun updateWithoutParamsOnlyFetchesSnapshot() = runTest {
+        tree()
+        store.saveLinks(listOf(link("profile-36430", "I1", snapshot = null)))
+        server.enqueue(ok("""{"id":"profile-36430","first_name":"Olga"}"""))
+        assertEquals(Outcome.Done, uploader().run(updateProfile.copy(params = emptyList())))
+        assertEquals("GET", server.takeRequest().method)
+        assertEquals(1, server.requestCount)
+        assertEquals("""{"id":"profile-36430","first_name":"Olga"}""", store.link(1, "profile-36430")!!.snapshot)
+    }
 }

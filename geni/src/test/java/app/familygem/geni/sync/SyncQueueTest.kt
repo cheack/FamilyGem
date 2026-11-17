@@ -23,7 +23,13 @@ class SyncQueueTest {
     private val annaJson = """{"id":"profile-2","first_name":"Anna","last_name":"User","is_alive":true}"""
     private val ivan = ProfileFields.ofSnapshot(ivanJson)!!
     private val anna = ProfileFields.ofSnapshot(annaJson)!!
-    private val store = InMemorySyncStore()
+    private var onDeleteJob: suspend (Long) -> Unit = {}
+    private val store = object : InMemorySyncStore() {
+        override suspend fun deleteJob(id: Long) {
+            onDeleteJob(id)
+            super.deleteJob(id)
+        }
+    }
 
     /** Uploader that answers from a script instead of Geni. */
     private inner class ScriptedUploader : Uploader(
@@ -344,21 +350,49 @@ class SyncQueueTest {
     }
 
     @Test
-    fun editDuringAddWithoutSnapshotStaysQueued() = runTest {
+    fun editDuringAddWithoutSnapshotWaitsForSnapshot() = runTest {
         linkBoth()
         queue.onSaved(1, withSpouse("Olga"))
-        uploader.answer = { job ->
+        uploader.answer = { add ->
             queue.onSaved(1, withSpouse("Olya"))
-            store.saveLinks(listOf(GeniLink(1, "profile-60", "I6", false, null, null, 0, verifiedHash = job.localHash)))
+            store.saveLinks(listOf(GeniLink(1, "profile-60", "I6", false, null, null, 0, verifiedHash = add.localHash)))
             uploader.answer = { Outcome.Retry("offline") }
             Outcome.Done
         }
         assertEquals(RunResult.RETRY_LATER, queue.runPending(1))
-        queue.onSaved(1, withSpouse("Olya")) // Saved again, still without the tag
-        val job = store.jobs(1).single()
-        assertEquals("profile:profile-60", job.key)
-        assertEquals(JobState.PENDING, job.state)
-        assertEquals("Olya", job.params.toMap()["first_name"])
+        // Saved again: the add tagged the live tree
+        queue.onSaved(1, withSpouse("Olya").let { t -> t.copy(people = t.people.map { if (it.gedcomId == "I6") it.copy(geniId = "profile-60") else it }) })
+        val waiting = store.jobs(1).single()
+        assertEquals("profile:profile-60", waiting.key)
+        assertEquals(emptyList<Pair<String, String>>(), waiting.params)
+        // Back online: the snapshot comes first, then only the changed name is sent
+        uploader.answer = { fetch ->
+            store.updateSnapshot(1, fetch.geniId!!, null, """{"id":"profile-60","first_name":"Olga","is_alive":true}""", null)
+            uploader.answer = uploader.geniApplies
+            Outcome.Done
+        }
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        val update = uploader.ran.last()
+        assertEquals("Olya", update.params.toMap()["first_name"])
+        assertFalse("is_alive" in update.params.toMap())
+    }
+
+    @Test
+    fun updateIsQueuedBeforeTheAddIsDeleted() = runTest {
+        linkBoth()
+        queue.onSaved(1, withSpouse("Olga"))
+        val addId = store.jobs(1).single().id
+        var jobsAtDelete: List<String>? = null
+        onDeleteJob = { if (it == addId && jobsAtDelete == null) jobsAtDelete = store.jobs(1).map { job -> job.key } }
+        uploader.answer = {
+            queue.onSaved(1, withSpouse("Olya"))
+            store.saveLinks(listOf(GeniLink(1, "profile-60", "I6", false, null, """{"id":"profile-60","first_name":"Olga","is_alive":true}""", 0)))
+            uploader.answer = { Outcome.Retry("offline") }
+            Outcome.Done
+        }
+        queue.runPending(1)
+        // Stopped right after this delete, the app still has the update; before it, the add is found linked and not sent again
+        assertTrue("profile:profile-60" in jobsAtDelete!!)
     }
 
     @Test
