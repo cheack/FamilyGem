@@ -28,8 +28,9 @@ object GeniGlue {
             resumed = true
             Geni.resumeUploads = { GeniSync.resume(Global.context) }
             GeniSync.resume(Global.context) // Uploads left by an earlier run of the app
-            GeniSync.watchNetwork(Global.context)
         }
+        // Registers once; a registration that failed is tried again here
+        if (Geni.isConfigured) GeniSync.watchNetwork(Global.context)
     }
 
     /** Plans Geni uploads after a Geni tree was written. Never breaks the save: errors are only logged. */
