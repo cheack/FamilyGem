@@ -94,4 +94,53 @@ class GeniClientTest {
         assertEquals("""{"focus":{"id":"profile-1"}}""", client().getJson("profile-1/immediate-family"))
         assertEquals("/api/profile-1/immediate-family", server.takeRequest().url.encodedPath)
     }
+
+    @Test
+    fun postSendsFormWithBearerToken() = runTest {
+        tokens.save(AuthResult.Success("t", 10_000L))
+        server.enqueue(ok(profileJson))
+        client().post("profile-1/update", listOf("first_name" to "Ivan", "birth[date][year]" to "1960"))
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("Bearer t", request.headers["Authorization"])
+        assertEquals("/api/profile-1/update", request.url.encodedPath)
+        assertEquals("first_name=Ivan&birth%5Bdate%5D%5Byear%5D=1960", request.body!!.utf8())
+    }
+
+    @Test
+    fun postReturnsBody() = runTest {
+        tokens.save(AuthResult.Success("t", 10_000L))
+        server.enqueue(ok(profileJson))
+        assertEquals(profileJson, client().post("profile-1/update", listOf("occupation" to "")))
+    }
+
+    @Test
+    fun post401ClearsToken() = runTest {
+        tokens.save(AuthResult.Success("t", 10_000L))
+        server.enqueue(MockResponse.Builder().code(401).build())
+        val error = runCatching { client().post("profile-1/update", emptyList()) }.exceptionOrNull()
+        assertTrue(error is GeniAuthRequiredException)
+        assertNull(tokens.get())
+    }
+
+    @Test
+    fun post429RetriesOnce() = runTest {
+        tokens.save(AuthResult.Success("t", 10_000L))
+        server.enqueue(MockResponse.Builder().code(429).addHeader("X-API-Rate-Window", "10").build())
+        server.enqueue(ok(profileJson))
+        assertEquals(profileJson, client().post("profile-1/update", listOf("a" to "b")))
+        assertEquals(2, server.requestCount)
+        server.takeRequest()
+        assertEquals("a=b", server.takeRequest().body!!.utf8())
+    }
+
+    @Test
+    fun post400ThrowsApiException() = runTest {
+        tokens.save(AuthResult.Success("t", 10_000L))
+        val body = """{"error":{"type":"ApiException","message":"Invalid union status: divorced"}}"""
+        server.enqueue(MockResponse.Builder().code(400).body(body).build())
+        val error = runCatching { client().post("union-1/update", listOf("status" to "divorced")) }.exceptionOrNull()
+        assertEquals(400, (error as GeniApiException).code)
+        assertEquals(body, error.message)
+    }
 }
