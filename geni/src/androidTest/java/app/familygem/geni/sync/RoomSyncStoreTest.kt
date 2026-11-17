@@ -120,4 +120,11 @@ class RoomSyncStoreTest {
         assertTrue(store.deleteJobIfVersion(id, 1))
         assertEquals(emptyList<UploadJob>(), store.jobs(1))
     }
+
+    @Test
+    fun deleteLink() = runTest {
+        store.saveLinks(listOf(link("profile-1", "I1"), link("profile-2", "I2")))
+        store.deleteLink(1, "profile-1")
+        assertEquals(listOf("profile-2"), store.links(1).map { it.geniId })
+    }
 }

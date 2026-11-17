@@ -31,6 +31,7 @@ interface SyncStore {
     suspend fun unionLinks(treeId: Int): List<GeniLink>
     suspend fun saveLinks(links: List<GeniLink>)
     suspend fun linkByGedcomId(treeId: Int, gedcomId: String): GeniLink?
+    suspend fun deleteLink(treeId: Int, geniId: String)
     /** Deletes the tree with its links and jobs. */
     suspend fun deleteTree(treeId: Int)
 

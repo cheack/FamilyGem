@@ -79,6 +79,9 @@ interface SyncDao {
     @Query("DELETE FROM tree WHERE treeId = :treeId")
     suspend fun deleteTreeRow(treeId: Int)
 
+    @Query("DELETE FROM link WHERE treeId = :treeId AND geniId = :geniId")
+    suspend fun deleteLink(treeId: Int, geniId: String)
+
     @Query("SELECT * FROM link WHERE treeId = :treeId AND gedcomId = :gedcomId LIMIT 1")
     suspend fun linkByGedcomId(treeId: Int, gedcomId: String): GeniLinkEntity?
 
@@ -147,6 +150,8 @@ class RoomSyncStore(private val dao: SyncDao) : SyncStore {
     })
 
     override suspend fun linkByGedcomId(treeId: Int, gedcomId: String) = dao.linkByGedcomId(treeId, gedcomId)?.toLink()
+
+    override suspend fun deleteLink(treeId: Int, geniId: String) = dao.deleteLink(treeId, geniId)
 
     override suspend fun deleteTree(treeId: Int) {
         dao.deleteJobs(treeId)

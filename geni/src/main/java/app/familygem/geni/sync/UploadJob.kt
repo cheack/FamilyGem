@@ -3,7 +3,7 @@ package app.familygem.geni.sync
 enum class JobKind { UPDATE_PROFILE, UPDATE_UNION, ADD_PARTNER, ADD_CHILD }
 
 /** PENDING runs; FAILED waits for the user; DISMISSED is hidden and kept so the same change is not planned again. */
-enum class JobState { PENDING, FAILED, DISMISSED }
+enum class JobState { PENDING, SENDING, FAILED, DISMISSED }
 
 /**
  * A change waiting to be uploaded to Geni. One job per record, identified by [key] within the tree:

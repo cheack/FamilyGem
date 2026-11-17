@@ -225,6 +225,7 @@ Rules:
 - `onTreeSaved` returns at once for a tree with no `store.tree(treeId)`; for a Geni tree it captures `LocalTree` on the calling thread (like upstream's JSON write, which reads the same tree there) and hands it to `GeniSync.onSaved`, which runs `queue.onSaved` then `kick` in its scope (`SupervisorJob + Dispatchers.IO`).
 - `kick` runs `runPending` once per tree at a time (a second kick while running marks "run again"). `RETRY_LATER` → wait 30 s, doubling up to 30 min, then kick again; the delay resets after an `EMPTY`. `NEEDS_LOGIN` → stop until `resume`.
 - `resume`: kick every tree with pending jobs (`store.allJobs()`); called from `install()` and after login.
+- `runPending` does not throw for upload errors, but the runner still catches any exception (log, retry later with back-off) so the scope never dies. (PR 2 review)
 - Log with tag `GeniSync`: job kind, key and outcome; never params or tokens.
 
 - [ ] **Step 1: Add the hook and glue**; add the hook row to `geni/UPSTREAM-HOOKS.md`.
@@ -242,6 +243,7 @@ Rules:
 
 Rules:
 - Under the status line: "Changes waiting for upload: N" (pending jobs, hidden when 0) and a button "Failed changes (M)" (hidden when 0).
+- Failed adds carry an error that says to check Geni first (the profile may exist): the dialog shows that text, and "Retry all" warns before retrying adds. (PR 2 review)
 - The button opens an `AlertDialog` listing each failed job as `label` and `error`, with buttons "Retry all" (`retryFailed`, then `resume`), "Dismiss all" (`dismissFailed`) and "Close". Counts refresh after each action and in `onResume`.
 - Strings (en / ru): `geni_pending_changes` "Changes waiting for upload: %1$d" / "Изменений ждут отправки: %1$d"; `geni_failed_changes` "Failed changes (%1$d)" / "Не отправлено (%1$d)"; `geni_retry_all` "Retry all" / "Повторить все"; `geni_dismiss_all` "Dismiss all" / "Скрыть все"; `geni_close` "Close" / "Закрыть".
 

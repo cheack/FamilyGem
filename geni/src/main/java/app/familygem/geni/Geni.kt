@@ -6,7 +6,9 @@ import app.familygem.geni.api.RateLimiter
 import app.familygem.geni.auth.EncryptedTokenStore
 import app.familygem.geni.sync.GeniLoader
 import app.familygem.geni.sync.RoomSyncStore
+import app.familygem.geni.sync.SyncQueue
 import app.familygem.geni.sync.SyncStore
+import app.familygem.geni.sync.Uploader
 import okhttp3.HttpUrl.Companion.toHttpUrl
 
 /** Entry point of the Geni.com integration, called from upstream code through GENI-HOOK lines. */
@@ -36,6 +38,15 @@ object Geni {
 
     @Synchronized
     fun store(context: Context): SyncStore = store ?: RoomSyncStore(context.applicationContext).also { store = it }
+
+    private var queue: SyncQueue? = null
+
+    /** The upload queue; one instance, so its per-tree locks are shared. */
+    @Synchronized
+    fun queue(context: Context): SyncQueue = queue ?: SyncQueue(
+        store(context),
+        Uploader(client(context), store(context), host ?: error("Geni tree host not installed"))
+    ).also { queue = it }
 
     fun loader(context: Context): GeniLoader =
         GeniLoader(client(context), store(context), host ?: error("Geni tree host not installed"))
