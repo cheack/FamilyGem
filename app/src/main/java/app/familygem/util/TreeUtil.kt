@@ -210,6 +210,7 @@ object TreeUtil {
         }
         Notifier(Global.context, gedcom, treeId, Notifier.What.DEFAULT)
         if (makeBackup) Global.backupViewModel.backupDelayed(treeId)
+        app.familygem.geni.GeniGlue.onTreeSaved(gedcom, treeId) // GENI-HOOK
     }
 
     // Temporary hack to call a suspend function from Java

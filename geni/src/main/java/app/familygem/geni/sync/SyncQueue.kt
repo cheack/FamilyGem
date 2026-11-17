@@ -22,7 +22,12 @@ private const val DIFFERENT_VALUE = "sent, but Geni stored a different value; ch
  * One lock per tree guards the jobs; it is never held during network calls.
  * [runPending] must not run twice at the same time for one tree (the app runner guarantees it).
  */
-class SyncQueue(private val store: SyncStore, private val uploader: Uploader) {
+class SyncQueue(
+    private val store: SyncStore,
+    private val uploader: Uploader,
+    /** Told about every finished upload attempt (for the log); never given params or tokens. */
+    private val onResult: (UploadJob, Outcome) -> Unit = { _, _ -> }
+) {
 
     private val locks = mutableMapOf<Int, Mutex>()
     /** Last saved state of each tree, to plan again after an upload changed links or snapshots. */
@@ -94,6 +99,7 @@ class SyncQueue(private val store: SyncStore, private val uploader: Uploader) {
             } finally {
                 synchronized(running) { running.remove(treeId) }
             }
+            onResult(job, outcome)
             lock(treeId).withLock {
                 val current = store.jobs(treeId).firstOrNull { it.id == job.id }
                 val unchanged = current?.version == job.version
