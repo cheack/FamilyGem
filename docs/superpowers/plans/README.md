@@ -34,7 +34,7 @@ Plan: [2026-11-16-geni-1-api-login.md](2026-11-16-geni-1-api-login.md)
 Plan: [2026-11-16-geni-2-read-path.md](2026-11-16-geni-2-read-path.md)
 
 - [x] Sandbox exploration: real responses of `profile`, `immediate-family`, `union`; dates and locations format
-- [ ] Show Geni profile photos (`mugshot_urls`) in FamilyGem media
+- [ ] Show Geni profile photos (`mugshot_urls`) in FamilyGem media; upload new photos (`profile-X/add-photo`)
 - [x] Room database in `:geni`: Geni tree marker, ID mapping (GEDCOM ID ↔ Geni ID), snapshots
 - [x] Mapping Geni → GEDCOM: profile → `INDI`, union → `FAM`, `_GENI_ID`, standard fields, `_GENI_*` for the rest
 - [x] Create a Geni tree from the logged-in user's profile (entry in the trees list, root = own profile)
@@ -58,15 +58,17 @@ Plan: [2026-11-16-geni-2-read-path.md](2026-11-16-geni-2-read-path.md)
 
 ## 3. Write path
 
-Plan: not written yet.
+Plan: [2026-11-17-geni-3-write-path.md](2026-11-17-geni-3-write-path.md)
 
 - [ ] Hook in `TreeUtil.saveJson`: signal that a Geni tree was written
 - [ ] Diff of the whole tree against snapshots, with a hash per record
-- [ ] Upload queue in Room; job types: update profile, add child/parent/partner/sibling, update union, upload photo, delete profile
+- [ ] Upload queue in Room; job types: update profile, add child/parent/partner (a sibling is a child of the parents' union), update union
 - [ ] Mapping GEDCOM → Geni for uploads; local-only data (sources, notes, extra events) never uploaded
-- [ ] Temporary IDs for people created offline; rewrite of later jobs when Geni returns the real ID
-- [ ] Queue worker: order, network constraint, rate limit, retries
+- [ ] People created offline: later jobs refer to them by GEDCOM ID, resolved to the Geni ID when they run
+- [ ] Queue runner: order, rate limit, retries with back-off (in-process, not WorkManager: upstream cancels all work on save)
 - [ ] Permanent failures kept and shown to the user (list of failed changes)
+
+Moved out of stage 3: photo upload goes with "Show Geni profile photos" (stage 2); delete profile goes with the delete rules (stage 5).
 
 ## 4. Refresh and conflicts
 
@@ -85,7 +87,7 @@ Plan: not written yet.
 Plan: not written yet.
 
 - [ ] Hide merge, shared-tree import and sharing for Geni trees
-- [ ] Delete person in a Geni tree: only managed profiles, with explicit confirmation; otherwise blocked
+- [ ] Delete person in a Geni tree: only managed profiles, with explicit confirmation, then `profile-X/delete`; otherwise blocked
 - [ ] "Remove from this device" action (cache only)
 - [ ] Block unlinking a spouse or child in Geni trees (no API for it)
 - [ ] Backup restore of a Geni tree: reset snapshots, no uploads, ask about pending jobs
