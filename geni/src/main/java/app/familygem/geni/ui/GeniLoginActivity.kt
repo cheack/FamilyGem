@@ -23,6 +23,8 @@ import app.familygem.geni.sync.JobKind
 import app.familygem.geni.sync.JobState
 import app.familygem.geni.sync.SyncQueue
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.IOException
 
@@ -160,9 +162,24 @@ class GeniLoginActivity : AppCompatActivity() {
         }
     }
 
+    /** Uploads go on in background: while the screen is visible the counts are read again every few seconds. */
+    private var queueWatch: Job? = null
+
     override fun onResume() {
         super.onResume()
-        if (Geni.isConfigured) showQueue()
+        if (!Geni.isConfigured) return
+        queueWatch = lifecycleScope.launch {
+            while (true) {
+                showQueue()
+                delay(3_000)
+            }
+        }
+    }
+
+    override fun onPause() {
+        queueWatch?.cancel()
+        queueWatch = null
+        super.onPause()
     }
 
     /** Number of changes waiting for upload, and the button to the failed ones. */
@@ -188,24 +205,25 @@ class GeniLoginActivity : AppCompatActivity() {
                 .setTitle(R.string.geni_failed_title)
                 .setMessage(text)
                 .setPositiveButton(R.string.geni_retry_all) { _, _ ->
-                    if (failed.any { it.kind == JobKind.ADD_CHILD || it.kind == JobKind.ADD_PARTNER }) confirmRetryAdds() else retryAll()
+                    val ids = failed.map { it.id }.toSet() // Only the jobs shown here, also after confirmation
+                    if (failed.any { it.kind == JobKind.ADD_CHILD || it.kind == JobKind.ADD_PARTNER }) confirmRetryAdds(ids) else retryAll(ids)
                 }
-                .setNegativeButton(R.string.geni_dismiss_all) { _, _ -> queueAction { dismissFailed() } }
+                .setNegativeButton(R.string.geni_dismiss_all) { _, _ -> queueAction { dismissFailed(failed.map { it.id }.toSet()) } }
                 .setNeutralButton(R.string.geni_close, null)
                 .show()
         }
     }
 
-    private fun confirmRetryAdds() {
+    private fun confirmRetryAdds(ids: Set<Long>) {
         AlertDialog.Builder(this)
             .setMessage(R.string.geni_retry_adds_warning)
-            .setPositiveButton(R.string.geni_retry_anyway) { _, _ -> retryAll() }
+            .setPositiveButton(R.string.geni_retry_anyway) { _, _ -> retryAll(ids) }
             .setNegativeButton(R.string.geni_close, null)
             .show()
     }
 
-    private fun retryAll() = queueAction {
-        retryFailed()
+    private fun retryAll(ids: Set<Long>) = queueAction {
+        retryFailed(ids)
         Geni.resumeUploads?.invoke()
     }
 

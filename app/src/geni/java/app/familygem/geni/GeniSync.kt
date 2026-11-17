@@ -11,7 +11,9 @@ import app.familygem.geni.sync.LocalTree
 import app.familygem.geni.sync.RunResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -31,6 +33,8 @@ object GeniSync {
     private val running = mutableSetOf<Int>()
     private val again = mutableSetOf<Int>()
     private val delays = mutableMapOf<Int, Long>()
+    /** The one waiting retry of each tree; [resume] cancels it, so a tree never has two retry chains. */
+    private val retries = mutableMapOf<Int, Job>()
 
     /** Plans the uploads of a saved tree, then runs them. */
     fun onSaved(context: Context, treeId: Int, local: LocalTree) {
@@ -85,8 +89,13 @@ object GeniSync {
                         next
                     }
                     Log.d(TAG, "Tree $treeId retries in ${wait / 1000} s")
-                    delay(wait)
-                    kick(app, treeId)
+                    val retry = scope.launch(start = CoroutineStart.LAZY) {
+                        delay(wait)
+                        synchronized(retries) { retries.remove(treeId) }
+                        kick(app, treeId)
+                    }
+                    synchronized(retries) { retries.put(treeId, retry) }?.cancel()
+                    retry.start()
                 }
             }
         }
@@ -98,6 +107,7 @@ object GeniSync {
         scope.launch {
             try {
                 synchronized(delays) { delays.clear() }
+                synchronized(retries) { retries.values.toList().also { retries.clear() } }.forEach { it.cancel() }
                 Geni.store(app).allJobs()
                     .filter { it.state == JobState.PENDING || it.state == JobState.SENDING }
                     .map { it.treeId }.distinct()
@@ -120,7 +130,7 @@ object GeniSync {
             watching = true
         }
         try {
-            val manager = app.getSystemService(ConnectivityManager::class.java) ?: return
+            val manager = app.getSystemService(ConnectivityManager::class.java) ?: error("no ConnectivityManager")
             val request = NetworkRequest.Builder().addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build()
             manager.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
@@ -130,6 +140,7 @@ object GeniSync {
             })
         } catch (e: Exception) {
             Log.e(TAG, "Watching the network failed", e)
+            synchronized(this) { watching = false } // Tried again on the next call
         }
     }
 }
