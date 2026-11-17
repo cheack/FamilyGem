@@ -45,11 +45,11 @@
   `fun threeWay(snapshot: ProfileFields, local: ProfileFields, geni: ProfileFields): ThreeWay<ProfileGroup>` and the same for `UnionFields`.
   Group values: NAMES = given, surname, maiden, suffix, nicknames; DEATH = death, dead, causeOfDeath; the others one field each. Conflict = changed on both sides to different values.
 
-- [ ] **Step 1: Write the failing tests** `localOnlyChangeIsNoConflict`, `geniOnlyChangeIsNoConflict`, `sameValueOnBothSidesIsNoConflict`, `differentValuesOnBothSidesConflict`, `deathGroupIncludesCauseAndFlag`, `unionDivorceConflict`.
-- [ ] **Step 2: Run** `:geni:testDebugUnitTest --tests '*FieldGroupsTest'` — Expected: FAIL (unresolved references).
-- [ ] **Step 3: Implement** in `FieldGroups.kt`.
-- [ ] **Step 4: Run** — Expected: PASS.
-- [ ] **Step 5: Commit** `Compare Geni fields by group: local, Geni and conflicting changes`.
+- [x] **Step 1: Write the failing tests** `localOnlyChangeIsNoConflict`, `geniOnlyChangeIsNoConflict`, `sameValueOnBothSidesIsNoConflict`, `differentValuesOnBothSidesConflict`, `deathGroupIncludesCauseAndFlag`, `unionDivorceConflict`.
+- [x] **Step 2: Run** `:geni:testDebugUnitTest --tests '*FieldGroupsTest'` — Expected: FAIL (unresolved references).
+- [x] **Step 3: Implement** in `FieldGroups.kt`.
+- [x] **Step 4: Run** — Expected: PASS.
+- [x] **Step 5: Commit** `Compare Geni fields by group: local, Geni and conflicting changes`.
 
 ### Task 2: Loads keep unsent local edits
 
