@@ -114,9 +114,9 @@
 **Files:**
 - Modify: `geni/src/main/java/app/familygem/geni/ui/GeniLoginActivity.kt`, `geni_activity_login.xml`, `values/geni_strings.xml`, `values-ru/geni_strings.xml`, `Geni.kt` (`resolver(context)`).
 
-- [ ] **Step 1:** "Conflicts (N)" button; per conflict a dialog with the record label and, for each group, "Mine: …" / "On Geni: …" choices (default: Geni); "Apply" calls `resolve`, then `resumeUploads`; offline shows `geni_offline`.
-- [ ] **Step 2:** `:app:assembleDebug`; check on the phone over adb: edit a field in the app and the same field on the sandbox through the API test helper (Task 9), see the conflict, resolve both ways.
-- [ ] **Step 3: Commit** `Show Geni conflicts on the account screen`.
+- [x] **Step 1:** "Conflicts (N)" button; per conflict a dialog with the record label and, for each group, "Mine: …" / "On Geni: …" choices (default: Geni); "Apply" calls `resolve`, then `resumeUploads`; offline shows `geni_offline`.
+- [x] **Step 2:** `:app:assembleDebug`; check on the phone over adb: edit a field in the app and the same field on the sandbox through the API test helper (Task 9), see the conflict, resolve both ways.
+- [x] **Step 3: Commit** `Show Geni conflicts on the account screen`.
 
 ### Task 7: Open PR 2 — push `geni-refresh-2`, PR, CodeRabbit, merge.
 
