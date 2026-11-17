@@ -194,4 +194,17 @@ class GeniMapperTest {
         assertEquals(null, person.fact("BIRT").date)
         assertEquals(null, app.familygem.geni.map.ProfileFields.of(person).birth) // An empty fact counts as no birth
     }
+
+    @Test
+    fun clearedOccupationKeepsLocalDateAndPlace() {
+        val person = Person()
+        val worker = com.google.gson.Gson().fromJson("""{"id":"profile-1","occupation":"Miner"}""", GeniProfile::class.java)
+        GeniMapper.applyProfile(Gedcom(), person, worker)
+        person.fact("OCCU").date = "1950"
+        person.fact("OCCU").place = "Donetsk"
+        GeniMapper.applyProfile(Gedcom(), person, worker.copy(occupation = null), worker)
+        assertEquals(null, person.fact("OCCU").value)
+        assertEquals("1950", person.fact("OCCU").date)
+        assertEquals("Donetsk", person.fact("OCCU").place)
+    }
 }

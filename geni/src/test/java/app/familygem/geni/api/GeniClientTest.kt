@@ -152,4 +152,18 @@ class GeniClientTest {
         assertEquals(0, server.requestCount)
         assertTrue(runCatching { client().post("http://other.example/x", emptyList()) }.exceptionOrNull() is IllegalArgumentException)
     }
+
+    @Test
+    fun redirectToAnotherHostIsNotFollowed() = runTest {
+        tokens.save(app.familygem.geni.auth.AuthResult.Success("secret", Long.MAX_VALUE))
+        val other = MockWebServer().apply { start() }
+        try {
+            other.enqueue(ok("{}"))
+            server.enqueue(MockResponse.Builder().code(307).addHeader("Location", other.url("/collect").toString()).build())
+            runCatching { client().post("profile-1/update", listOf("about_me" to "private")) }
+            assertEquals(0, other.requestCount) // The body never left the Geni origin
+        } finally {
+            other.close()
+        }
+    }
 }

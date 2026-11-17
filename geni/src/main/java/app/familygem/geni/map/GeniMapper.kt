@@ -121,8 +121,13 @@ object GeniMapper {
      * Death and divorce facts are removed anyway: an empty one would still mean "dead" or "divorced".
      */
     private fun removeFacts(container: Any, tag: String) {
-        val kept = if (tag in EMPTIABLE) facts(container).filter { it.tag == tag && hasLocalData(it) } else emptyList()
-        kept.forEach { it.value = null; it.date = null; it.place = null }
+        val kept = when (tag) {
+            // Geni has only the occupation's text: a local date or place is local data too, and stays
+            "OCCU" -> facts(container).filter { it.tag == tag && (hasLocalData(it) || it.date != null || it.place != null) }
+                .onEach { it.value = null }
+            in EMPTIABLE -> facts(container).filter { it.tag == tag && hasLocalData(it) }.onEach { it.value = null; it.date = null; it.place = null }
+            else -> emptyList()
+        }
         setFacts(container, facts(container).filter { it.tag != tag || it in kept })
     }
 

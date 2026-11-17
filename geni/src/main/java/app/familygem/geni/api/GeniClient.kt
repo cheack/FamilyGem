@@ -33,7 +33,9 @@ class GeniClient(
     private val tokens: TokenStore,
     private val limiter: RateLimiter,
     // No silent retries: OkHttp could repeat a POST that already created a profile on Geni
-    private val http: OkHttpClient = OkHttpClient.Builder().retryOnConnectionFailure(false).build(),
+    private val http: OkHttpClient = OkHttpClient.Builder().retryOnConnectionFailure(false)
+        // A redirect could carry the token or a form body to another origin: Geni's API does not redirect, so none is followed
+        .followRedirects(false).followSslRedirects(false).build(),
     private val now: () -> Long = System::currentTimeMillis
 ) {
     private val gson = Gson()

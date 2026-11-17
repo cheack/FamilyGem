@@ -293,12 +293,13 @@ class GeniLoginActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 Geni.resolver(applicationContext).resolve(job, keepMine, shown)
-                Geni.resumeUploads?.invoke()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 val message = if (e is IOException) getString(R.string.geni_offline) else getString(R.string.geni_conflict_failed, e.message)
                 Toast.makeText(this@GeniLoginActivity, message, Toast.LENGTH_LONG).show()
+            } finally {
+                Geni.resumeUploads?.invoke() // Also when the screen closed during the resolution; safe to repeat
             }
             progress.visibility = View.GONE
             showQueue()
