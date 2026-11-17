@@ -41,7 +41,7 @@ class ConflictResolver(
                 val local = ProfileFields.of(person)
                 val geni = ProfileFields.ofSnapshot(raw) ?: return@edit emptyList()
                 threeWay(ProfileFields.ofSnapshot(snapshot) ?: return@edit emptyList(), local, geni).conflicts
-                    .sortedBy { it.ordinal }.map { FieldConflict(it.name, show(local.value(it)), show(geni.value(it))) }
+                    .sortedBy { it.ordinal }.map { FieldConflict(it.name, show(local.value(it), it == ProfileGroup.NAMES), show(geni.value(it), it == ProfileGroup.NAMES)) }
             } else {
                 val family = gedcom.families.orEmpty().firstOrNull { it.id == link.gedcomId } ?: return@edit emptyList()
                 val local = UnionFields.of(family)
@@ -87,12 +87,12 @@ class ConflictResolver(
         return link to (raw ?: error("Geni did not return $geniId"))
     }
 
-    /** A group value as text: parts joined, an empty value as a dash. */
-    private fun show(value: Any?): String = when (value) {
+    /** A group value as text: parts joined (name parts by spaces), an empty value as a dash. */
+    private fun show(value: Any?, name: Boolean = false): String = when (value) {
         null -> "—"
         is EventFields -> listOfNotNull(value.date, value.place).joinToString(", ").ifEmpty { "—" }
         is Boolean -> if (value) "deceased" else ""
-        is List<*> -> value.map { show(it) }.filter { it.isNotEmpty() && it != "—" }.joinToString("; ").ifEmpty { "—" }
+        is List<*> -> value.map { show(it) }.filter { it.isNotEmpty() && it != "—" }.joinToString(if (name) " " else "; ").ifEmpty { "—" }
         else -> value.toString()
     }
 }

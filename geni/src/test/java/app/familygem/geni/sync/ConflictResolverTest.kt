@@ -87,4 +87,12 @@ class ConflictResolverTest {
         assertEquals(ProfileFields.ofSnapshot(geni), ProfileFields.of(person))
         assertEquals(emptyList<UploadJob>(), store.jobs(1))
     }
+
+    @Test
+    fun namesAreShownAsOneName() = runTest {
+        val (resolver, job) = setUpConflict()
+        person.names.single().value = "Vanya /Petrov/"
+        server.enqueue(ok(geni.replace("\"Ivan\"", "\"Ivan\",\"last_name\":\"Sidorov\"")))
+        assertEquals(FieldConflict("NAMES", "Vanya Petrov", "Ivan Sidorov"), resolver.details(job).first())
+    }
 }
