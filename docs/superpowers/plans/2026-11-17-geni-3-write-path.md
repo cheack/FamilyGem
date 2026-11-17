@@ -219,7 +219,7 @@ Rules:
 
 **Interfaces:**
 - Consumes: `SyncQueue` (Task 7), `LocalTree.capture` (Task 2).
-- Produces: hook line `app.familygem.geni.GeniGlue.onTreeSaved(gedcom, treeId) // GENI-HOOK`; `object GeniSync { fun onSaved(context, treeId, local: LocalTree); fun kick(context, treeId); fun resume(context) }`; `Geni.onLoggedIn: (() -> Unit)?`.
+- Produces: hook line `app.familygem.geni.GeniGlue.onTreeSaved(gedcom, treeId) // GENI-HOOK`; `object GeniSync { fun onSaved(context, treeId, local: LocalTree); fun kick(context, treeId); fun resume(context) }`; `Geni.resumeUploads: (() -> Unit)?` (called after login and "Retry all").
 
 Rules:
 - `onTreeSaved` returns at once for a tree with no `store.tree(treeId)`; for a Geni tree it captures `LocalTree` on the calling thread (like upstream's JSON write, which reads the same tree there) and hands it to `GeniSync.onSaved`, which runs `queue.onSaved` then `kick` in its scope (`SupervisorJob + Dispatchers.IO`).
@@ -228,9 +228,9 @@ Rules:
 - `runPending` does not throw for upload errors, but the runner still catches any exception (log, retry later with back-off) so the scope never dies. (PR 2 review)
 - Log with tag `GeniSync`: job kind, key and outcome; never params or tokens.
 
-- [ ] **Step 1: Add the hook and glue**; add the hook row to `geni/UPSTREAM-HOOKS.md`.
-- [ ] **Step 2: Build** `$GRADLE :app:assembleDebug :geni:testDebugUnitTest` — BUILD SUCCESSFUL, all tests PASS.
-- [ ] **Step 3: Commit** `Plan and run Geni uploads when a Geni tree is saved`.
+- [x] **Step 1: Add the hook and glue**; add the hook row to `geni/UPSTREAM-HOOKS.md`.
+- [x] **Step 2: Build** `$GRADLE :app:assembleDebug :geni:testDebugUnitTest` — BUILD SUCCESSFUL, all tests PASS.
+- [x] **Step 3: Commit** `Plan and run Geni uploads when a Geni tree is saved`.
 
 ### Task 9: Pending and failed changes on the account screen
 
@@ -247,17 +247,17 @@ Rules:
 - The button opens an `AlertDialog` listing each failed job as `label` and `error`, with buttons "Retry all" (`retryFailed`, then `resume`), "Dismiss all" (`dismissFailed`) and "Close". Counts refresh after each action and in `onResume`.
 - Strings (en / ru): `geni_pending_changes` "Changes waiting for upload: %1$d" / "Изменений ждут отправки: %1$d"; `geni_failed_changes` "Failed changes (%1$d)" / "Не отправлено (%1$d)"; `geni_retry_all` "Retry all" / "Повторить все"; `geni_dismiss_all` "Dismiss all" / "Скрыть все"; `geni_close` "Close" / "Закрыть".
 
-- [ ] **Step 1: Implement** the layout, strings and dialog.
-- [ ] **Step 2: Build** `$GRADLE :app:assembleDebug` — BUILD SUCCESSFUL.
-- [ ] **Step 3: Commit** `Show pending and failed Geni changes on the account screen`.
+- [x] **Step 1: Implement** the layout, strings and dialog.
+- [x] **Step 2: Build** `$GRADLE :app:assembleDebug` — BUILD SUCCESSFUL.
+- [x] **Step 3: Commit** `Show pending and failed Geni changes on the account screen`.
 
 ### Task 10: Check on the sandbox and on the phone
 
 **Files:**
 - Modify: `docs/superpowers/specs/2026-11-16-geni-sync-design.md` (findings), `docs/superpowers/plans/README.md` (ticks)
 
-- [ ] **Step 1: Install** the debug build on the phone (`adb install --user 0 -r app/build/outputs/apk/debug/app-debug.apk`), log in, create the Geni tree.
-- [ ] **Step 2: Edit and check on sandbox.geni.com** (the user looks at the website): change a birth date and place of an existing person; change occupation; add a child to the user and his wife; add a parent to a person without parents; add a spouse, then a child of that new couple, while in airplane mode, then turn the network on. `adb logcat -s GeniSync` shows each job `Done`; the website shows the changes; a second save makes no new job.
-- [ ] **Step 3: Check failures**: edit a profile the user does not manage (if the sandbox has one) or force a 4xx; the account screen shows it under "Failed changes"; "Dismiss all" hides it.
-- [ ] **Step 4: Write findings** to the spec ("To verify on the sandbox"); tick the stage 3 items in `docs/superpowers/plans/README.md`.
-- [ ] **Step 5: Commit** `Record write path findings`, then (after the user agrees) push `geni-write-3` and open a PR into `geni`.
+- [x] **Step 1: Install** the debug build on the phone (`adb install --user 0 -r app/build/outputs/apk/debug/app-debug.apk`), log in, create the Geni tree.
+- [x] **Step 2: Edit and check on sandbox.geni.com** (the user looks at the website): change a birth date and place of an existing person; change occupation; add a child to the user and his wife; add a parent to a person without parents; add a spouse, then a child of that new couple, while in airplane mode, then turn the network on. `adb logcat -s GeniSync` shows each job `Done`; the website shows the changes; a second save makes no new job.
+- [x] **Step 3: Check failures** (skipped on the phone: no unmanaged profile on the sandbox; failed adds from airplane mode were retried from the account screen instead): edit a profile the user does not manage (if the sandbox has one) or force a 4xx; the account screen shows it under "Failed changes"; "Dismiss all" hides it.
+- [x] **Step 4: Write findings** to the spec ("To verify on the sandbox"); tick the stage 3 items in `docs/superpowers/plans/README.md`.
+- [x] **Step 5: Commit** `Record write path findings`, then (after the user agrees) push `geni-write-3` and open a PR into `geni`.

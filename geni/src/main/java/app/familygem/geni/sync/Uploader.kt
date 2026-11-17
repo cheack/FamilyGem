@@ -9,6 +9,9 @@ import app.familygem.geni.map.GeniMapper
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CancellationException
 import java.io.IOException
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.UnknownHostException
 
 /** How a job ended. */
 sealed interface Outcome {
@@ -90,6 +93,12 @@ open class Uploader(
         } catch (e: GeniApiException) {
             if (e.code == 429) return Outcome.Retry("HTTP 429") // Not processed
             return Outcome.Failed("${geniMessage(e.message)}; $CHECK_GENI")
+        } catch (e: UnknownHostException) {
+            return Outcome.Retry("offline: ${e.message}") // No connection was made: nothing reached Geni
+        } catch (e: ConnectException) {
+            return Outcome.Retry("offline: ${e.message}")
+        } catch (e: NoRouteToHostException) {
+            return Outcome.Retry("offline: ${e.message}")
         } catch (e: Exception) {
             return Outcome.Failed("connection lost while adding; $CHECK_GENI")
         }

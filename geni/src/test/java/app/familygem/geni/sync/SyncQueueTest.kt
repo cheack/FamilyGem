@@ -117,8 +117,8 @@ class SyncQueueTest {
     fun dismissedJobStaysDismissedForSameParams() = runTest {
         linkBoth()
         queue.onSaved(1, tree(driver))
-        store.saveJob(store.jobs(1).single().copy(state = JobState.FAILED, error = "x"))
-        queue.dismissFailed()
+        val failed = store.jobs(1).single().copy(state = JobState.FAILED, error = "x").also { store.saveJob(it) }
+        queue.dismissFailed(setOf(failed.id))
         queue.onSaved(1, tree(driver))
         assertEquals(JobState.DISMISSED, store.jobs(1).single().state)
         queue.onSaved(1, tree(pilot))
@@ -129,10 +129,23 @@ class SyncQueueTest {
     fun retryFailedMakesJobsPending() = runTest {
         linkBoth()
         queue.onSaved(1, tree(driver))
-        store.saveJob(store.jobs(1).single().copy(state = JobState.FAILED, error = "x"))
-        queue.retryFailed()
+        val failed = store.jobs(1).single().copy(state = JobState.FAILED, error = "x").also { store.saveJob(it) }
+        queue.retryFailed(setOf(failed.id))
         assertEquals(JobState.PENDING, store.jobs(1).single().state)
         assertNull(store.jobs(1).single().error)
+    }
+
+    @Test
+    fun retryAndDismissTouchOnlyTheShownJobs() = runTest {
+        linkBoth()
+        queue.onSaved(1, tree(driver, anna.copy(occupation = "Nurse")))
+        val (shown, later) = store.jobs(1).map { it.copy(state = JobState.FAILED, error = "x").also { job -> store.saveJob(job) } }
+        // The user saw only the first failure; the second failed while the dialog was open
+        queue.retryFailed(setOf(shown.id))
+        assertEquals(JobState.PENDING, store.jobs(1).single { it.id == shown.id }.state)
+        assertEquals(JobState.FAILED, store.jobs(1).single { it.id == later.id }.state)
+        queue.dismissFailed(setOf(shown.id))
+        assertEquals(JobState.FAILED, store.jobs(1).single { it.id == later.id }.state)
     }
 
     @Test

@@ -10,6 +10,8 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
+import mockwebserver3.SocketEffect
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.folg.gedcom.model.ChildRef
 import org.folg.gedcom.model.Family
 import org.folg.gedcom.model.Gedcom
@@ -224,10 +226,29 @@ class UploaderTest {
     fun connectionLostOnAddFails() = runTest {
         tree()
         store.saveLinks(listOf(link("union-10106", "F1")))
-        server.close()
+        // Geni got the request; the answer never came
+        server.enqueue(MockResponse.Builder().onResponseStart(SocketEffect.CloseSocket()).build())
         val outcome = uploader().run(job(JobKind.ADD_CHILD, "add:I3", person = "I3", family = "F1", anchors = listOf("partner:I1")))
         assertTrue(outcome is Outcome.Failed)
         assertNull(store.linkByGedcomId(1, "I3"))
+    }
+
+    @Test
+    fun addWhileOfflineRetries() = runTest {
+        tree()
+        store.saveLinks(listOf(link("union-10106", "F1")))
+        server.close() // Connection refused: nothing reached Geni
+        val outcome = uploader().run(job(JobKind.ADD_CHILD, "add:I3", person = "I3", family = "F1", anchors = listOf("partner:I1")))
+        assertTrue(outcome is Outcome.Retry)
+        assertNull(store.linkByGedcomId(1, "I3"))
+    }
+
+    @Test
+    fun addWithUnknownHostRetries() = runTest {
+        tree()
+        store.saveLinks(listOf(link("union-10106", "F1")))
+        val offline = Uploader(GeniClient("http://geni.invalid/api/".toHttpUrl(), tokens, RateLimiter { testScheduler.currentTime }), store, host)
+        assertTrue(offline.run(job(JobKind.ADD_CHILD, "add:I3", person = "I3", family = "F1", anchors = listOf("partner:I1"))) is Outcome.Retry)
     }
 
     @Test

@@ -3,13 +3,23 @@
     <string name="geni_menu_account">Аккаунт Geni</string>
     <string name="geni_login">Войти в Geni</string>
     <string name="geni_logout">Выйти</string>
+    <string name="geni_logout_confirm">Выйти из Geni? Неотправленные изменения будут ждать, пока вы снова не войдёте.</string>
     <string name="geni_logged_in_as">Вы вошли как %1$s</string>
     <string name="geni_not_configured">В geni.properties не задан ID приложения Geni</string>
     <string name="geni_login_failed">Не удалось войти</string>
+    <string name="geni_offline">Нет связи с Geni. Вход сохранён; изменения отправятся, когда появится сеть.</string>
     <string name="geni_create_tree">Создать дерево Geni</string>
     <string name="geni_tree_created">Дерево Geni создано</string>
     <string name="geni_login_again">Войдите в Geni снова, чтобы загрузить родственников</string>
     <string name="geni_keep_offline">Хранить офлайн</string>
     <string name="geni_keep_offline_depth">Сколько шагов родства скачать</string>
     <string name="geni_keep_offline_started">Родственники загружаются в фоне</string>
+    <string name="geni_pending_changes">Изменений ждут отправки: %1$d</string>
+    <string name="geni_failed_changes">Не отправлено (%1$d)</string>
+    <string name="geni_failed_title">Неотправленные изменения</string>
+    <string name="geni_retry_all">Повторить все</string>
+    <string name="geni_dismiss_all">Скрыть все</string>
+    <string name="geni_close">Закрыть</string>
+    <string name="geni_retry_adds_warning">Часть этих изменений добавляет людей. Geni мог уже их создать: сначала проверьте на Geni, иначе люди могут добавиться дважды.</string>
+    <string name="geni_retry_anyway">Всё равно повторить</string>
 </resources>

@@ -1,6 +1,7 @@
 package app.familygem.geni
 
 import android.app.Activity
+import android.util.Log
 import android.view.Menu
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -10,14 +11,40 @@ import app.familygem.Global
 import app.familygem.geni.map.GeniMapper
 import app.familygem.geni.sync.LoadPolicy
 import app.familygem.geni.sync.LoadResult
+import app.familygem.geni.sync.LocalTree
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import org.folg.gedcom.model.Gedcom
 import org.folg.gedcom.model.Person
 
 /** Entry points called by one-line GENI-HOOK calls in upstream code; connects :geni with the app. */
 object GeniGlue {
 
+    private var resumed = false
+
     fun install() {
         if (Geni.host == null) Geni.host = AppTreeHost
+        if (!resumed && Geni.isConfigured) {
+            resumed = true
+            Geni.resumeUploads = { GeniSync.resume(Global.context) }
+            GeniSync.resume(Global.context) // Uploads left by an earlier run of the app
+        }
+        // Registers once; a registration that failed is tried again here
+        if (Geni.isConfigured) GeniSync.watchNetwork(Global.context)
+    }
+
+    /** Plans Geni uploads after a Geni tree was written. Never breaks the save: errors are only logged. */
+    suspend fun onTreeSaved(gedcom: Gedcom, treeId: Int) {
+        try {
+            install()
+            if (!Geni.isConfigured || Geni.store(Global.context).tree(treeId) == null) return
+            // Captured on the saving thread, like upstream's own JSON write of the same tree
+            GeniSync.onSaved(Global.context, treeId, LocalTree.capture(gedcom))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e("GeniSync", "Planning uploads of tree $treeId failed", e)
+        }
     }
 
     fun addTreesMenu(activity: Activity, menu: Menu) {

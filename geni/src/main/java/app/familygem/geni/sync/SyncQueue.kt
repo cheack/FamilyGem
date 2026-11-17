@@ -22,7 +22,12 @@ private const val DIFFERENT_VALUE = "sent, but Geni stored a different value; ch
  * One lock per tree guards the jobs; it is never held during network calls.
  * [runPending] must not run twice at the same time for one tree (the app runner guarantees it).
  */
-class SyncQueue(private val store: SyncStore, private val uploader: Uploader) {
+class SyncQueue(
+    private val store: SyncStore,
+    private val uploader: Uploader,
+    /** Told about every finished upload attempt (for the log); never given params or tokens. */
+    private val onResult: (UploadJob, Outcome) -> Unit = { _, _ -> }
+) {
 
     private val locks = mutableMapOf<Int, Mutex>()
     /** Last saved state of each tree, to plan again after an upload changed links or snapshots. */
@@ -94,6 +99,7 @@ class SyncQueue(private val store: SyncStore, private val uploader: Uploader) {
             } finally {
                 synchronized(running) { running.remove(treeId) }
             }
+            onResult(job, outcome)
             lock(treeId).withLock {
                 val current = store.jobs(treeId).firstOrNull { it.id == job.id }
                 val unchanged = current?.version == job.version
@@ -160,16 +166,20 @@ class SyncQueue(private val store: SyncStore, private val uploader: Uploader) {
         return pending.firstOrNull { !waits(it) } ?: pending.firstOrNull()
     }
 
-    /** Puts every failed job back in the queue. */
-    suspend fun retryFailed() = changeFailed { it.copy(state = JobState.PENDING, error = null) }
+    /**
+     * Puts failed jobs back in the queue: only those with these IDs, the ones the user saw
+     * (a job that failed meanwhile, maybe an add, is never retried unseen).
+     */
+    suspend fun retryFailed(ids: Set<Long>) = changeFailed(ids) { it.copy(state = JobState.PENDING, error = null) }
 
-    /** Hides every failed job; it stays stored so the same change is not planned again. */
-    suspend fun dismissFailed() = changeFailed { it.copy(state = JobState.DISMISSED) }
+    /** Hides the failed jobs with these IDs; they stay stored so the same change is not planned again. */
+    suspend fun dismissFailed(ids: Set<Long>) = changeFailed(ids) { it.copy(state = JobState.DISMISSED) }
 
-    private suspend fun changeFailed(change: (UploadJob) -> UploadJob) {
-        for (treeId in store.allJobs().filter { it.state == JobState.FAILED }.map { it.treeId }.distinct()) {
+    private suspend fun changeFailed(ids: Set<Long>, change: (UploadJob) -> UploadJob) {
+        val failed = { job: UploadJob -> job.state == JobState.FAILED && job.id in ids }
+        for (treeId in store.allJobs().filter(failed).map { it.treeId }.distinct()) {
             lock(treeId).withLock {
-                store.jobs(treeId).filter { it.state == JobState.FAILED }.forEach { store.saveJob(change(it)) }
+                store.jobs(treeId).filter(failed).forEach { store.saveJob(change(it)) }
             }
         }
     }

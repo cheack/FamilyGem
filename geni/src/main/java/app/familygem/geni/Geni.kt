@@ -1,6 +1,7 @@
 package app.familygem.geni
 
 import android.content.Context
+import android.util.Log
 import app.familygem.geni.api.GeniClient
 import app.familygem.geni.api.RateLimiter
 import app.familygem.geni.auth.EncryptedTokenStore
@@ -26,6 +27,10 @@ object Geni {
     private var client: GeniClient? = null
     private var store: SyncStore? = null
 
+    /** Starts the uploads of every tree with pending changes; set by the app glue, called after login and "Retry all". */
+    @Volatile
+    var resumeUploads: (() -> Unit)? = null
+
     /** Access to FamilyGem trees, set by the app glue. */
     @Volatile
     var host: TreeHost? = null
@@ -46,7 +51,7 @@ object Geni {
     fun queue(context: Context): SyncQueue = queue ?: SyncQueue(
         store(context),
         Uploader(client(context), store(context), host ?: error("Geni tree host not installed"))
-    ).also { queue = it }
+    ) { job, outcome -> Log.d("GeniSync", "Tree ${job.treeId} ${job.kind} ${job.key}: $outcome") }.also { queue = it }
 
     fun loader(context: Context): GeniLoader =
         GeniLoader(client(context), store(context), host ?: error("Geni tree host not installed"))

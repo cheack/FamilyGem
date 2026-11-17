@@ -3,13 +3,23 @@
     <string name="geni_menu_account">Geni account</string>
     <string name="geni_login">Log in to Geni</string>
     <string name="geni_logout">Log out</string>
+    <string name="geni_logout_confirm">Log out of Geni? Changes not uploaded yet will wait until you log in again.</string>
     <string name="geni_logged_in_as">Logged in as %1$s</string>
     <string name="geni_not_configured">Geni app ID is not set in geni.properties</string>
     <string name="geni_login_failed">Login failed</string>
+    <string name="geni_offline">No connection to Geni. You are still logged in; changes will be uploaded when the network is back.</string>
     <string name="geni_create_tree">Create Geni tree</string>
     <string name="geni_tree_created">Geni tree created</string>
     <string name="geni_login_again">Log in to Geni again to load relatives</string>
     <string name="geni_keep_offline">Keep offline</string>
     <string name="geni_keep_offline_depth">Relationship steps to download</string>
     <string name="geni_keep_offline_started">Downloading relatives in background</string>
+    <string name="geni_pending_changes">Changes waiting for upload: %1$d</string>
+    <string name="geni_failed_changes">Failed changes (%1$d)</string>
+    <string name="geni_failed_title">Changes not uploaded</string>
+    <string name="geni_retry_all">Retry all</string>
+    <string name="geni_dismiss_all">Dismiss all</string>
+    <string name="geni_close">Close</string>
+    <string name="geni_retry_adds_warning">Some of these changes add people. Geni may have created them already: check on Geni first, or they may be added twice.</string>
+    <string name="geni_retry_anyway">Retry anyway</string>
 </resources>
