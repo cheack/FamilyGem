@@ -5,7 +5,13 @@ import app.familygem.geni.api.GeniApiException
 import app.familygem.geni.api.GeniAuthRequiredException
 import app.familygem.geni.api.GeniClient
 import app.familygem.geni.api.geniId
+import app.familygem.geni.api.GeniProfile
+import app.familygem.geni.api.GeniUnion
 import app.familygem.geni.map.GeniMapper
+import app.familygem.geni.map.ProfileFields
+import app.familygem.geni.map.UnionFields
+import app.familygem.geni.map.threeWay
+import com.google.gson.Gson
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CancellationException
 import java.io.IOException
@@ -21,7 +27,11 @@ sealed interface Outcome {
     /** Geni refused the change, or it cannot be sent: the user decides. */
     data class Failed(val message: String) : Outcome
     data object NeedsLogin : Outcome
+    /** Geni changed these field groups since the snapshot, and the user changed them too: nothing was sent. */
+    data class Conflict(val groups: List<String>) : Outcome
 }
+
+private val gson = Gson()
 
 private const val CHECK_GENI = "check on Geni whether the person was created, then retry or dismiss"
 
@@ -32,6 +42,9 @@ open class Uploader(
     private val host: TreeHost,
     private val now: () -> Long = System::currentTimeMillis
 ) {
+
+    /** Told about the tree after every edit the uploader makes, so plans never use a tree saved before it. */
+    var onTreeEdited: (Int, LocalTree) -> Unit = { _, _ -> }
 
     open suspend fun run(job: UploadJob): Outcome = try {
         when (job.kind) {
@@ -52,10 +65,17 @@ open class Uploader(
         Outcome.Retry(e.message ?: e.javaClass.simpleName)
     }
 
-    /** Sends the changed fields (if any), then stores Geni's new version as the snapshot. The tree is not touched. */
+    /**
+     * Sends the changed fields (if any), then stores Geni's new version as the snapshot.
+     * First Geni's current version is compared with the snapshot: changes made on Geni meanwhile are merged into the tree
+     * (the job's fields are the user's, in other groups), or the job stops as a conflict when they touch the same groups.
+     */
     private suspend fun update(job: UploadJob): Outcome {
         val geniId = job.geniId ?: return Outcome.Failed("no Geni ID")
-        if (job.params.isNotEmpty()) client.post("$geniId/update", job.params)
+        if (job.params.isNotEmpty()) {
+            mergeGeniChanges(job.treeId, geniId)?.let { return it }
+            client.post("$geniId/update", job.params)
+        }
         // Without the new snapshot a later revert of this edit would look unchanged; an update can be sent again safely
         return try {
             refreshSnapshot(job.treeId, geniId)
@@ -125,6 +145,7 @@ open class Uploader(
             host.edit(treeId) { gedcom ->
                 gedcom.people.orEmpty().firstOrNull { it.id == personId }?.let { GeniMapper.setGeniId(it, profileId) }
                 if (linkFamily) gedcom.families.orEmpty().firstOrNull { it.id == familyId }?.let { GeniMapper.setGeniId(it, unionId!!) }
+                onTreeEdited(treeId, LocalTree.capture(gedcom))
             }
             host.refreshScreens()
         }
@@ -133,6 +154,49 @@ open class Uploader(
             (unionId ?: familyLink?.geniId)?.let { refreshSnapshot(treeId, it) }
         }
         return Outcome.Done
+    }
+
+    /** Merges what Geni changed since the snapshot into the tree; a conflict, a retry or null to go on. */
+    private suspend fun mergeGeniChanges(treeId: Int, geniId: String): Outcome? {
+        val link = store.link(treeId, geniId) ?: return null
+        val snapshot = link.snapshot ?: return null
+        val isProfile = geniId.startsWith("profile-")
+        val (raw, updatedAt) = if (isProfile) {
+            val (profile, raw) = client.profiles(listOf(geniId))[geniId] ?: return null
+            raw to profile.updatedAt
+        } else {
+            val (_, raw) = client.unions(listOf(geniId))[geniId] ?: return null
+            raw to link.geniUpdatedAt
+        }
+        val changed = if (isProfile) ProfileFields.ofSnapshot(snapshot) != ProfileFields.ofSnapshot(raw)
+        else UnionFields.ofSnapshot(snapshot) != UnionFields.ofSnapshot(raw)
+        if (!changed) return null
+        val conflicts = host.edit(treeId) { gedcom ->
+            val conflicts = if (isProfile) {
+                val person = gedcom.people.orEmpty().firstOrNull { it.id == link.gedcomId } ?: return@edit null
+                val geni = gson.fromJson(raw, GeniProfile::class.java)
+                threeWay(ProfileFields.ofSnapshot(snapshot)!!, ProfileFields.of(person), ProfileFields.ofSnapshot(raw)!!).conflicts
+                    .map { it.name }.ifEmpty {
+                        GeniMapper.applyProfile(gedcom, person, geni, gson.fromJson(snapshot, GeniProfile::class.java))
+                        emptyList()
+                    }
+            } else {
+                val family = gedcom.families.orEmpty().firstOrNull { it.id == link.gedcomId } ?: return@edit null
+                val geni = gson.fromJson(raw, GeniUnion::class.java)
+                threeWay(UnionFields.ofSnapshot(snapshot)!!, UnionFields.of(family), UnionFields.ofSnapshot(raw)!!).conflicts
+                    .map { it.name }.ifEmpty {
+                        GeniMapper.applyUnion(gedcom, family, geni, gson.fromJson(snapshot, GeniUnion::class.java)) { null }
+                        emptyList()
+                    }
+            }
+            if (conflicts.isEmpty()) onTreeEdited(treeId, LocalTree.capture(gedcom))
+            conflicts
+        } ?: return Outcome.Failed("the record is no longer in the tree")
+        if (conflicts.isNotEmpty()) return Outcome.Conflict(conflicts)
+        host.refreshScreens()
+        // Geni's version is now merged: it is the new base. A load that stored another one meanwhile makes this run again
+        if (!store.updateSnapshot(treeId, geniId, snapshot, raw, updatedAt)) return Outcome.Retry("the snapshot changed during the check")
+        return null
     }
 
     /**

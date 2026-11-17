@@ -82,11 +82,11 @@
   `Uploader.onTreeEdited: (Int, LocalTree) -> Unit` (default no-op), called with `LocalTree.capture` inside every `host.edit` of the uploader (merge and add tags); `SyncQueue.setLocal(treeId, local)` stores it as the last saved tree; `Geni.queue` wires the two.
   `SyncQueue`: `Conflict` saves the job as `CONFLICT` with the message `changed on Geni meanwhile: <groups>`; the planner keeps `CONFLICT` for the same change (like `FAILED`) and resets it to `PENDING` for a new one; `CONFLICT` never runs.
 
-- [ ] **Step 1: Write the failing tests** `updateSendsWhenGeniUnchanged`, `updateStopsOnConflict` (no POST), `updateMergesOtherGeniChangeFirst` (tree gets Geni's birth, POST has only the job's params, the reported tree carries the merged birth), `conflictJobIsKeptUntilChangedAgain`, `queuePlansWithTreeReportedByUploader`.
-- [ ] **Step 2: Run** — Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** all `:geni` unit tests and `:app:assembleDebug` — Expected: PASS.
-- [ ] **Step 5: Commit** `Check Geni before each update: merge others' changes, stop on conflicts`.
+- [x] **Step 1: Write the failing tests** `updateSendsWhenGeniUnchanged`, `updateStopsOnConflict` (no POST), `updateMergesOtherGeniChangeFirst` (tree gets Geni's birth, POST has only the job's params, the reported tree carries the merged birth), `conflictJobIsKeptUntilChangedAgain`, `queuePlansWithTreeReportedByUploader`.
+- [x] **Step 2: Run** — Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** all `:geni` unit tests and `:app:assembleDebug` — Expected: PASS.
+- [x] **Step 5: Commit** `Check Geni before each update: merge others' changes, stop on conflicts`.
 
 ### Task 4: Open PR 1
 

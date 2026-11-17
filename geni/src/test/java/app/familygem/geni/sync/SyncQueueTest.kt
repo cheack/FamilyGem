@@ -418,4 +418,35 @@ class SyncQueueTest {
         assertEquals(RunResult.EMPTY, queue.runPending(1))
         assertEquals(emptyList<UploadJob>(), uploader.ran)
     }
+
+    @Test
+    fun conflictJobIsKeptUntilChangedAgain() = runTest {
+        linkBoth()
+        queue.onSaved(1, tree(driver))
+        uploader.answer = { Outcome.Conflict(listOf("OCCUPATION")) }
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        val job = store.jobs(1).single()
+        assertEquals(JobState.CONFLICT, job.state)
+        assertTrue(job.error!!.contains("occupation"))
+        queue.onSaved(1, tree(driver))
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        assertEquals(1, uploader.ran.size) // A conflict never runs by itself
+        queue.onSaved(1, tree(pilot))
+        assertEquals(JobState.PENDING, store.jobs(1).single().state)
+    }
+
+    @Test
+    fun queuePlansWithTreeReportedByUploader() = runTest {
+        linkBoth()
+        queue.onSaved(1, tree(driver))
+        uploader.answer = { job ->
+            uploader.geniApplies(job)
+            // The upload merged a change into the tree: the next plan must see it, not the tree saved before
+            queue.setLocal(1, tree(driver, anna.copy(occupation = "Nurse")))
+            uploader.answer = { Outcome.Retry("offline") }
+            Outcome.Done
+        }
+        queue.runPending(1)
+        assertEquals("profile:profile-2", uploader.ran.last().key)
+    }
 }

@@ -48,10 +48,11 @@ object Geni {
 
     /** The upload queue; one instance, so its per-tree locks are shared. */
     @Synchronized
-    fun queue(context: Context): SyncQueue = queue ?: SyncQueue(
-        store(context),
-        Uploader(client(context), store(context), host ?: error("Geni tree host not installed"))
-    ) { job, outcome -> Log.d("GeniSync", "Tree ${job.treeId} ${job.kind} ${job.key}: $outcome") }.also { queue = it }
+    fun queue(context: Context): SyncQueue = queue ?: run {
+        val uploader = Uploader(client(context), store(context), host ?: error("Geni tree host not installed"))
+        SyncQueue(store(context), uploader) { job, outcome -> Log.d("GeniSync", "Tree ${job.treeId} ${job.kind} ${job.key}: $outcome") }
+            .also { queue -> uploader.onTreeEdited = queue::setLocal }
+    }.also { queue = it }
 
     fun loader(context: Context): GeniLoader =
         GeniLoader(client(context), store(context), host ?: error("Geni tree host not installed"))

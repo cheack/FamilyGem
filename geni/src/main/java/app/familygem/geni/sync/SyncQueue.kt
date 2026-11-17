@@ -43,6 +43,9 @@ class SyncQueue(
         plan(treeId, local)
     }
 
+    /** Takes a tree the uploader just edited as the last saved one, so the next plan starts from it. */
+    fun setLocal(treeId: Int, local: LocalTree) = synchronized(lastLocal) { lastLocal[treeId] = local }
+
     /** Called with the tree lock held. */
     private suspend fun plan(treeId: Int, local: LocalTree) {
         val existing = store.jobs(treeId).associateBy { it.key }
@@ -122,6 +125,10 @@ class SyncQueue(
                     // A failed add may exist on Geni: recorded whatever its version, so it is never sent again by itself
                     is Outcome.Failed -> if (current != null && (unchanged || job.isAdd()))
                         store.saveJob(current.copy(state = JobState.FAILED, error = outcome.message))
+                    // Waits for the user; a new change of the record plans it again
+                    is Outcome.Conflict -> if (current != null && unchanged)
+                        store.saveJob(current.copy(state = JobState.CONFLICT, error = "changed on Geni meanwhile: " +
+                                outcome.groups.joinToString(", ") { it.lowercase() }))
                     is Outcome.Retry, Outcome.NeedsLogin ->
                         if (current?.state == JobState.SENDING) store.saveJob(current.copy(state = JobState.PENDING)) // Not sent
                 }
