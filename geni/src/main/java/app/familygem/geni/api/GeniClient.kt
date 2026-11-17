@@ -32,7 +32,8 @@ class GeniClient(
     private val baseUrl: HttpUrl,
     private val tokens: TokenStore,
     private val limiter: RateLimiter,
-    private val http: OkHttpClient = OkHttpClient(),
+    // No silent retries: OkHttp could repeat a POST that already created a profile on Geni
+    private val http: OkHttpClient = OkHttpClient.Builder().retryOnConnectionFailure(false).build(),
     private val now: () -> Long = System::currentTimeMillis
 ) {
     private val gson = Gson()
