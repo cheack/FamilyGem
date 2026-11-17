@@ -68,6 +68,13 @@ Plan: [2026-11-17-geni-3-write-path.md](2026-11-17-geni-3-write-path.md)
 - [ ] Queue runner: order, rate limit, retries with back-off (in-process, not WorkManager: upstream cancels all work on save)
 - [ ] Permanent failures kept and shown to the user (list of failed changes)
 
+### Deferred from the review of PR 1 (Tasks 1–4)
+
+- [ ] Real round-trip test: upload params → simulated Geni profile → `ofSnapshot` equals the local projection
+- [ ] `FamilyMerger`: clear `verifiedHash` when the snapshot changes
+- [ ] `parseDate`: reject days that do not exist in the month (31 FEB)
+- [ ] Name text after the closing slash ("Ivan /Petrov/ Jr") is invisible to sync
+
 Moved out of stage 3: photo upload goes with "Show Geni profile photos" (stage 2); delete profile goes with the delete rules (stage 5).
 
 ## 4. Refresh and conflicts
@@ -98,6 +105,7 @@ Plan: not written yet.
 - [x] Register a Geni sandbox app and fill `geni.properties` (`geniAppId`, `geniHost=sandbox.geni.com`)
 - [x] Own app ID `net.cheack.treekin` and name "Treekin" (in `app/geni.gradle` and `app/src/geni/res`)
 - [ ] Redirect scheme `net.cheack.treekin://authorize` instead of `app.familygem.geni://` (also change the Callback URL in the Geni app)
-- [ ] Rename the GitHub repository; replace "Family Gem" in other strings (example tree, Premium, about screen)
+- [x] Rename the GitHub repository to `cheack/Treekin`
+- [ ] Replace "Family Gem" in other strings (example tree, Premium, about screen)
 - [ ] Take the transparent `NumberPicker` divider fix from Sternbach-Software/GeniForAndroid
 - [ ] CI: weekly trial merge of `upstream/master`, build and tests

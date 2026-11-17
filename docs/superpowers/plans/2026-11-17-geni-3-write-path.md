@@ -22,13 +22,14 @@
 - All requests go through the shared `RateLimiter`; no secrets in logs.
 - New strings in `geni/src/main/res/values/geni_strings.xml` and `values-ru/geni_strings.xml`, prefix `geni_`.
 - Build and test: `JAVA_HOME=/home/vp/jdk $GRADLE ...` with `$GRADLE = ~/.gradle/wrapper/dists/gradle-9.9.0-bin/*/gradle-9.9.0/bin/gradle`, in an rsync copy of the repo in the scratchpad (the IDE's Gradle daemons corrupt `app/build`).
-- Work on branch `geni-write-path`; the plan ends with a PR into `geni` (CodeRabbit reviews it). Commit, push and PR only after the user says yes.
+- Three PRs into `geni`, each from its own branch off the updated `geni` and reviewed by CodeRabbit: `geni-write-1` (Tasks 1–4), `geni-write-2` (Tasks 5–7), `geni-write-3` (Tasks 8–10). Commit, push and PR only after the user says yes.
 
 Geni facts this plan relies on (sandbox, 2026-11-17, all with form-encoded `POST`):
 - `profile-X/update` changes only the parameters sent; an empty value clears a field (`occupation=`, `about_me=`, `birth[location][city]=`).
 - A date is replaced as a whole: sending only `birth[date][year]=1992` drops the day and month. Always send `day`, `month`, `year` and `circa` together (empty strings for missing parts). Empty `day`, `month`, `year` and no location remove the event. `birth=` returns HTTP 500.
 - `birth[location][place_name]=...` keeps the old `city`, `country` etc. unless they are sent empty.
 - Death is ignored while the profile is alive: send `is_alive=false` in the same request as `death[...]`.
+- `is_alive=true` alone clears the death date, place and `cause_of_death`.
 - `nicknames=A, B` becomes `["A", "B"]`; `gender=unknown` clears the gender.
 - `profile-X/add-child`, `add-parent`, `add-partner`, `add-sibling` and `union-U/add-child`, `union-U/add-partner` return the new profile with `unions` = the one union it belongs to (the parents' union for a child, the new couple union for a partner or parent). `profile-X/add-child` and `add-parent` create a new union when needed.
 - Profiles created without `is_alive=true` are deceased.
@@ -176,9 +177,9 @@ Rules:
 - `UPDATE_PROFILE`: `post("<geniId>/update", params)`, then `profiles(listOf(geniId))` and save the link with the new `snapshot` and `geniUpdatedAt`, `verifiedHash = null`. No change to the GEDCOM. `UPDATE_UNION`: same with `union-U/update` and `unions(...)`.
 - `ADD_CHILD`: the family's link (`linkByGedcomId(familyGedcomId)`) → `post("<union>/add-child")`; else the first anchor with a link → `post("<profile>/add-child")`. `ADD_PARTNER`: family link → `<union>/add-partner`; else the first linked `child:` anchor → `<profile>/add-parent`; else the first linked `partner:` anchor → `<profile>/add-partner`. No linked family or anchor → `Failed("depends on a change that was not uploaded")`.
 - After an add: new profile ID = response `id`, union ID = `geniId(unions[0])`; fetch both with `profiles`/`unions`; in one `host.edit` set `_GENI_ID` on the person and, if not linked yet, on the family (skip records that no longer exist); save the person link (`fullyLoaded = false`, `loadedAtMillis = 0`) and the family link with their snapshots.
-- Errors: `GeniAuthRequiredException` → `NeedsLogin`; `GeniApiException` with code 400–499 except 408 and 429 → `Failed(body message)`; other `GeniApiException`, `IOException` → `Retry`. A 400 may have applied part of the change: the snapshot is not touched; the next load brings Geni's state.
+- Errors: `GeniAuthRequiredException` → `NeedsLogin`; `GeniApiException` with code 400–499 except 408 and 429 → `Failed(body message)`; other `GeniApiException`, `IOException` → `Retry`, except an `IOException` on the POST of an add job: the request may have reached Geni and created the profile, so a retry could create a second one → `Failed("connection lost while adding; check Geni, then retry")` (from the PR 1 review). A 400 may have applied part of the change: the snapshot is not touched; the next load brings Geni's state.
 
-- [ ] **Step 1: Write the failing tests** (MockWebServer + `FakeTreeHost` + `InMemorySyncStore`) — `updateProfilePostsParamsAndSavesSnapshot`, `addChildToLinkedUnion` (path `/api/union-10106/add-child`; person gets `_GENI_ID`, links saved), `addParentCreatesUnionLink` (family not linked, anchor child linked → `/api/profile-36430/add-parent`; family gets the union ID from `unions[0]`), `childOfNewPersonUsesTheNewUnion` (after the parent's add linked the family, the child's job posts to `union-…/add-child`), `missingAnchorFails`, `http403Fails`, `http503Retries`, `http401NeedsLogin`.
+- [ ] **Step 1: Write the failing tests** (MockWebServer + `FakeTreeHost` + `InMemorySyncStore`) — `updateProfilePostsParamsAndSavesSnapshot`, `addChildToLinkedUnion` (path `/api/union-10106/add-child`; person gets `_GENI_ID`, links saved), `addParentCreatesUnionLink` (family not linked, anchor child linked → `/api/profile-36430/add-parent`; family gets the union ID from `unions[0]`), `childOfNewPersonUsesTheNewUnion` (after the parent's add linked the family, the child's job posts to `union-…/add-child`), `missingAnchorFails`, `http403Fails`, `http503Retries`, `http401NeedsLogin`, `connectionLostOnAddFails`.
 - [ ] **Step 2: Run** `$GRADLE :geni:testDebugUnitTest --tests '*UploaderTest*'` — FAIL.
 - [ ] **Step 3: Implement** `Uploader`.
 - [ ] **Step 4: Run** the same command — PASS.
@@ -257,4 +258,4 @@ Rules:
 - [ ] **Step 2: Edit and check on sandbox.geni.com** (the user looks at the website): change a birth date and place of an existing person; change occupation; add a child to the user and his wife; add a parent to a person without parents; add a spouse, then a child of that new couple, while in airplane mode, then turn the network on. `adb logcat -s GeniSync` shows each job `Done`; the website shows the changes; a second save makes no new job.
 - [ ] **Step 3: Check failures**: edit a profile the user does not manage (if the sandbox has one) or force a 4xx; the account screen shows it under "Failed changes"; "Dismiss all" hides it.
 - [ ] **Step 4: Write findings** to the spec ("To verify on the sandbox"); tick the stage 3 items in `docs/superpowers/plans/README.md`.
-- [ ] **Step 5: Commit** `Record write path findings`, then (after the user agrees) push `geni-write-path` and open a PR into `geni`.
+- [ ] **Step 5: Commit** `Record write path findings`, then (after the user agrees) push `geni-write-3` and open a PR into `geni`.

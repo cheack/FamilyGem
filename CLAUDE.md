@@ -2,7 +2,7 @@
 
 ## Project
 
-Fork of [michelesalvador/FamilyGem](https://github.com/michelesalvador/FamilyGem) (remote `upstream`) at `cheack/FamilyGem` (remote `origin`).
+Fork of [michelesalvador/FamilyGem](https://github.com/michelesalvador/FamilyGem) (remote `upstream`) at `cheack/Treekin` (remote `origin`; app name "Treekin", application ID `net.cheack.treekin`).
 Goal: a full genealogy Android app with two-way sync to [Geni.com](https://www.geni.com) through the Geni API, built on top of FamilyGem.
 FamilyGem already provides the GEDCOM data model, tree diagram, editors, import/export and translations; the new work is the Geni layer.
 
