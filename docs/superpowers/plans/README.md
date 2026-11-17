@@ -61,13 +61,13 @@ Plan: [2026-11-16-geni-2-read-path.md](2026-11-16-geni-2-read-path.md)
 
 Plan: [2026-11-17-geni-3-write-path.md](2026-11-17-geni-3-write-path.md)
 
-- [ ] Hook in `TreeUtil.saveJson`: signal that a Geni tree was written
-- [ ] Diff of the whole tree against snapshots, with a hash per record
-- [ ] Upload queue in Room; job types: update profile, add child/parent/partner (a sibling is a child of the parents' union), update union
-- [ ] Mapping GEDCOM → Geni for uploads; local-only data (sources, notes, extra events) never uploaded
-- [ ] People created offline: later jobs refer to them by GEDCOM ID, resolved to the Geni ID when they run
-- [ ] Queue runner: order, rate limit, retries with back-off (in-process, not WorkManager: upstream cancels all work on save)
-- [ ] Permanent failures kept and shown to the user (list of failed changes)
+- [x] Hook in `TreeUtil.saveJson`: signal that a Geni tree was written
+- [x] Diff of the whole tree against snapshots, with a hash per record
+- [x] Upload queue in Room; job types: update profile, add child/parent/partner (a sibling is a child of the parents' union), update union
+- [x] Mapping GEDCOM → Geni for uploads; local-only data (sources, notes, extra events) never uploaded
+- [x] People created offline: later jobs refer to them by GEDCOM ID, resolved to the Geni ID when they run
+- [x] Queue runner: order, rate limit, retries with back-off (in-process, not WorkManager: upstream cancels all work on save)
+- [x] Permanent failures kept and shown to the user (list of failed changes)
 
 ### Deferred from the review of PR 1 (Tasks 1–4)
 
@@ -83,6 +83,11 @@ Plan: [2026-11-17-geni-3-write-path.md](2026-11-17-geni-3-write-path.md)
 - [ ] A load of a profile added without a snapshot applies every Geni field (`FamilyMerger` with `previous = null`) and can overwrite a local edit not uploaded yet (CodeRabbit, PR 2)
 - [ ] A person deleted during the add request whose GEDCOM ID is reused at once gets the new link and tag (CodeRabbit, PR 2)
 - [ ] When the tag write after an add fails and the person is renamed, the record is ambiguous and its edits are not uploaded: show it to the user (CodeRabbit, PR 2)
+
+### Found in the sandbox check (Task 10)
+
+- [ ] No check with a 4xx from Geni on the phone (the sandbox tree has no profile the user cannot edit); covered by unit tests only
+- [ ] The network watch resumes uploads as soon as Android reports a network; DNS may not be ready yet, so the first try can still back off
 
 Moved out of stage 3: photo upload goes with "Show Geni profile photos" (stage 2); delete profile goes with the delete rules (stage 5).
 
@@ -113,7 +118,7 @@ Plan: not written yet.
 
 - [x] Register a Geni sandbox app and fill `geni.properties` (`geniAppId`, `geniHost=sandbox.geni.com`)
 - [x] Own app ID `net.cheack.treekin` and name "Treekin" (in `app/geni.gradle` and `app/src/geni/res`)
-- [ ] Redirect scheme `net.cheack.treekin://authorize` instead of `app.familygem.geni://` (also change the Callback URL in the Geni app)
+- [x] Redirect scheme `net.cheack.treekin://authorize` instead of `app.familygem.geni://` (also change the Callback URL in the Geni app)
 - [x] Rename the GitHub repository to `cheack/Treekin`
 - [ ] Replace "Family Gem" in other strings (example tree, Premium, about screen)
 - [ ] Take the transparent `NumberPicker` divider fix from Sternbach-Software/GeniForAndroid
@@ -123,6 +128,7 @@ Plan: not written yet.
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
+- 2026-11-17: Write path, part 2 (PR [#2](https://github.com/cheack/Treekin/pull/2)): saved changes become upload jobs (updates of profiles and unions, new children, parents and partners), sent to Geni in order with retries, never adding a person twice. Not wired into the app yet.
 - 2026-11-17: Write path, part 1 (PR [#1](https://github.com/cheack/Treekin/pull/1)): edits are compared with the Geni version field by field and turned into Geni update parameters; an upload queue in the sync database. Nothing is uploaded yet.
 - 2026-11-17: The app is called Treekin (`net.cheack.treekin`), installs next to Family Gem; the repository is `cheack/Treekin`; CodeRabbit reviews PRs.
 - 2026-11-16: Stage 2, read path: a Geni tree is created from the user's own profile; opening a person loads their relatives; relatives within 3 steps are prefetched in background; "Keep offline" downloads a branch. Checked on the sandbox and a Pixel 6.

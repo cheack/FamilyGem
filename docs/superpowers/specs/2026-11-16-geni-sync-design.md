@@ -144,12 +144,17 @@ The user picked A.
 
 Found on the sandbox (2026-11-16):
 - The redirect URI must equal the Callback URL in the Geni app settings; with an empty Callback URL Geni shows "an unexpected error has occurred".
-- Geni cannot redirect to `<appId>://authorize` from its mobile docs (a numeric scheme); `app.familygem.geni://authorize` works and is the default.
+- Geni cannot redirect to `<appId>://authorize` from its mobile docs (a numeric scheme); a custom scheme works; the default is `net.cheack.treekin://authorize` (was `app.familygem.geni://authorize` before the rename).
 - The desktop flow on the sandbox fails with "redirect must be provided".
 - `client_id` = app ID works; the app secret is not needed.
 
 - Prefetch, radius 3 on the sandbox test tree: 7 loads (21 requests) in 13.3 s at the sandbox limit of 3 requests per second; the tree had 12 people and 5 families in 10.8 KB of JSON (about 0.9 KB per person, so about 1 MB per 1000 people). Approach A still looks fine; saving time on large trees is to watch.
 - WorkManager cannot run Geni background work: upstream `Notifier` calls `WorkManager.cancelAllWork()` on every tree save. Prefetch runs in an in-process coroutine scope instead, so it does not survive process death; it restarts from the next tree creation or "Keep offline".
+
+Write path on the sandbox (2026-11-17, Pixel 6): profile edits (birth date and place, occupation), add child to a couple, add parent, and spouse plus child added in airplane mode were all uploaded and appear on sandbox.geni.com without duplicates; a second save makes no new job.
+- Without a network a request fails before connecting (`UnknownHostException`, `ConnectException`): nothing reached Geni, so even an add is retried. Only a failure after the request was sent makes an add fail for the user to check.
+- Back-off alone could wait up to 30 min after the network returns: a network callback resumes the uploads at once.
+- The account screen without a network showed the raw error and "Log in" although the token was kept; it now says the login is kept and changes wait for the network.
 
 Still open:
 
