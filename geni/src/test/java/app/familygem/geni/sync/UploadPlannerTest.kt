@@ -180,9 +180,9 @@ class UploadPlannerTest {
 
     @Test
     fun reusedGedcomIdIsNotLinkedToOldProfile() {
-        // Ivan (I1) was deleted locally; a new person got the free ID I1 and has no tag
+        // Ivan (I1) was deleted locally (an earlier save orphaned his link); a new person got the free ID I1 and has no tag
         val local = LocalTree(listOf(person("I1", null, newFields), person("I2", "profile-2", anna)), listOf(family("F1", "union-1", listOf("I1", "I2"))))
-        val plan = plan(local)
+        val plan = plan(local, coupleLinks.map { if (it.geniId == "profile-1") it.copy(orphaned = true) else it })
         assertTrue(plan.upserts.none { it.key == "profile:profile-1" })
         assertEquals(listOf("profile-1"), plan.staleLinks)
         assertEquals(listOf("add:I1"), plan.upserts.map { it.key })
@@ -195,5 +195,28 @@ class UploadPlannerTest {
         val plan = plan(local, links)
         assertEquals(emptyList<UploadJob>(), plan.upserts)
         assertEquals(emptyList<String>(), plan.staleLinks)
+    }
+
+    @Test
+    fun renamedTaglessPersonMakesNoJob() {
+        // The tag was lost after an add and the person was renamed: maybe the same person, maybe a reused ID
+        val local = couple().let { it.copy(people = listOf(it.people[0].copy(geniId = null, fields = newFields)) + it.people.drop(1)) }
+        val plan = plan(local)
+        assertEquals(emptyList<UploadJob>(), plan.upserts)
+        assertEquals(emptyList<String>(), plan.staleLinks)
+    }
+
+    @Test
+    fun absentRecordOrphansLink() {
+        val links = coupleLinks + link("profile-9", "I9", annaJson) + link("union-9", "F9", unionJson)
+        assertEquals(listOf("profile-9", "union-9"), plan(couple(), links).orphaned)
+    }
+
+    @Test
+    fun presentTaggedRecordClearsOrphan() {
+        val links = coupleLinks.map { if (it.geniId == "profile-1") it.copy(orphaned = true) else it }
+        val plan = plan(couple(), links)
+        assertEquals(listOf("profile-1"), plan.unorphaned)
+        assertEquals(emptyList<String>(), plan.orphaned)
     }
 }

@@ -103,7 +103,14 @@ open class Uploader(
         // Links first: once stored, this person can never be added again; the tags in the tree follow
         val links = mutableListOf(GeniLink(treeId, profileId, personId, false, null, null, 0))
         if (linkFamily) links += GeniLink(treeId, unionId!!, familyId!!, true, null, null, now())
-        store.saveLinks(links)
+        try {
+            store.saveLinks(links)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Geni created the profile but this device could not record it: never send the add again by itself
+            return Outcome.Failed("Geni created $profileId but the app could not save the link (${e.message}); $CHECK_GENI")
+        }
         bestEffort {
             host.edit(treeId) { gedcom ->
                 gedcom.people.orEmpty().firstOrNull { it.id == personId }?.let { GeniMapper.setGeniId(it, profileId) }
@@ -130,13 +137,12 @@ open class Uploader(
 
     /** Fetches the full Geni version of a linked record (write responses lack fields) and stores it as the snapshot. */
     private suspend fun refreshSnapshot(treeId: Int, geniId: String) {
-        val link = store.link(treeId, geniId) ?: return
         if (geniId.startsWith("profile-")) {
             val (profile, raw) = client.profiles(listOf(geniId))[geniId] ?: return
-            store.saveLinks(listOf(link.copy(snapshot = raw, geniUpdatedAt = profile.updatedAt, verifiedHash = null)))
+            store.updateSnapshot(treeId, geniId, raw, profile.updatedAt)
         } else {
             val (_, raw) = client.unions(listOf(geniId))[geniId] ?: return
-            store.saveLinks(listOf(link.copy(snapshot = raw, verifiedHash = null)))
+            store.updateSnapshot(treeId, geniId, raw, store.link(treeId, geniId)?.geniUpdatedAt)
         }
     }
 

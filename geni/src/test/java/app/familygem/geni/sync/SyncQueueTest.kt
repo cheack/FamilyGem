@@ -11,6 +11,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import app.familygem.geni.map.UnionFields
@@ -268,5 +269,61 @@ class SyncQueueTest {
         val job = store.jobs(1).single()
         assertEquals(JobState.FAILED, job.state)
         assertTrue(job.error!!.contains("different value"))
+    }
+
+    /** Ivan on Geni, and a new spouse I6 in family F3. */
+    private fun withSpouse(name: String) = tree().let {
+        it.copy(people = it.people + LocalPerson("I6", null, name, ProfileFields.EMPTY.copy(given = name)),
+            families = listOf(LocalFamily("F3", null, listOf("I1", "I6"), emptyList(), UnionFields.EMPTY)))
+    }
+
+    @Test
+    fun editedSendingAddThatFailsIsNotRunAgain() = runTest {
+        linkBoth()
+        queue.onSaved(1, withSpouse("Olga"))
+        uploader.answer = {
+            queue.onSaved(1, withSpouse("Olya")) // The user renames the new spouse while the add is sent
+            Outcome.Failed("connection lost while adding; check on Geni")
+        }
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        assertEquals(1, uploader.ran.size)
+        val job = store.jobs(1).single()
+        assertEquals(JobState.FAILED, job.state)
+        assertEquals("Olya", job.params.toMap()["first_name"])
+    }
+
+    @Test
+    fun failedAddKeepsStateWhenEdited() = runTest {
+        linkBoth()
+        queue.onSaved(1, withSpouse("Olga"))
+        store.saveJob(store.jobs(1).single().copy(state = JobState.FAILED, error = "check on Geni"))
+        queue.onSaved(1, withSpouse("Olya"))
+        val job = store.jobs(1).single()
+        assertEquals(JobState.FAILED, job.state)
+        assertEquals("Olya", job.params.toMap()["first_name"])
+        assertEquals(1, job.version)
+    }
+
+    @Test
+    fun doneAddWithNewerVersionIsRemoved() = runTest {
+        linkBoth()
+        queue.onSaved(1, withSpouse("Olga"))
+        uploader.answer = {
+            queue.onSaved(1, withSpouse("Olya"))
+            store.saveLinks(listOf(GeniLink(1, "profile-60", "I6", false, null, null, 0)))
+            Outcome.Done
+        }
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        assertEquals(1, uploader.ran.size)
+        assertEquals(emptyList<UploadJob>(), store.jobs(1))
+    }
+
+    @Test
+    fun absentRecordOrphansItsLink() = runTest {
+        linkBoth()
+        queue.onSaved(1, tree().let { it.copy(people = it.people.take(1)) })
+        assertTrue(store.link(1, "profile-2")!!.orphaned)
+        queue.onSaved(1, tree())
+        assertFalse(store.link(1, "profile-2")!!.orphaned)
     }
 }

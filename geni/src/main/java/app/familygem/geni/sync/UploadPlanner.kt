@@ -9,9 +9,18 @@ import com.google.gson.JsonParser
 /**
  * Result of planning: jobs to insert or update by key (in upload order, with ID 0),
  * keys of jobs that are no longer needed, links found equal to their snapshot (with their new verified hash),
- * and Geni IDs of links whose GEDCOM ID now belongs to another record (to delete).
+ * Geni IDs of links whose GEDCOM ID now belongs to another record (to delete), and orphan marks to set or clear.
  */
-data class Plan(val upserts: List<UploadJob>, val deleteKeys: Set<String>, val verified: List<GeniLink>, val staleLinks: List<String> = emptyList())
+data class Plan(
+    val upserts: List<UploadJob>,
+    val deleteKeys: Set<String>,
+    val verified: List<GeniLink>,
+    val staleLinks: List<String> = emptyList(),
+    /** Links whose record is missing from the tree (deleted locally). */
+    val orphaned: List<String> = emptyList(),
+    /** Orphaned links whose record is back. */
+    val unorphaned: List<String> = emptyList()
+)
 
 /** Compares a saved tree with the Geni snapshots of its records and works out the upload jobs. Pure: no I/O. */
 object UploadPlanner {
@@ -27,16 +36,24 @@ object UploadPlanner {
 
         val staleLinks = mutableListOf<String>()
 
+        val ambiguous = mutableSetOf<String>()
+
         /**
          * Link of a record: by its tag, or by its GEDCOM ID when the tag was lost (an unsaved edit after an add).
-         * A GEDCOM ID can be reused by a new record after a delete, so a link found by ID counts only if [sameRecord]
-         * agrees with its snapshot (or there is no snapshot yet); otherwise the link is stale and the record is new.
+         * A GEDCOM ID is reused by the next new record after a delete. A link whose record was seen missing (orphaned)
+         * belongs to the deleted record: the new one is new. Otherwise the link counts if [sameRecord] agrees with the
+         * snapshot (or there is none yet); if not, nobody can tell, and the record gets no job at all (no update that
+         * could overwrite another profile, no add that could duplicate this one).
          */
         fun linkOf(gedcomId: String, geniId: String?, prefix: String, sameRecord: (String) -> Boolean): GeniLink? {
             if (geniId != null) return byGeniId[geniId]?.takeIf { it.gedcomId == gedcomId }
             val link = byGedcomId[gedcomId]?.takeIf { it.geniId.startsWith(prefix) } ?: return null
+            if (link.orphaned) {
+                staleLinks += link.geniId
+                return null
+            }
             if (link.snapshot == null || sameRecord(link.snapshot)) return link
-            staleLinks += link.geniId
+            ambiguous += gedcomId
             return null
         }
 
@@ -69,7 +86,7 @@ object UploadPlanner {
                             label = person.label, localHash = hash)
                     }
                 }
-                person.geniId == null -> newPeople[person.gedcomId] = person
+                person.geniId == null && person.gedcomId !in ambiguous -> newPeople[person.gedcomId] = person
                 // A tag without a link: skipped until a load links it again
             }
         }
@@ -119,6 +136,10 @@ object UploadPlanner {
             val gone = if (job.key.startsWith("add:")) job.key.removePrefix("add:") !in planned else job.key !in linkedKeys
             if (gone) deleteKeys += job.key
         }
-        return Plan(upserts, deleteKeys, verified, staleLinks)
+        // Orphan marks: a link whose record is missing now, or back again
+        val present = local.people.map { it.gedcomId }.toSet() + local.families.map { it.gedcomId }
+        val orphaned = links.filter { !it.orphaned && it.gedcomId !in present }.map { it.geniId }
+        val unorphaned = links.filter { it.orphaned && it.geniId !in staleLinks && it.gedcomId in present }.map { it.geniId }
+        return Plan(upserts, deleteKeys, verified, staleLinks, orphaned, unorphaned)
     }
 }

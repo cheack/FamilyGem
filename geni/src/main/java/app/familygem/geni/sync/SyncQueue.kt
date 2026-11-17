@@ -47,6 +47,9 @@ class SyncQueue(private val store: SyncStore, private val uploader: Uploader) {
             when {
                 job == null -> store.saveJob(wanted)
                 job.sameChange(wanted) -> Unit // Keep it as it is, also when failed, dismissed or being sent
+                // An add that was sent, failed or dismissed may exist on Geni: new details, but only the user sends it again
+                job.isAdd() && job.state != JobState.PENDING ->
+                    store.saveJob(wanted.copy(id = job.id, state = job.state, error = job.error, version = job.version + 1))
                 else -> store.saveJob(wanted.copy(id = job.id, state = JobState.PENDING, error = null, version = job.version + 1))
             }
         }
@@ -54,6 +57,8 @@ class SyncQueue(private val store: SyncStore, private val uploader: Uploader) {
         val runningKey = synchronized(running) { running[treeId] }
         plan.deleteKeys.filter { it != runningKey }.mapNotNull { existing[it] }.forEach { store.deleteJob(it.id) }
         plan.staleLinks.forEach { store.deleteLink(treeId, it) }
+        plan.orphaned.forEach { store.setOrphaned(treeId, it, true) }
+        plan.unorphaned.forEach { store.setOrphaned(treeId, it, false) }
         saveVerified(plan.verified.filter { runningKey != "profile:${it.geniId}" && runningKey != "union:${it.geniId}" })
     }
 
@@ -61,13 +66,8 @@ class SyncQueue(private val store: SyncStore, private val uploader: Uploader) {
             personGedcomId == other.personGedcomId && familyGedcomId == other.familyGedcomId && anchors == other.anchors
 
     /** Stores verified hashes, but only on links whose snapshot is still the one the hash was checked against. */
-    internal suspend fun saveVerified(verified: List<GeniLink>) {
-        val current = verified.mapNotNull { checked ->
-            store.link(checked.treeId, checked.geniId)
-                ?.takeIf { it.snapshot == checked.snapshot && it.gedcomId == checked.gedcomId }
-                ?.copy(verifiedHash = checked.verifiedHash)
-        }
-        if (current.isNotEmpty()) store.saveLinks(current)
+    internal suspend fun saveVerified(verified: List<GeniLink>) = verified.forEach {
+        store.setVerifiedHash(it.treeId, it.geniId, it.gedcomId, it.snapshot, it.verifiedHash ?: return@forEach)
     }
 
     /** Runs the pending jobs of a tree in order until none is left or one has to wait. */
@@ -100,13 +100,16 @@ class SyncQueue(private val store: SyncStore, private val uploader: Uploader) {
                 when (outcome) {
                     Outcome.Done -> {
                         sent[job.key] = job.params
-                        // A newer version planned during the upload stays pending and runs next
-                        store.deleteJobIfVersion(job.id, job.version)
+                        // An added person is linked now: newer details of it go as an update. A newer version
+                        // of an update planned during the upload stays pending and runs next
+                        if (job.isAdd()) store.deleteJob(job.id) else store.deleteJobIfVersion(job.id, job.version)
                         synchronized(lastLocal) { lastLocal[treeId] }?.let { plan(treeId, it) } // Links and snapshots changed
                     }
-                    is Outcome.Failed -> if (unchanged) store.saveJob(current!!.copy(state = JobState.FAILED, error = outcome.message))
+                    // A failed add may exist on Geni: recorded whatever its version, so it is never sent again by itself
+                    is Outcome.Failed -> if (current != null && (unchanged || job.isAdd()))
+                        store.saveJob(current.copy(state = JobState.FAILED, error = outcome.message))
                     is Outcome.Retry, Outcome.NeedsLogin ->
-                        if (unchanged && current!!.state == JobState.SENDING) store.saveJob(current.copy(state = JobState.PENDING))
+                        if (current?.state == JobState.SENDING) store.saveJob(current.copy(state = JobState.PENDING)) // Not sent
                 }
             }
             when (outcome) {

@@ -27,7 +27,13 @@ class UploaderTest {
 
     private val server = MockWebServer()
     private val tokens = InMemoryTokenStore().apply { save(AuthResult.Success("abc", Long.MAX_VALUE)) }
-    private val store = InMemorySyncStore()
+    private var failLinkSave = false
+    private val store = object : InMemorySyncStore() {
+        override suspend fun saveLinks(links: List<GeniLink>) {
+            if (failLinkSave) error("disk full")
+            super.saveLinks(links)
+        }
+    }
     private var editHook: () -> Unit = {}
     private val host = object : FakeTreeHost() {
         override suspend fun <T> edit(treeId: Int, block: (Gedcom) -> T): T {
@@ -297,5 +303,27 @@ class UploaderTest {
         val outcome = uploader().run(job(JobKind.ADD_CHILD, "add:I8", person = "I8", family = "F2", anchors = listOf("partner:I5", "partner:I2")))
         assertTrue(outcome is Outcome.Failed)
         assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun linkSaveFailureAfterAddFails() = runTest {
+        tree()
+        store.saveLinks(listOf(link("union-10106", "F1")))
+        failLinkSave = true
+        server.enqueue(ok("""{"id":"profile-50","unions":["union-10106"]}"""))
+        val outcome = uploader().run(addI3)
+        assertTrue((outcome as Outcome.Failed).message.contains("profile-50"))
+    }
+
+    @Test
+    fun snapshotRefreshKeepsOtherLinkFields() = runTest {
+        tree()
+        store.saveLinks(listOf(link("profile-36430", "I1")))
+        server.enqueue(ok("""{"id":"profile-36430"}"""))
+        server.enqueue(ok("""{"id":"profile-36430","occupation":"Driver","updated_at":"9"}"""))
+        assertEquals(Outcome.Done, uploader().run(updateProfile))
+        val saved = store.link(1, "profile-36430")!!
+        assertEquals(5L, saved.loadedAtMillis)
+        assertEquals("9", saved.geniUpdatedAt)
     }
 }

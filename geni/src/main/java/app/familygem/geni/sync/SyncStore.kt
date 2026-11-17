@@ -9,6 +9,7 @@ data class GeniTreeInfo(val treeId: Int, val rootGeniId: String, val prefetchDep
  * @param snapshot Raw Geni JSON of the object as last loaded
  * @param loadedAtMillis When the immediate family was last loaded, 0 if never
  * @param verifiedHash Hash of the local projection last found equal to [snapshot]; the upload planner skips the record while it matches
+ * @param orphaned The record was missing from a saved tree (deleted locally): its GEDCOM ID may now belong to another record
  */
 data class GeniLink(
     val treeId: Int,
@@ -18,7 +19,8 @@ data class GeniLink(
     val geniUpdatedAt: String?,
     val snapshot: String?,
     val loadedAtMillis: Long,
-    val verifiedHash: Int? = null
+    val verifiedHash: Int? = null,
+    val orphaned: Boolean = false
 )
 
 /** Geni metadata of the trees, kept apart from upstream settings. */
@@ -32,6 +34,11 @@ interface SyncStore {
     suspend fun saveLinks(links: List<GeniLink>)
     suspend fun linkByGedcomId(treeId: Int, gedcomId: String): GeniLink?
     suspend fun deleteLink(treeId: Int, geniId: String)
+    /** Sets the verified hash only if the link still has this GEDCOM ID and snapshot; true if it did. */
+    suspend fun setVerifiedHash(treeId: Int, geniId: String, gedcomId: String, snapshot: String?, hash: Int): Boolean
+    /** Replaces only the snapshot and its update time, and clears the verified hash. */
+    suspend fun updateSnapshot(treeId: Int, geniId: String, snapshot: String, geniUpdatedAt: String?)
+    suspend fun setOrphaned(treeId: Int, geniId: String, orphaned: Boolean)
     /** Deletes the tree with its links and jobs. */
     suspend fun deleteTree(treeId: Int)
 
