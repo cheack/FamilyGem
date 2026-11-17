@@ -93,7 +93,7 @@ Moved out of stage 3: photo upload goes with "Show Geni profile photos" (stage 2
 
 ## 4. Refresh and conflicts
 
-Plan: not written yet.
+Plan: [2026-11-17-geni-4-refresh-conflicts.md](2026-11-17-geni-4-refresh-conflicts.md)
 
 - [ ] Refresh on open: fetch current Geni version, update cache and snapshot when nothing is pending
 - [ ] Daily refresh of radius N on an unmetered network
@@ -128,6 +128,7 @@ Plan: not written yet.
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
+- 2026-11-17: Write path, part 3 (PR [#3](https://github.com/cheack/Treekin/pull/3)): edits of a Geni tree are uploaded after each save, offline changes wait for the network, and the Geni account screen shows waiting and failed changes. Stage 3 done.
 - 2026-11-17: Write path, part 2 (PR [#2](https://github.com/cheack/Treekin/pull/2)): saved changes become upload jobs (updates of profiles and unions, new children, parents and partners), sent to Geni in order with retries, never adding a person twice. Not wired into the app yet.
 - 2026-11-17: Write path, part 1 (PR [#1](https://github.com/cheack/Treekin/pull/1)): edits are compared with the Geni version field by field and turned into Geni update parameters; an upload queue in the sync database. Nothing is uploaded yet.
 - 2026-11-17: The app is called Treekin (`net.cheack.treekin`), installs next to Family Gem; the repository is `cheack/Treekin`; CodeRabbit reviews PRs.
