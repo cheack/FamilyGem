@@ -56,6 +56,16 @@ class SyncQueue(
         newer(treeId, local)
     }
 
+    /**
+     * After a conflict was resolved (the record and its snapshot changed): plans the tree again and puts the job back
+     * in the queue if the user kept some of their values; with nothing left to send the plan has deleted it.
+     */
+    suspend fun afterResolve(treeId: Int, key: String) = lock(treeId).withLock {
+        synchronized(lastLocal) { lastLocal[treeId] }?.let { plan(treeId, it) }
+        store.jobs(treeId).firstOrNull { it.key == key && it.state == JobState.CONFLICT }
+            ?.let { store.saveJob(it.copy(state = JobState.PENDING, error = null)) }
+    }
+
     /** Called with the tree lock held. */
     private suspend fun plan(treeId: Int, local: LocalTree) {
         synchronized(planned) { planned[treeId] = local.stamp }

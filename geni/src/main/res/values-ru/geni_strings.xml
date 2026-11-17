@@ -22,4 +22,20 @@
     <string name="geni_close">Закрыть</string>
     <string name="geni_retry_adds_warning">Часть этих изменений добавляет людей. Geni мог уже их создать: сначала проверьте на Geni, иначе люди могут добавиться дважды.</string>
     <string name="geni_retry_anyway">Всё равно повторить</string>
+    <string name="geni_conflicts">Конфликты (%1$d)</string>
+    <string name="geni_conflict_intro">Пока вы редактировали, кто-то изменил эти поля на Geni. Выберите, какое значение оставить.</string>
+    <string name="geni_conflict_mine">Моё: %1$s</string>
+    <string name="geni_conflict_geni">На Geni: %1$s</string>
+    <string name="geni_conflict_apply">Применить</string>
+    <string name="geni_conflict_failed">Не удалось: %1$s</string>
+    <string name="geni_group_NAMES">Имя</string>
+    <string name="geni_group_SEX">Пол</string>
+    <string name="geni_group_BIRTH">Рождение</string>
+    <string name="geni_group_BAPTISM">Крещение</string>
+    <string name="geni_group_DEATH">Смерть</string>
+    <string name="geni_group_BURIAL">Погребение</string>
+    <string name="geni_group_OCCUPATION">Занятие</string>
+    <string name="geni_group_ABOUT">О себе</string>
+    <string name="geni_group_MARRIAGE">Брак</string>
+    <string name="geni_group_DIVORCE">Развод</string>
 </resources>

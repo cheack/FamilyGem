@@ -1,10 +1,15 @@
 package app.familygem.geni.ui
 
 import android.content.Intent
+import android.graphics.Typeface
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.RadioButton
+import android.widget.RadioGroup
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -22,6 +27,7 @@ import app.familygem.geni.auth.TokenStore
 import app.familygem.geni.sync.JobKind
 import app.familygem.geni.sync.JobState
 import app.familygem.geni.sync.SyncQueue
+import app.familygem.geni.sync.UploadJob
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -38,6 +44,7 @@ class GeniLoginActivity : AppCompatActivity() {
     private lateinit var createTreeButton: Button
     private lateinit var pendingStatus: TextView
     private lateinit var failedButton: Button
+    private lateinit var conflictsButton: Button
     private lateinit var tokens: TokenStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,6 +60,8 @@ class GeniLoginActivity : AppCompatActivity() {
         pendingStatus = findViewById(R.id.geni_pending_status)
         failedButton = findViewById(R.id.geni_failed_button)
         failedButton.setOnClickListener { showFailed() }
+        conflictsButton = findViewById(R.id.geni_conflicts_button)
+        conflictsButton.setOnClickListener { chooseConflict() }
         if (!Geni.isConfigured) {
             status.setText(R.string.geni_not_configured)
             return
@@ -192,6 +201,9 @@ class GeniLoginActivity : AppCompatActivity() {
             pendingStatus.visibility = if (pending > 0) View.VISIBLE else View.GONE
             failedButton.text = getString(R.string.geni_failed_changes, failed)
             failedButton.visibility = if (failed > 0) View.VISIBLE else View.GONE
+            val conflicts = jobs.count { it.state == JobState.CONFLICT }
+            conflictsButton.text = getString(R.string.geni_conflicts, conflicts)
+            conflictsButton.visibility = if (conflicts > 0) View.VISIBLE else View.GONE
         }
     }
 
@@ -211,6 +223,86 @@ class GeniLoginActivity : AppCompatActivity() {
                 .setNegativeButton(R.string.geni_dismiss_all) { _, _ -> queueAction { dismissFailed(failed.map { it.id }.toSet()) } }
                 .setNeutralButton(R.string.geni_close, null)
                 .show()
+        }
+    }
+
+    /** Lets the user pick one of the jobs stopped by a conflict. */
+    private fun chooseConflict() {
+        lifecycleScope.launch {
+            val conflicts = Geni.store(applicationContext).allJobs().filter { it.state == JobState.CONFLICT }
+            when (conflicts.size) {
+                0 -> showQueue()
+                1 -> showConflict(conflicts[0])
+                else -> AlertDialog.Builder(this@GeniLoginActivity)
+                    .setItems(conflicts.map { it.label }.toTypedArray()) { _, which -> showConflict(conflicts[which]) }
+                    .show()
+            }
+        }
+    }
+
+    /** Both values of each conflicting field (Geni's chosen by default); "Apply" keeps the user's choice. */
+    private fun showConflict(job: UploadJob) {
+        progress.visibility = View.VISIBLE
+        lifecycleScope.launch {
+            val fields = try {
+                Geni.resolver(applicationContext).details(job)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                progress.visibility = View.GONE
+                val message = if (e is IOException) getString(R.string.geni_offline) else getString(R.string.geni_conflict_failed, e.message)
+                Toast.makeText(this@GeniLoginActivity, message, Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            progress.visibility = View.GONE
+            val padding = (16 * resources.displayMetrics.density).toInt()
+            val layout = LinearLayout(this@GeniLoginActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(padding * 3 / 2, padding / 2, padding * 3 / 2, 0)
+                addView(TextView(context).apply { setText(R.string.geni_conflict_intro) })
+            }
+            val mineButtons = fields.associate { field ->
+                val name = resources.getIdentifier("geni_group_${field.group}", "string", packageName)
+                layout.addView(TextView(this@GeniLoginActivity).apply {
+                    text = if (name != 0) getString(name) else field.group
+                    setPadding(0, padding, 0, 0)
+                    setTypeface(typeface, Typeface.BOLD)
+                })
+                val mine = RadioButton(this@GeniLoginActivity).apply { text = getString(R.string.geni_conflict_mine, field.mine); id = View.generateViewId() }
+                val geni = RadioButton(this@GeniLoginActivity).apply { text = getString(R.string.geni_conflict_geni, field.geni); id = View.generateViewId() }
+                layout.addView(RadioGroup(this@GeniLoginActivity).apply {
+                    addView(mine)
+                    addView(geni)
+                    check(geni.id)
+                })
+                field.group to mine
+            }
+            AlertDialog.Builder(this@GeniLoginActivity)
+                .setTitle(job.label)
+                .setView(ScrollView(this@GeniLoginActivity).apply { addView(layout) })
+                .setPositiveButton(R.string.geni_conflict_apply) { _, _ ->
+                    resolveConflict(job, mineButtons.filterValues { it.isChecked }.keys, fields.map { it.group }.toSet())
+                }
+                .setNegativeButton(R.string.geni_close, null)
+                .show()
+        }
+    }
+
+    private fun resolveConflict(job: UploadJob, keepMine: Set<String>, shown: Set<String>? = null) {
+        progress.visibility = View.VISIBLE
+        lifecycleScope.launch {
+            try {
+                Geni.resolver(applicationContext).resolve(job, keepMine, shown)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val message = if (e is IOException) getString(R.string.geni_offline) else getString(R.string.geni_conflict_failed, e.message)
+                Toast.makeText(this@GeniLoginActivity, message, Toast.LENGTH_LONG).show()
+            } finally {
+                Geni.resumeUploads?.invoke() // Also when the screen closed during the resolution; safe to repeat
+            }
+            progress.visibility = View.GONE
+            showQueue()
         }
     }
 

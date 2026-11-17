@@ -1,0 +1,120 @@
+package app.familygem.geni.sync
+
+import app.familygem.geni.FakeTreeHost
+import app.familygem.geni.api.GeniClient
+import app.familygem.geni.api.RateLimiter
+import app.familygem.geni.auth.AuthResult
+import app.familygem.geni.auth.InMemoryTokenStore
+import app.familygem.geni.map.GeniMapper
+import app.familygem.geni.map.ProfileFields
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runTest
+import mockwebserver3.MockResponse
+import mockwebserver3.MockWebServer
+import org.folg.gedcom.model.EventFact
+import org.folg.gedcom.model.Gedcom
+import org.folg.gedcom.model.Person
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+class ConflictResolverTest {
+
+    private val server = MockWebServer()
+    private val tokens = InMemoryTokenStore().apply { save(AuthResult.Success("abc", Long.MAX_VALUE)) }
+    private val store = InMemorySyncStore()
+    private val host = FakeTreeHost()
+
+    @Before
+    fun setUp() = server.start()
+
+    @After
+    fun tearDown() = server.close()
+
+    private val snapshot = """{"id":"profile-1","first_name":"Ivan","occupation":"Engineer","birth":{"date":{"year":1960}}}"""
+    private val geni = """{"id":"profile-1","first_name":"Ivan","occupation":"Pilot","birth":{"date":{"year":1961}}}"""
+
+    /** Ivan edited his occupation to Driver; meanwhile Geni got Pilot and another birth year. */
+    private val person = Person().apply {
+        id = "I1"
+        GeniMapper.applyProfile(Gedcom(), this, com.google.gson.Gson().fromJson(snapshot, app.familygem.geni.api.GeniProfile::class.java))
+        eventsFacts.single { it.tag == "OCCU" }.value = "Driver"
+        GeniMapper.setGeniId(this, "profile-1")
+    }
+
+    private suspend fun TestScope.setUpConflict(): Pair<ConflictResolver, UploadJob> {
+        host.trees[1] = Gedcom().apply { addPerson(person) }
+        store.saveLinks(listOf(GeniLink(1, "profile-1", "I1", true, null, snapshot, 0)))
+        val client = GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime })
+        val uploader = Uploader(client, store, host)
+        val queue = SyncQueue(store, uploader)
+        uploader.onTreeEdited = queue::setLocal
+        queue.onSaved(1, LocalTree.capture(host.trees.getValue(1)))
+        val job = store.jobs(1).single().copy(state = JobState.CONFLICT, error = "changed on Geni meanwhile: occupation")
+        store.saveJob(job)
+        return ConflictResolver(client, store, host, queue) to job
+    }
+
+    private fun ok(body: String) = MockResponse.Builder().code(200).body(body).build()
+
+    @Test
+    fun detailsListOnlyConflictingGroups() = runTest {
+        val (resolver, job) = setUpConflict()
+        server.enqueue(ok(geni))
+        assertEquals(listOf(FieldConflict("OCCUPATION", "Driver", "Pilot")), resolver.details(job))
+    }
+
+    @Test
+    fun keepMineSendsMineOnly() = runTest {
+        val (resolver, job) = setUpConflict()
+        server.enqueue(ok(geni))
+        resolver.resolve(job, keepMine = setOf("OCCUPATION"))
+        assertEquals("Driver", person.eventsFacts.single { it.tag == "OCCU" }.value)
+        assertEquals("1961", person.eventsFacts.single { it.tag == "BIRT" }.date) // Geni's other change is taken
+        assertEquals(geni, store.link(1, "profile-1")!!.snapshot)
+        val pending = store.jobs(1).single()
+        assertEquals(JobState.PENDING, pending.state)
+        assertEquals(listOf("occupation" to "Driver"), pending.params)
+    }
+
+    @Test
+    fun takeGeniAppliesGeniAndLeavesNothingToSend() = runTest {
+        val (resolver, job) = setUpConflict()
+        server.enqueue(ok(geni))
+        resolver.resolve(job, keepMine = emptySet())
+        assertEquals("Pilot", person.eventsFacts.single { it.tag == "OCCU" }.value)
+        assertEquals(ProfileFields.ofSnapshot(geni), ProfileFields.of(person))
+        assertEquals(emptyList<UploadJob>(), store.jobs(1))
+    }
+
+    @Test
+    fun namesAreShownAsOneName() = runTest {
+        val (resolver, job) = setUpConflict()
+        person.names.single().value = "Vanya /Petrov/"
+        server.enqueue(ok(geni.replace("\"Ivan\"", "\"Ivan\",\"last_name\":\"Sidorov\"")))
+        assertEquals(FieldConflict("NAMES", "Vanya Petrov", "Ivan Sidorov"), resolver.details(job).first())
+    }
+
+    @Test
+    fun takingGeniKeepsOtherLocalEdits() = runTest {
+        val (resolver, job) = setUpConflict()
+        GeniMapper.setTag(person, GeniMapper.ABOUT_TAG, "Local") // Edited only here; Geni's text below differs only in form
+        server.enqueue(ok(geni.replace("}", ""","about_me":""}""")))
+        resolver.resolve(job, keepMine = emptySet())
+        assertEquals("Local", GeniMapper.getTag(person, GeniMapper.ABOUT_TAG))
+        assertEquals("Pilot", person.eventsFacts.single { it.tag == "OCCU" }.value)
+    }
+
+    @Test
+    fun resolveRefusesWhenTheConflictsChangedSinceShown() = runTest {
+        val (resolver, job) = setUpConflict()
+        person.eventsFacts.single { it.tag == "BIRT" }.date = "1959" // A local birth edit: Geni changed birth too since the dialog
+        server.enqueue(ok(geni))
+        val error = runCatching { resolver.resolve(job, keepMine = emptySet(), shown = setOf("OCCUPATION")) }.exceptionOrNull()
+        assertTrue(error is IllegalStateException)
+        assertEquals("1959", person.eventsFacts.single { it.tag == "BIRT" }.date)
+        assertEquals("Driver", person.eventsFacts.single { it.tag == "OCCU" }.value)
+    }
+}

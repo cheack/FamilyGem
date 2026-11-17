@@ -5,6 +5,7 @@ import android.util.Log
 import app.familygem.geni.api.GeniClient
 import app.familygem.geni.api.RateLimiter
 import app.familygem.geni.auth.EncryptedTokenStore
+import app.familygem.geni.sync.ConflictResolver
 import app.familygem.geni.sync.GeniLoader
 import app.familygem.geni.sync.RoomSyncStore
 import app.familygem.geni.sync.SyncQueue
@@ -53,6 +54,9 @@ object Geni {
         SyncQueue(store(context), uploader) { job, outcome -> Log.d("GeniSync", "Tree ${job.treeId} ${job.kind} ${job.key}: $outcome") }
             .also { queue -> uploader.onTreeEdited = queue::setLocal }
     }.also { queue = it }
+
+    fun resolver(context: Context): ConflictResolver =
+        ConflictResolver(client(context), store(context), host ?: error("Geni tree host not installed"), queue(context))
 
     fun loader(context: Context): GeniLoader =
         GeniLoader(client(context), store(context), host ?: error("Geni tree host not installed"))

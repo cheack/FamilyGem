@@ -90,8 +90,8 @@
 
 ### Task 4: Open PR 1
 
-- [ ] Instrumented `RoomSyncStoreTest` on the phone (job with state `CONFLICT` round-trips).
-- [ ] Push `geni-refresh-1`, open the PR into `geni`, follow CodeRabbit, merge.
+- [x] Instrumented `RoomSyncStoreTest` on the phone (job with state `CONFLICT` round-trips).
+- [x] Push `geni-refresh-1`, open the PR into `geni`, follow CodeRabbit, merge.
 
 ## PR 2 (`geni-refresh-2`): resolving conflicts — Tasks 5–7
 
@@ -105,18 +105,18 @@
 - Produces: `data class FieldConflict(val group: String, val mine: String, val geni: String)` (display texts: dates and places joined, empty as "—");
   `class ConflictResolver(client, store, host)`: `suspend fun details(job: UploadJob): List<FieldConflict>` (fetches Geni; reads the record inside `host.edit` without changing it); `suspend fun resolve(job: UploadJob, keepMine: Set<String>)`: fetches Geni, applies it to the record except the kept groups (`previous` = snapshot), stores Geni's version as the snapshot, sets the job `PENDING` (the next plan sends only the kept groups and other local edits).
 
-- [ ] **Step 1: Write the failing tests** `detailsListOnlyConflictingGroups`, `keepMineSendsMineOnly`, `takeGeniAppliesGeniAndLeavesNothingToSend`.
-- [ ] **Step 2–4:** run (FAIL), implement, run all `:geni` tests (PASS).
-- [ ] **Step 5: Commit** `Resolve Geni conflicts field by field`.
+- [x] **Step 1: Write the failing tests** `detailsListOnlyConflictingGroups`, `keepMineSendsMineOnly`, `takeGeniAppliesGeniAndLeavesNothingToSend`.
+- [x] **Step 2–4:** run (FAIL), implement, run all `:geni` tests (PASS).
+- [x] **Step 5: Commit** `Resolve Geni conflicts field by field`.
 
 ### Task 6: Conflicts on the account screen
 
 **Files:**
 - Modify: `geni/src/main/java/app/familygem/geni/ui/GeniLoginActivity.kt`, `geni_activity_login.xml`, `values/geni_strings.xml`, `values-ru/geni_strings.xml`, `Geni.kt` (`resolver(context)`).
 
-- [ ] **Step 1:** "Conflicts (N)" button; per conflict a dialog with the record label and, for each group, "Mine: …" / "On Geni: …" choices (default: Geni); "Apply" calls `resolve`, then `resumeUploads`; offline shows `geni_offline`.
-- [ ] **Step 2:** `:app:assembleDebug`; check on the phone over adb: edit a field in the app and the same field on the sandbox through the API test helper (Task 9), see the conflict, resolve both ways.
-- [ ] **Step 3: Commit** `Show Geni conflicts on the account screen`.
+- [x] **Step 1:** "Conflicts (N)" button; per conflict a dialog with the record label and, for each group, "Mine: …" / "On Geni: …" choices (default: Geni); "Apply" calls `resolve`, then `resumeUploads`; offline shows `geni_offline`.
+- [x] **Step 2:** `:app:assembleDebug`; check on the phone over adb: edit a field in the app and the same field on the sandbox through the API test helper (Task 9), see the conflict, resolve both ways.
+- [x] **Step 3: Commit** `Show Geni conflicts on the account screen`.
 
 ### Task 7: Open PR 2 — push `geni-refresh-2`, PR, CodeRabbit, merge.
 
