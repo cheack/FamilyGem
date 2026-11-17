@@ -3,6 +3,7 @@
 Design: [2026-11-16-geni-sync-design.md](../specs/2026-11-16-geni-sync-design.md).
 Each stage gets its own detailed plan with a step checklist; steps are ticked (`- [x]`) as they are done and committed.
 The items under each stage are the deliverables; the stage's plan breaks them into tested steps.
+See the [progress log](#progress-log) at the end for what landed when.
 
 ## 1. API client and login
 
@@ -109,3 +110,12 @@ Plan: not written yet.
 - [ ] Replace "Family Gem" in other strings (example tree, Premium, about screen)
 - [ ] Take the transparent `NumberPicker` divider fix from Sternbach-Software/GeniForAndroid
 - [ ] CI: weekly trial merge of `upstream/master`, build and tests
+
+## Progress log
+
+One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
+
+- 2026-11-17: Write path, part 1 (PR [#1](https://github.com/cheack/Treekin/pull/1)): edits are compared with the Geni version field by field and turned into Geni update parameters; an upload queue in the sync database. Nothing is uploaded yet.
+- 2026-11-17: The app is called Treekin (`net.cheack.treekin`), installs next to Family Gem; the repository is `cheack/Treekin`; CodeRabbit reviews PRs.
+- 2026-11-16: Stage 2, read path: a Geni tree is created from the user's own profile; opening a person loads their relatives; relatives within 3 steps are prefetched in background; "Keep offline" downloads a branch. Checked on the sandbox and a Pixel 6.
+- 2026-11-16: Stage 1: login to Geni with the mobile OAuth flow, encrypted token, API client with rate limiting.

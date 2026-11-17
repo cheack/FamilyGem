@@ -41,3 +41,8 @@ FamilyGem already provides the GEDCOM data model, tree diagram, editors, import/
 
 GPL-3.0 (inherited from FamilyGem). Distributed builds must ship full source under GPL-3.0, keep the original copyright and mark changes.
 Do not add closed-source or proprietary components.
+
+## Progress tracking
+
+- Roadmap and plans: `docs/superpowers/plans/README.md` and one plan per stage. Tick `- [x]` items as work is committed.
+- When a PR is merged or a stage is finished, add one dated line at the top of the roadmap's "Progress log": what now works for the user, and the PR link.
