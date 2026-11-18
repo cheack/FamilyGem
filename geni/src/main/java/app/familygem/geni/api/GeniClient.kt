@@ -107,7 +107,9 @@ class GeniClient(
 
     /** Uploads a photo to the profile; the first photo of a profile becomes its main one on Geni. */
     suspend fun addPhoto(profileId: String, fileName: String, title: String?, bytes: ByteArray): GeniPhoto {
-        val params = mutableListOf("file" to bytes.toByteString().base64(), "file_name" to fileName)
+        // Base64 of a large photo is CPU and memory heavy: keep it off the caller's (maybe Main) thread
+        val encoded = withContext(Dispatchers.IO) { bytes.toByteString().base64() }
+        val params = mutableListOf("file" to encoded, "file_name" to fileName)
         if (title != null) params.add("title" to title)
         return parsePhoto(post("$profileId/add-photo", params))
     }
