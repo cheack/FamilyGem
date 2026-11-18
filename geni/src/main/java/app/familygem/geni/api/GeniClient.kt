@@ -10,6 +10,7 @@ import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import okio.ByteString.Companion.toByteString
 
 /** The user must log in to Geni (again). */
 class GeniAuthRequiredException : Exception("Geni login required")
@@ -86,6 +87,38 @@ class GeniClient(
         return result
     }
 
+    /** All photos of a profile; pages are read until one is empty or adds nothing new. */
+    suspend fun photos(profileId: String): List<GeniPhoto> {
+        val photos = linkedMapOf<String, GeniPhoto>()
+        var page = 1
+        while (true) {
+            val batch = parsePhotos(getJson("$profileId/photos?page=$page"))
+            if (batch.isEmpty()) break
+            var added = false
+            batch.forEach { if (photos.put(it.id, it) == null) added = true }
+            if (!added) break
+            page++
+        }
+        return photos.values.toList()
+    }
+
+    /** A single photo, by ID like "photo-2175". */
+    suspend fun photo(photoId: String): GeniPhoto = parsePhoto(getJson(photoId))
+
+    /** Uploads a photo to the profile; the first photo of a profile becomes its main one on Geni. */
+    suspend fun addPhoto(profileId: String, fileName: String, title: String?, bytes: ByteArray): GeniPhoto {
+        // Base64 of a large photo is CPU and memory heavy: keep it off the caller's (maybe Main) thread
+        val encoded = withContext(Dispatchers.IO) { bytes.toByteString().base64() }
+        val params = mutableListOf("file" to encoded, "file_name" to fileName)
+        if (title != null) params.add("title" to title)
+        return parsePhoto(post("$profileId/add-photo", params))
+    }
+
+    /** Deletes a photo from Geni. */
+    suspend fun deletePhoto(photoId: String) {
+        post("$photoId/delete", emptyList())
+    }
+
     /** Raw JSON response of a GET request to an API path relative to the base, like "profile-1/immediate-family". */
     suspend fun getJson(path: String): String = execute(Request.Builder().url(apiUrl(path)))
 
@@ -103,7 +136,10 @@ class GeniClient(
      * Repeated keys are allowed; an empty value clears the field on Geni.
      */
     suspend fun post(path: String, params: List<Pair<String, String>>): String {
-        val form = FormBody.Builder().apply { params.forEach { (key, value) -> add(key, value) } }.build()
+        // add() canonicalizes every value, which is slow for a big base64 photo: keep it off the caller's thread
+        val form = withContext(Dispatchers.IO) {
+            FormBody.Builder().apply { params.forEach { (key, value) -> add(key, value) } }.build()
+        }
         return execute(Request.Builder().url(apiUrl(path)).post(form))
     }
 
