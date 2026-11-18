@@ -28,6 +28,7 @@ object GeniGlue {
             resumed = true
             Geni.resumeUploads = { GeniSync.resume(Global.context) }
             GeniSync.resume(Global.context) // Uploads left by an earlier run of the app
+            GeniPrefetch.dailyRefresh(Global.context)
         }
         // Registers once; a registration that failed is tried again here
         if (Geni.isConfigured) GeniSync.watchNetwork(Global.context)
@@ -69,9 +70,13 @@ object GeniGlue {
         val treeId = Global.settings.openTree
         owner.lifecycleScope.launch {
             val link = Geni.store(activity).link(treeId, geniId)
-            if (!LoadPolicy.shouldLoad(link, System.currentTimeMillis())) return@launch
-            when (Geni.loader(activity).load(treeId, geniId)) {
+            if (!LoadPolicy.shouldLoad(link, System.currentTimeMillis(), LoadPolicy.OPEN_REFRESH_MILLIS)) return@launch
+            when (val result = Geni.loader(activity).load(treeId, geniId)) {
                 is LoadResult.Loaded -> refresh()
+                is LoadResult.Gone -> if (result.removed) {
+                    Toast.makeText(activity, R.string.geni_gone_card, Toast.LENGTH_LONG).show()
+                    activity.finish() // The person left the tree
+                }
                 LoadResult.NeedsLogin -> if (!loginToastShown) {
                     loginToastShown = true
                     Toast.makeText(activity, R.string.geni_login_again, Toast.LENGTH_LONG).show()

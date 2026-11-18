@@ -27,6 +27,8 @@ data class GeniLink(
 interface SyncStore {
     suspend fun tree(treeId: Int): GeniTreeInfo?
     suspend fun saveTree(info: GeniTreeInfo)
+    /** Moves the root of an existing tree row only if it is still [oldRoot]; false if nothing changed. */
+    suspend fun updateRoot(treeId: Int, oldRoot: String, newRoot: String): Boolean
     suspend fun trees(): List<GeniTreeInfo>
     suspend fun link(treeId: Int, geniId: String): GeniLink?
     suspend fun links(treeId: Int): List<GeniLink>

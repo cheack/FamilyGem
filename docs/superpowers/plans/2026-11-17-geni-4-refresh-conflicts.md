@@ -131,7 +131,7 @@
 **Interfaces:**
 - Produces: `LoadPolicy.OPEN_REFRESH_MILLIS = 1 h` used when a card opens (was 1 day); daily refresh: at app start, once per 24 h (time kept in the tree row or app prefs) and only on an unmetered network, `GeniPrefetch.enqueue(tree, root, prefetchDepth)` with freshness of 24 h.
 
-- [ ] Steps: failing `LoadPolicyTest` cases for both intervals → implement → PASS → commit `Refresh Geni trees daily on Wi-Fi and cards hourly`.
+- [x] Steps: failing `LoadPolicyTest` cases for both intervals → implement → PASS → commit `Refresh Geni trees daily on Wi-Fi and cards hourly`.
 
 ### Task 9: Merged and deleted profiles
 
@@ -143,11 +143,11 @@
 - Merged: a profile answered with `merged_into` (or with another `id` than asked) moves its link and tag to the surviving ID; the old link is deleted; jobs keyed by the old ID are re-keyed.
 - Deleted (`deleted: true`): with nothing pending (three-way local set empty) the person is removed from the tree and the link deleted; with pending changes the job becomes `CONFLICT` with message `deleted on Geni` and the conflict dialog offers "Remove from device" / "Keep as local person" (tag and link removed).
 
-- [ ] **Step 1:** explore on the sandbox: create two profiles, merge them, delete one; record the real responses in the spec.
-- [ ] **Step 2–5:** failing tests `mergedProfileMovesLink`, `deletedUnchangedProfileIsRemoved`, `deletedEditedProfileWaitsForUser`, `uploadToDeletedProfileIsConflict` → implement → PASS → commit `Follow merged and deleted Geni profiles`.
+- [x] **Step 1:** explore on the sandbox: create two profiles, merge them, delete one; record the real responses in the spec.
+- [x] **Step 2–5:** failing tests `mergedProfileMovesLink`, `deletedUnchangedProfileIsRemoved`, `deletedEditedProfileWaitsForUser`, `uploadToDeletedProfileIsConflict` → implement → PASS → commit `Follow merged and deleted Geni profiles`.
 
 ### Task 10: Phone check and PR 3
 
-- [ ] On the phone over adb: daily refresh log line, merged and deleted cases from Step 1 reach the app.
-- [ ] Findings in the spec; stage 4 ticked in the roadmap; progress log lines for the merged PRs.
-- [ ] Push `geni-refresh-3`, PR, CodeRabbit, merge.
+- [x] On the phone over adb: daily refresh log line, merged and deleted cases from Step 1 reach the app (deleted case checked on the phone; merged case covered by unit tests and the sandbox exploration).
+- [x] Findings in the spec; stage 4 ticked in the roadmap; progress log lines for the merged PRs.
+- [x] Push `geni-refresh-3`, PR, CodeRabbit, merge.

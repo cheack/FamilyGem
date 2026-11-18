@@ -117,4 +117,65 @@ class ConflictResolverTest {
         assertEquals("1959", person.eventsFacts.single { it.tag == "BIRT" }.date)
         assertEquals("Driver", person.eventsFacts.single { it.tag == "OCCU" }.value)
     }
+
+    private val deleted = geni.replace("}", ""","deleted":true}""")
+
+    @Test
+    fun deletedProfileIsOneGoneConflict() = runTest {
+        val (resolver, job) = setUpConflict()
+        server.enqueue(ok(deleted))
+        assertEquals(listOf(FieldConflict("GONE", "", "")), resolver.details(job))
+    }
+
+    @Test
+    fun removingGonePersonDropsItFromTheTree() = runTest {
+        val (resolver, job) = setUpConflict()
+        server.enqueue(ok(deleted))
+        resolver.resolve(job, keepMine = emptySet(), shown = setOf("GONE"))
+        assertEquals(emptyList<Person>(), host.trees.getValue(1).people.orEmpty())
+        assertEquals(null, store.link(1, "profile-1"))
+        assertEquals(emptyList<UploadJob>(), store.jobs(1))
+    }
+
+    @Test
+    fun keepingGonePersonLeavesALocalPerson() = runTest {
+        val (resolver, job) = setUpConflict()
+        server.enqueue(ok(deleted))
+        resolver.resolve(job, keepMine = setOf("GONE"), shown = setOf("GONE"))
+        assertEquals(listOf(person), host.trees.getValue(1).people)
+        assertEquals("Driver", person.eventsFacts.single { it.tag == "OCCU" }.value)
+        assertEquals(null, store.link(1, "profile-1"))
+        assertEquals(emptyList<UploadJob>(), store.jobs(1)) // Never uploaded again: no link, no add for a tagged person
+    }
+
+    @Test
+    fun fieldDialogDoesNotRemoveAPersonDeletedMeanwhile() = runTest {
+        val (resolver, job) = setUpConflict()
+        server.enqueue(ok(deleted))
+        val error = runCatching { resolver.resolve(job, keepMine = emptySet(), shown = setOf("OCCUPATION")) }.exceptionOrNull()
+        assertEquals("Geni changed again meanwhile; open the conflict again", error?.message)
+        assertEquals(listOf(person), host.trees.getValue(1).people)
+        assertEquals("I1", store.link(1, "profile-1")?.gedcomId)
+    }
+
+    @Test
+    fun goneRemovalSparesAnotherPersonWithTheSameId() = runTest {
+        val (resolver, job) = setUpConflict()
+        app.familygem.geni.map.GeniMapper.setGeniId(person, "profile-2") // I1 now stands for someone else
+        server.enqueue(ok(deleted))
+        val error = runCatching { resolver.resolve(job, keepMine = emptySet(), shown = setOf("GONE")) }.exceptionOrNull()
+        assertEquals("Geni changed again meanwhile; open the conflict again", error?.message)
+        assertEquals(listOf(person), host.trees.getValue(1).people)
+    }
+
+    @Test
+    fun goneRemovalRefusesTwoPeopleWithTheSameId() = runTest {
+        val (resolver, job) = setUpConflict()
+        val other = Person().apply { id = "I1" }
+        host.trees.getValue(1).addPerson(other) // After the linked person
+        server.enqueue(ok(deleted))
+        val error = runCatching { resolver.resolve(job, keepMine = emptySet(), shown = setOf("GONE")) }.exceptionOrNull()
+        assertEquals("Geni changed again meanwhile; open the conflict again", error?.message)
+        assertEquals(listOf(person, other), host.trees.getValue(1).people)
+    }
 }

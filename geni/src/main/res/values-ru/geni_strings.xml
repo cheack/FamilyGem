@@ -38,4 +38,8 @@
     <string name="geni_group_ABOUT">О себе</string>
     <string name="geni_group_MARRIAGE">Брак</string>
     <string name="geni_group_DIVORCE">Развод</string>
+    <string name="geni_gone_message">Этот профиль удалён на Geni или слит с другим. Ваши изменения в нём не отправить.</string>
+    <string name="geni_gone_remove">Убрать с устройства</string>
+    <string name="geni_gone_keep">Оставить как локального</string>
+    <string name="geni_gone_card">Удалён на Geni</string>
 </resources>

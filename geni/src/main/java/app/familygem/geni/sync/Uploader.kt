@@ -36,6 +36,9 @@ sealed interface Outcome {
 
 private val gson = Gson()
 
+/** Conflict group of a profile deleted or merged on Geni. */
+const val GONE = "GONE"
+
 private class SnapshotConflict : Exception("the snapshot kept changing during the refresh")
 
 private const val CHECK_GENI = "check on Geni whether the person was created, then retry or dismiss"
@@ -193,6 +196,8 @@ open class Uploader(
             val (_, raw) = client.unions(listOf(geniId))[geniId] ?: return null
             raw to link.geniUpdatedAt
         }
+        // Deleted or merged on Geni: only the user can say what happens to the edits
+        if (isProfile && gson.fromJson(raw, GeniProfile::class.java).deleted == true) return Outcome.Conflict(listOf(GONE))
         val changed = if (isProfile) ProfileFields.ofSnapshot(snapshot) != ProfileFields.ofSnapshot(raw)
         else UnionFields.ofSnapshot(snapshot) != UnionFields.ofSnapshot(raw)
         if (!changed) return null

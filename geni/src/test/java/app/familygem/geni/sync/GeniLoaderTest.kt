@@ -65,7 +65,7 @@ class GeniLoaderTest {
     @Test
     fun loadFetchesThreeRequestsAndMerges() = runTest {
         val treeId = geniTree()
-        assertEquals(LoadResult.Loaded(newPeople = 8), loader().load(treeId, "profile-36430"))
+        assertEquals(LoadResult.Loaded(newPeople = 8, profileId = "profile-36430"), loader().load(treeId, "profile-36430"))
         assertEquals(3, server.requestCount)
         assertEquals(8, host.trees.getValue(treeId).people.size)
         assertEquals(10, store.links(treeId).size)
@@ -134,5 +134,80 @@ class GeniLoaderTest {
         host.trees.remove(treeId)
         assertEquals(LoadResult.NotAGeniTree, loader().load(treeId, "profile-36430"))
         assertEquals(0, server.requestCount)
+    }
+
+    // Profiles deleted or merged on Geni
+
+    private val ninth = """{"id":"profile-9","first_name":"Gone","is_alive":true}"""
+
+    /** A Geni tree with one cached person, profile-9, and Geni answering for it with [answer]. */
+    private suspend fun goneTree(answer: String, survivor: String? = null): Int {
+        val treeId = geniTree()
+        val person = org.folg.gedcom.model.Person().apply {
+            id = "I1"
+            app.familygem.geni.map.GeniMapper.applyProfile(Gedcom(), this, com.google.gson.Gson().fromJson(ninth, app.familygem.geni.api.GeniProfile::class.java))
+            app.familygem.geni.map.GeniMapper.setGeniId(this, "profile-9")
+        }
+        host.trees.getValue(treeId).addPerson(person)
+        store.saveLinks(listOf(GeniLink(treeId, "profile-9", "I1", true, null, ninth, 0)))
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.url.encodedPath
+                val ids = request.url.queryParameter("ids").orEmpty()
+                return when {
+                    path == "/api/profile-9/immediate-family" -> json("""{"focus":{"id":"profile-9"},"nodes":{"profile-9":{"id":"profile-9"}}}""", 200)
+                    path == "/api/profile" && ids == "profile-9" -> json(answer, 200)
+                    survivor != null && path == "/api/$survivor/immediate-family" ->
+                        json("""{"focus":{"id":"$survivor"},"nodes":{"$survivor":{"id":"$survivor"}}}""", 200)
+                    survivor != null && path == "/api/profile" && ids == survivor ->
+                        json("""{"id":"$survivor","first_name":"Kept","is_alive":true}""", 200)
+                    else -> json("""{"results":[]}""", 200)
+                }
+            }
+        }
+        return treeId
+    }
+
+    @Test
+    fun deletedUnchangedPersonIsRemoved() = runTest {
+        val treeId = goneTree(ninth.replace("}", ""","deleted":true}"""))
+        assertEquals(LoadResult.Gone(removed = true), loader().load(treeId, "profile-9"))
+        assertEquals(0, host.trees.getValue(treeId).people.orEmpty().size)
+        assertEquals(null, store.link(treeId, "profile-9"))
+    }
+
+    @Test
+    fun deletedEditedPersonStays() = runTest {
+        val treeId = goneTree(ninth.replace("}", ""","deleted":true}"""))
+        host.trees.getValue(treeId).people.single().addNote(org.folg.gedcom.model.Note().apply { value = "Mine" })
+        assertEquals(LoadResult.Gone(removed = false), loader().load(treeId, "profile-9"))
+        assertEquals(1, host.trees.getValue(treeId).people.size)
+    }
+
+    @Test
+    fun mergedPersonMovesToTheSurvivor() = runTest {
+        val treeId = goneTree(ninth.replace("}", ""","deleted":true,"merged_into":"https://api.sandbox.geni.com/profile-7"}"""), "profile-7")
+        assertTrue(loader().load(treeId, "profile-9") is LoadResult.Loaded)
+        val person = host.trees.getValue(treeId).people.single()
+        assertEquals("profile-7", app.familygem.geni.map.GeniMapper.getGeniId(person))
+        assertEquals("Kept", person.names.single().value)
+        assertEquals(null, store.link(treeId, "profile-9"))
+        assertEquals("I1", store.link(treeId, "profile-7")!!.gedcomId)
+    }
+
+    @Test
+    fun mergedRootMovesTheTreeRoot() = runTest {
+        val treeId = goneTree(ninth.replace("}", ""","deleted":true,"merged_into":"https://api.sandbox.geni.com/profile-7"}"""), "profile-7")
+        store.saveTree(GeniTreeInfo(treeId, "profile-9", prefetchDepth = 2))
+        assertEquals(LoadResult.Loaded(newPeople = 0, profileId = "profile-7"), loader().load(treeId, "profile-9"))
+        assertEquals(GeniTreeInfo(treeId, "profile-7", prefetchDepth = 2), store.tree(treeId))
+    }
+
+    @Test
+    fun mergedRootDoesNotRecreateADeletedTreeRow() = runTest {
+        val treeId = goneTree(ninth.replace("}", ""","deleted":true,"merged_into":"https://api.sandbox.geni.com/profile-7"}"""), "profile-7")
+        store.trees.remove(treeId)
+        assertTrue(store.updateRoot(treeId, "profile-9", "profile-7").not())
+        assertEquals(null, store.tree(treeId))
     }
 }

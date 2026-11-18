@@ -156,12 +156,13 @@ Write path on the sandbox (2026-11-17, Pixel 6): profile edits (birth date and p
 - Back-off alone could wait up to 30 min after the network returns: a network callback resumes the uploads at once.
 - The account screen without a network showed the raw error and "Log in" although the token was kept; it now says the login is kept and changes wait for the network.
 
+Merged and deleted profiles on the sandbox (2026-11-17): `POST profile-A/merge/profile-B` answers `{"result":"profile-B merged into profile-A ..."}`; `profile-B` is still returned under its own ID, with `"deleted": true` and `"merged_into"` the URL of `profile-A`. `POST profile-X/delete` answers `{"result":"Deleted"}`; the profile is still returned with `"deleted": true`, without unions. Batch requests return deleted profiles too, not in request order. The app removes such a person from the cache when it holds no local work, moves it to the surviving profile when that one is not cached yet, and otherwise lets the user choose (conflict "deleted on Geni").
+
 Still open:
 
 - Which OAuth flow Geni allows for a mobile app and how token refresh works.
 - What `immediate-family` returns, and how many requests it takes per person.
 - Whether Geni exposes a profile version or `updated_at` usable for conflict detection.
-- How merged and deleted profiles look in API responses.
 - Whether the API can remove a relationship without deleting a profile, and which profiles the user may delete.
 - Real size and speed of a radius-3 prefetch.
 - Whether Geni echoes the OAuth `state` parameter on the mobile flow. If it does, make `state` mandatory in `OAuth.parseRedirect` (now a missing `state` is accepted while a login is pending).
