@@ -260,8 +260,8 @@ class GeniLoginActivity : AppCompatActivity() {
                 AlertDialog.Builder(this@GeniLoginActivity)
                     .setTitle(job.label)
                     .setMessage(R.string.geni_gone_message)
-                    .setPositiveButton(R.string.geni_gone_keep) { _, _ -> resolveConflict(job, setOf(GONE)) }
-                    .setNegativeButton(R.string.geni_gone_remove) { _, _ -> resolveConflict(job, emptySet()) }
+                    .setPositiveButton(R.string.geni_gone_keep) { _, _ -> resolveConflict(job, setOf(GONE), setOf(GONE)) }
+                    .setNegativeButton(R.string.geni_gone_remove) { _, _ -> resolveConflict(job, emptySet(), setOf(GONE)) }
                     .setNeutralButton(R.string.geni_close, null)
                     .show()
                 return@launch

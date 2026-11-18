@@ -6,23 +6,36 @@ package app.familygem.geni.sync
  * @param loader Loads the immediate family of a profile
  * @param relatives Geni IDs of the known relatives of a profile
  * @param isFresh True if the profile's family was loaded recently and needs no load
+ * @param mayLoad False stops the pass before the next load (e.g. the network became metered)
  */
 class Prefetcher(
     private val loader: suspend (String) -> LoadResult,
     private val relatives: suspend (String) -> List<String>,
-    private val isFresh: suspend (String) -> Boolean
+    private val isFresh: suspend (String) -> Boolean,
+    private val mayLoad: suspend () -> Boolean = { true }
 ) {
+    /** False if the last [run] stopped before visiting everyone (login needed, not a Geni tree, [mayLoad] false). */
+    var completed = false
+        private set
+
     /** @return Number of successful loads */
     suspend fun run(startGeniId: String, depth: Int): Int {
+        completed = false
         var loads = 0
         val visited = mutableSetOf(startGeniId)
         var level = listOf(startGeniId)
         repeat(depth) { step ->
             val next = mutableListOf<String>()
-            for (geniId in level) {
+            for (requested in level) {
+                var geniId = requested
                 if (!isFresh(geniId)) {
-                    when (loader(geniId)) {
-                        is LoadResult.Loaded -> loads++
+                    if (!mayLoad()) return loads
+                    when (val result = loader(geniId)) {
+                        is LoadResult.Loaded -> {
+                            loads++
+                            // Merged on Geni: the relatives are now the survivor's
+                            result.profileId?.takeIf { it != geniId }?.let { geniId = it; visited.add(it) }
+                        }
                         LoadResult.NeedsLogin, LoadResult.NotAGeniTree -> return loads
                         is LoadResult.Failed -> Unit // Skipped; its known relatives are still visited
                         is LoadResult.Gone -> Unit
@@ -32,6 +45,7 @@ class Prefetcher(
             }
             level = next
         }
+        completed = true
         return loads
     }
 }

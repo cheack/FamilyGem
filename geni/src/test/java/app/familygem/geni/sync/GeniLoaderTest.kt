@@ -65,7 +65,7 @@ class GeniLoaderTest {
     @Test
     fun loadFetchesThreeRequestsAndMerges() = runTest {
         val treeId = geniTree()
-        assertEquals(LoadResult.Loaded(newPeople = 8), loader().load(treeId, "profile-36430"))
+        assertEquals(LoadResult.Loaded(newPeople = 8, profileId = "profile-36430"), loader().load(treeId, "profile-36430"))
         assertEquals(3, server.requestCount)
         assertEquals(8, host.trees.getValue(treeId).people.size)
         assertEquals(10, store.links(treeId).size)
@@ -193,5 +193,13 @@ class GeniLoaderTest {
         assertEquals("Kept", person.names.single().value)
         assertEquals(null, store.link(treeId, "profile-9"))
         assertEquals("I1", store.link(treeId, "profile-7")!!.gedcomId)
+    }
+
+    @Test
+    fun mergedRootMovesTheTreeRoot() = runTest {
+        val treeId = goneTree(ninth.replace("}", ""","deleted":true,"merged_into":"https://api.sandbox.geni.com/profile-7"}"""), "profile-7")
+        store.saveTree(GeniTreeInfo(treeId, "profile-9", prefetchDepth = 2))
+        assertEquals(LoadResult.Loaded(newPeople = 0, profileId = "profile-7"), loader().load(treeId, "profile-9"))
+        assertEquals(GeniTreeInfo(treeId, "profile-7", prefetchDepth = 2), store.tree(treeId))
     }
 }

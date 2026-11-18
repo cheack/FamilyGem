@@ -136,10 +136,19 @@ object GeniSync {
             val manager = app.getSystemService(ConnectivityManager::class.java) ?: error("no ConnectivityManager")
             val request = NetworkRequest.Builder().addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build()
             manager.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
+                private var unmetered = false
+
                 override fun onAvailable(network: Network) {
                     Log.d(TAG, "Network available: resuming uploads")
                     resume(app)
                     GeniPrefetch.dailyRefresh(app) // Wi-Fi may be back after a day
+                }
+
+                // A network can become unmetered without reconnecting
+                override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                    val now = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+                    if (now && !unmetered) GeniPrefetch.dailyRefresh(app)
+                    unmetered = now
                 }
             })
         } catch (e: Exception) {

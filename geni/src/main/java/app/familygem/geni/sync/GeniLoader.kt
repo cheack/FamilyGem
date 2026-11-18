@@ -10,7 +10,8 @@ import kotlinx.coroutines.CancellationException
 import org.folg.gedcom.model.Gedcom
 
 sealed interface LoadResult {
-    data class Loaded(val newPeople: Int) : LoadResult
+    /** @param profileId The profile whose family was loaded: the survivor when the requested one was merged */
+    data class Loaded(val newPeople: Int, val profileId: String? = null) : LoadResult
     data object NotAGeniTree : LoadResult
     data object NeedsLogin : LoadResult
     data class Failed(val message: String) : LoadResult
@@ -49,7 +50,7 @@ class GeniLoader(
             }
             store.saveLinks(links)
             host.refreshScreens()
-            LoadResult.Loaded(newPeople = links.count { it.geniId.startsWith("profile-") && it.geniId !in existing })
+            LoadResult.Loaded(newPeople = links.count { it.geniId.startsWith("profile-") && it.geniId !in existing }, profileId = geniProfileId)
         } catch (e: CancellationException) {
             throw e
         } catch (e: GeniAuthRequiredException) {
@@ -82,6 +83,7 @@ class GeniLoader(
         store.deleteLink(treeId, profile.id)
         if (action == GoneAction.MOVED) {
             store.saveLinks(listOf(GeniLink(treeId, survivor!!, link.gedcomId, false, null, null, 0)))
+            store.tree(treeId)?.takeIf { it.rootGeniId == profile.id }?.let { store.saveTree(it.copy(rootGeniId = survivor)) }
             return load(treeId, survivor)
         }
         emptied.forEach { family -> store.linkByGedcomId(treeId, family)?.let { store.deleteLink(treeId, it.geniId) } }

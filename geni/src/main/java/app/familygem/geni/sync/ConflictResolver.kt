@@ -69,7 +69,10 @@ class ConflictResolver(
      */
     suspend fun resolve(job: UploadJob, keepMine: Set<String>, shown: Set<String>? = null): Unit = mutex.withLock {
         val (link, raw) = fetch(job)
-        if (isGone(link, raw)) return@withLock resolveGone(job, link, keep = GONE in keepMine)
+        if (isGone(link, raw)) {
+            check(shown == setOf(GONE)) { CHANGED } // Deleted while another dialog was open: never removed by its Apply
+            return@withLock resolveGone(job, link, keep = GONE in keepMine)
+        }
         val snapshot = link.snapshot ?: error("no snapshot")
         // The snapshot may have moved during the fetch: never apply Geni's version over a newer resolution
         check(store.link(job.treeId, link.geniId)?.snapshot == snapshot) { CHANGED }
@@ -93,7 +96,10 @@ class ConflictResolver(
     private suspend fun resolveGone(job: UploadJob, link: GeniLink, keep: Boolean) {
         var emptied = emptyList<String>()
         host.edit(job.treeId) { gedcom ->
-            if (!keep) emptied = GoneProfiles.remove(gedcom, link.gedcomId)
+            val person = gedcom.people.orEmpty().firstOrNull { it.id == link.gedcomId }
+            // The GEDCOM ID may have been given to another person meanwhile
+            check(person == null || GeniMapper.getGeniId(person) == link.geniId) { CHANGED }
+            if (!keep && person != null) emptied = GoneProfiles.remove(gedcom, link.gedcomId)
             queue.setLocal(job.treeId, LocalTree.capture(gedcom))
         }
         store.deleteLink(job.treeId, link.geniId)

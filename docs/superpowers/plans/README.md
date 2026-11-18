@@ -108,6 +108,15 @@ Plan: [2026-11-17-geni-4-refresh-conflicts.md](2026-11-17-geni-4-refresh-conflic
 - [x] Merged profiles (`merged_into`): remap to the surviving ID
 - [x] Deleted or hidden profiles: removed from the cache unless they have pending changes; otherwise the user decides
 
+### Deferred from the review of PR 6 (Tasks 8–10)
+
+- [ ] A merged profile answered only under the survivor's ID (the sandbox answers under the requested ID with `merged_into`)
+- [ ] Survivor cached by another load between the check and the move: two people with one Geni ID
+- [ ] A person kept as local after "deleted on Geni" can be relinked by a later load that returns the old profile
+- [ ] Resume a "deleted on Geni" resolution or a profile move interrupted between the tree save and the link writes
+- [ ] A deleted profile whose person has only local data (no upload job): offer the keep-or-remove choice too
+- [ ] With Auto Save off, a removal or move changes links before the tree is saved; reconcile if the user discards it
+
 ## 5. Upstream UI rules
 
 Plan: not written yet.

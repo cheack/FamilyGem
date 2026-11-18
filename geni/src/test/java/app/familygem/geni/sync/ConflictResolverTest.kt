@@ -131,7 +131,7 @@ class ConflictResolverTest {
     fun removingGonePersonDropsItFromTheTree() = runTest {
         val (resolver, job) = setUpConflict()
         server.enqueue(ok(deleted))
-        resolver.resolve(job, keepMine = emptySet())
+        resolver.resolve(job, keepMine = emptySet(), shown = setOf("GONE"))
         assertEquals(emptyList<Person>(), host.trees.getValue(1).people.orEmpty())
         assertEquals(null, store.link(1, "profile-1"))
         assertEquals(emptyList<UploadJob>(), store.jobs(1))
@@ -141,10 +141,30 @@ class ConflictResolverTest {
     fun keepingGonePersonLeavesALocalPerson() = runTest {
         val (resolver, job) = setUpConflict()
         server.enqueue(ok(deleted))
-        resolver.resolve(job, keepMine = setOf("GONE"))
+        resolver.resolve(job, keepMine = setOf("GONE"), shown = setOf("GONE"))
         assertEquals(listOf(person), host.trees.getValue(1).people)
         assertEquals("Driver", person.eventsFacts.single { it.tag == "OCCU" }.value)
         assertEquals(null, store.link(1, "profile-1"))
         assertEquals(emptyList<UploadJob>(), store.jobs(1)) // Never uploaded again: no link, no add for a tagged person
+    }
+
+    @Test
+    fun fieldDialogDoesNotRemoveAPersonDeletedMeanwhile() = runTest {
+        val (resolver, job) = setUpConflict()
+        server.enqueue(ok(deleted))
+        val error = runCatching { resolver.resolve(job, keepMine = emptySet(), shown = setOf("OCCUPATION")) }.exceptionOrNull()
+        assertEquals("Geni changed again meanwhile; open the conflict again", error?.message)
+        assertEquals(listOf(person), host.trees.getValue(1).people)
+        assertEquals("I1", store.link(1, "profile-1")?.gedcomId)
+    }
+
+    @Test
+    fun goneRemovalSparesAnotherPersonWithTheSameId() = runTest {
+        val (resolver, job) = setUpConflict()
+        app.familygem.geni.map.GeniMapper.setGeniId(person, "profile-2") // I1 now stands for someone else
+        server.enqueue(ok(deleted))
+        val error = runCatching { resolver.resolve(job, keepMine = emptySet(), shown = setOf("GONE")) }.exceptionOrNull()
+        assertEquals("Geni changed again meanwhile; open the conflict again", error?.message)
+        assertEquals(listOf(person), host.trees.getValue(1).people)
     }
 }

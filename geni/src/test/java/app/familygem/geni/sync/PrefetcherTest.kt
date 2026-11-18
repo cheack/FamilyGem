@@ -2,6 +2,7 @@ package app.familygem.geni.sync
 
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PrefetcherTest {
@@ -59,5 +60,14 @@ class PrefetcherTest {
     fun lastLevelDoesNotAskRelatives() = runTest {
         prefetcher().run("root", depth = 1)
         assertEquals(emptyList<String>(), asked)
+    }
+
+    @Test
+    fun continuesFromTheSurvivorOfAMerge() = runTest {
+        // "father" was merged into "grandfather" on Geni: its relatives are now the survivor's
+        prefetcher(result = { LoadResult.Loaded(0, if (it == "father") "grandfather" else it) }).run("root", depth = 3)
+        assertTrue("grandfather" in asked)
+        assertEquals(false, "father" in asked)
+        assertEquals(1, loaded.count { it == "grandfather" } + loaded.count { it == "father" }) // The survivor is not loaded again
     }
 }

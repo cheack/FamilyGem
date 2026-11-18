@@ -50,4 +50,29 @@ class GoneProfilesTest {
         assertEquals(listOf("F1"), gedcom.families.map { it.id })
         assertEquals(0, gedcom.families.single().husbandRefs.orEmpty().size)
     }
+
+    @Test
+    fun factGeniDoesNotHaveIsLocalWork() {
+        val person = person("I1").apply { addEventFact(org.folg.gedcom.model.EventFact().apply { tag = "RESI"; place = "Kyiv" }) }
+        assertTrue(GoneProfiles.hasLocalWork(person, link))
+    }
+
+    @Test
+    fun removeKeepsFamiliesItDidNotEmpty() {
+        val gedcom = Gedcom()
+        gedcom.addPerson(person("I1"))
+        gedcom.addFamily(Family().apply { id = "F1"; addNote(Note().apply { value = "Empty already" }) })
+        assertEquals(emptyList<String>(), GoneProfiles.remove(gedcom, "I1"))
+        assertEquals("Empty already", gedcom.families.single().notes.single().value)
+    }
+
+    @Test
+    fun removeKeepsAnEmptiedFamilyWithItsOwnData() {
+        val gedcom = Gedcom()
+        gedcom.addPerson(person("I1"))
+        gedcom.addFamily(Family().apply { id = "F1"; addHusband(SpouseRef().apply { ref = "I1" }); addNote(Note().apply { value = "Wedding story" }) })
+        assertEquals(emptyList<String>(), GoneProfiles.remove(gedcom, "I1"))
+        assertEquals("Wedding story", gedcom.families.single().notes.single().value)
+        assertEquals(0, gedcom.families.single().husbandRefs.orEmpty().size)
+    }
 }

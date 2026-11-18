@@ -13,6 +13,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * Loads Geni relatives in background, up to a number of relationship steps from a person.
@@ -27,24 +28,37 @@ object GeniPrefetch {
 
     /** Queues a prefetch after any other prefetch of the same tree. */
     fun enqueue(context: Context, treeId: Int, startGeniId: String, depth: Int) {
-        val appContext = context.applicationContext
+        queue(context.applicationContext, treeId) { run(it, treeId, startGeniId, depth, unmeteredOnly = false) }
+    }
+
+    private fun queue(app: Context, treeId: Int, block: suspend (Context) -> Unit) {
         val mutex = synchronized(mutexes) { mutexes.getOrPut(treeId) { Mutex() } }
         scope.launch {
-            mutex.withLock { run(appContext, treeId, startGeniId, depth) }
+            mutex.withLock { block(app) }
         }
     }
 
-    private suspend fun run(context: Context, treeId: Int, start: String, depth: Int) {
-        if (!AppTreeHost.treeExists(treeId)) return
+    /** @return False if the pass stopped before visiting everyone */
+    private suspend fun run(context: Context, treeId: Int, start: String, depth: Int, unmeteredOnly: Boolean): Boolean {
+        if (!withContext(Dispatchers.Main) { AppTreeHost.treeExists(treeId) }) return true
         val store = Geni.store(context)
         val loader = Geni.loader(context)
         val began = System.currentTimeMillis()
-        val loads = Prefetcher(
+        val prefetcher = Prefetcher(
             loader = { loader.load(treeId, it) },
             relatives = { RelativesIndex.relatives(store.unionLinks(treeId), it) },
-            isFresh = { id -> store.link(treeId, id)?.let { !LoadPolicy.shouldLoad(it, System.currentTimeMillis()) } ?: false }
-        ).run(start, depth)
-        Log.d(TAG, "Tree $treeId: $loads loads from $start, depth $depth, in ${System.currentTimeMillis() - began} ms")
+            isFresh = { id -> store.link(treeId, id)?.let { !LoadPolicy.shouldLoad(it, System.currentTimeMillis()) } ?: false },
+            mayLoad = { !unmeteredOnly || !metered(context) }
+        )
+        val loads = prefetcher.run(start, depth)
+        Log.d(TAG, "Tree $treeId: $loads loads from $start, depth $depth, in ${System.currentTimeMillis() - began} ms" +
+                if (prefetcher.completed) "" else ", stopped")
+        return prefetcher.completed
+    }
+
+    private fun metered(context: Context): Boolean {
+        val manager = context.getSystemService(ConnectivityManager::class.java)
+        return manager?.activeNetwork == null || manager.isActiveNetworkMetered
     }
 
     /**
@@ -55,17 +69,29 @@ object GeniPrefetch {
         val app = context.applicationContext
         scope.launch {
             try {
-                val manager = app.getSystemService(ConnectivityManager::class.java)
-                val metered = manager?.activeNetwork == null || manager.isActiveNetworkMetered
+                val metered = metered(app)
                 val prefs = app.getSharedPreferences("geni_refresh", Context.MODE_PRIVATE)
                 val now = System.currentTimeMillis()
                 for (tree in Geni.store(app).trees()) {
-                    if (!AppTreeHost.treeExists(tree.treeId)) continue
+                    if (!withContext(Dispatchers.Main) { AppTreeHost.treeExists(tree.treeId) }) continue
                     val key = "tree${tree.treeId}"
-                    if (!LoadPolicy.dailyRefreshDue(prefs.getLong(key, -1).takeIf { it >= 0 }, now, metered)) continue
-                    prefs.edit().putLong(key, now).apply()
+                    // Reserved before queueing, so a second trigger (app start and network) does not queue it again
+                    val previous = synchronized(this@GeniPrefetch) {
+                        val last = prefs.getLong(key, -1).takeIf { it >= 0 }
+                        if (!LoadPolicy.dailyRefreshDue(last, now, metered)) return@synchronized null
+                        prefs.edit().putLong(key, now).commit()
+                        last ?: -1L
+                    } ?: continue
                     Log.d(TAG, "Daily refresh of tree ${tree.treeId}")
-                    enqueue(app, tree.treeId, tree.rootGeniId, tree.prefetchDepth)
+                    queue(app, tree.treeId) {
+                        val info = Geni.store(it).tree(tree.treeId) ?: return@queue // The root may have moved meanwhile
+                        if (!run(it, info.treeId, info.rootGeniId, info.prefetchDepth, unmeteredOnly = true)) {
+                            // Login needed or the network became metered: due again at the next trigger
+                            synchronized(this@GeniPrefetch) {
+                                if (prefs.getLong(key, -1) == now) prefs.edit().putLong(key, previous).commit()
+                            }
+                        }
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e
