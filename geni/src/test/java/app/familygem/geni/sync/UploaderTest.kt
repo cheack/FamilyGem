@@ -499,4 +499,42 @@ class UploaderTest {
         assertEquals(Outcome.Conflict(listOf("GONE")), uploader().run(stored(driverJob)))
         assertEquals(1, server.requestCount)
     }
+
+    @Test
+    fun deleteJobPostsDeleteAndDropsTheLink() = runTest {
+        store.saveLinks(listOf(link("profile-7", "I7")))
+        host.trees[1] = Gedcom().apply {
+            addPerson(Person().also { it.id = "I7"; GeniMapper.setGeniId(it, "profile-7") })
+            addPerson(Person().also { it.id = "I8"; GeniMapper.setGeniId(it, "profile-8") })
+        }
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        val job = UploadJob(treeId = 1, key = "delete:profile-7", kind = JobKind.DELETE_PROFILE, geniId = "profile-7",
+            params = emptyList(), label = "Ivan", localHash = 0)
+        assertEquals(Outcome.Done, uploader().run(job))
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/profile-7/delete", request.url.encodedPath)
+        assertNull(store.link(1, "profile-7"))
+        assertEquals(listOf("I8"), host.trees.getValue(1).people.map { it.id }) // The person leaves the tree only now
+    }
+
+    @Test
+    fun deleteJobRefusedByGeniFailsAndKeepsTheLink() = runTest {
+        store.saveLinks(listOf(link("profile-7", "I7")))
+        host.trees[1] = Gedcom().apply { addPerson(Person().also { it.id = "I7"; GeniMapper.setGeniId(it, "profile-7") }) }
+        server.enqueue(error(403, """{"error":{"message":"Access denied"}}"""))
+        val job = UploadJob(treeId = 1, key = "delete:profile-7", kind = JobKind.DELETE_PROFILE, geniId = "profile-7",
+            params = emptyList(), label = "Ivan", localHash = 0)
+        assertTrue(uploader().run(job) is Outcome.Failed)
+        assertTrue(store.link(1, "profile-7") != null)
+        assertEquals(1, host.trees.getValue(1).people.size)
+    }
+
+    @Test
+    fun deleteJobIsRetriedWhenOffline() = runTest {
+        server.close()
+        val job = UploadJob(treeId = 1, key = "delete:profile-7", kind = JobKind.DELETE_PROFILE, geniId = "profile-7",
+            params = emptyList(), label = "Ivan", localHash = 0)
+        assertTrue(uploader().run(job) is Outcome.Retry)
+    }
 }

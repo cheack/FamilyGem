@@ -66,6 +66,20 @@ class SyncQueue(
             ?.let { store.saveJob(it.copy(state = JobState.PENDING, error = null)) }
     }
 
+    /** Queues the deletion of a profile on Geni (once per profile); [label] is what the user sees if it fails. */
+    suspend fun enqueueDelete(treeId: Int, geniId: String, label: String) = lock(treeId).withLock {
+        val key = "delete:$geniId"
+        val existing = store.jobs(treeId).firstOrNull { it.key == key }
+        // An edit of the profile still waiting would fail once Geni has deleted it
+        store.jobs(treeId).firstOrNull { it.key == "profile:$geniId" }?.let { store.deleteJob(it.id) }
+        // A failed or dismissed delete is asked for again: the user chose it once more
+        if (existing != null) {
+            if (existing.state != JobState.PENDING && existing.state != JobState.SENDING)
+                store.saveJob(existing.copy(state = JobState.PENDING, error = null, version = existing.version + 1))
+        } else store.saveJob(UploadJob(treeId = treeId, key = key, kind = JobKind.DELETE_PROFILE,
+            geniId = geniId, params = emptyList(), label = label, localHash = 0))
+    }
+
     /** Called with the tree lock held. */
     private suspend fun plan(treeId: Int, local: LocalTree) {
         synchronized(planned) { planned[treeId] = local.stamp }

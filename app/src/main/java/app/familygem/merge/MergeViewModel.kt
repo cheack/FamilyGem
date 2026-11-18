@@ -53,7 +53,7 @@ class MergeViewModel(state: SavedStateHandle) : ViewModel() {
     var newNum = 0 // ID of the third tree created from first and second
     val firstTree: Tree = Global.settings.getTree(firstNum)
     lateinit var secondTree: Tree
-    val trees = Global.settings.trees.filterNot { it == firstTree || it.grade >= 20 } // Derived and exhausted trees are excluded
+    val trees = Global.settings.trees.filterNot { it == firstTree || it.grade >= 20 || app.familygem.geni.GeniGlue.isGeniTree(it.id) } // Derived and exhausted trees are excluded
     lateinit var firstGedcom: Gedcom
     lateinit var secondGedcom: Gedcom
     private val records = Records()

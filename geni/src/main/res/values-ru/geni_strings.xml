@@ -42,4 +42,13 @@
     <string name="geni_gone_remove">Убрать с устройства</string>
     <string name="geni_gone_keep">Оставить как локального</string>
     <string name="geni_gone_card">Удалён на Geni</string>
+    <string name="geni_unlink_blocked">API Geni не умеет удалять родственную связь. Измените её на geni.com; она попадёт в это дерево при следующем обновлении.</string>
+    <string name="geni_delete_root">Это ваш собственный профиль Geni, корень этого дерева. Его нельзя удалить.</string>
+    <string name="geni_delete_message">Этот человек — профиль Geni. «Убрать с этого устройства» очищает только вашу копию; Geni об этом не узнает.</string>
+    <string name="geni_delete_not_managed">Вы не управляете этим профилем, поэтому удалить его на Geni нельзя.</string>
+    <string name="geni_delete_unchecked">Не удалось спросить Geni, управляете ли вы этим профилем, поэтому удаление на Geni сейчас недоступно.</string>
+    <string name="geni_delete_local">Убрать с этого устройства</string>
+    <string name="geni_delete_geni">Удалить на Geni</string>
+    <string name="geni_delete_confirm">Профиль будет удалён на Geni для всех, кто делит это дерево: родственники и другие члены семьи его больше не увидят. Отменить это отсюда нельзя. С этого устройства он исчезнет, когда Geni его удалит.</string>
+    <string name="geni_delete_queued">Удаление на Geni поставлено в очередь</string>
 </resources>

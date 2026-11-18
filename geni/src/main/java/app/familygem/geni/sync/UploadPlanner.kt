@@ -140,6 +140,7 @@ object UploadPlanner {
 
         // Jobs whose record is gone (deleted locally: not uploaded), linked meanwhile or no longer connected
         for (job in jobs) {
+            if (job.kind == JobKind.DELETE_PROFILE) continue // The record is gone on purpose
             val gone = if (job.key.startsWith("add:")) job.key.removePrefix("add:") !in planned else job.key !in linkedKeys
             if (gone) deleteKeys += job.key
         }

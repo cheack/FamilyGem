@@ -255,4 +255,11 @@ class UploadPlannerTest {
         val links = coupleLinks + link("profile-3", "I3", null, newFields.hashCode())
         assertEquals(emptyList<UploadJob>(), plan(couple(person("I3", "profile-3", newFields)), links).upserts)
     }
+
+    @Test
+    fun deleteJobSurvivesPlanningWhenItsRecordIsGone() {
+        val delete = UploadJob(id = 9, treeId = 1, key = "delete:profile-9", kind = JobKind.DELETE_PROFILE, geniId = "profile-9",
+            params = emptyList(), label = "x", localHash = 0)
+        assertFalse("delete:profile-9" in plan(couple(), jobs = listOf(delete)).deleteKeys)
+    }
 }

@@ -42,4 +42,13 @@
     <string name="geni_gone_remove">Remove from device</string>
     <string name="geni_gone_keep">Keep as local person</string>
     <string name="geni_gone_card">Deleted on Geni</string>
+    <string name="geni_unlink_blocked">Geni cannot remove a relationship through its API. Change it on geni.com; it will reach this tree on the next refresh.</string>
+    <string name="geni_delete_root">This is your own Geni profile, the root of this tree. It cannot be removed.</string>
+    <string name="geni_delete_message">This person is a Geni profile. "Remove from this device" only clears your copy; Geni is not told.</string>
+    <string name="geni_delete_not_managed">You do not manage this profile, so it cannot be deleted on Geni.</string>
+    <string name="geni_delete_unchecked">Geni could not be asked whether you manage this profile, so deleting it on Geni is not offered now.</string>
+    <string name="geni_delete_local">Remove from this device</string>
+    <string name="geni_delete_geni">Delete on Geni</string>
+    <string name="geni_delete_confirm">The profile is deleted on Geni for everyone who shares this tree: relatives and other family members will no longer see it. This cannot be undone here. It is removed from this device once Geni has deleted it.</string>
+    <string name="geni_delete_queued">Deletion on Geni is queued</string>
 </resources>

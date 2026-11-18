@@ -8,7 +8,14 @@ import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import app.familygem.Global
+import android.content.Context
+import app.familygem.U
 import app.familygem.geni.map.GeniMapper
+import app.familygem.geni.sync.DeleteDecision
+import app.familygem.geni.sync.DeleteRules
+import app.familygem.geni.sync.PersonRemoval
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import app.familygem.geni.sync.LoadPolicy
 import app.familygem.geni.sync.LoadResult
 import app.familygem.geni.sync.LocalTree
@@ -22,7 +29,21 @@ object GeniGlue {
 
     private var resumed = false
 
+    private var treesLoaded = false
+
+    /** Loads the IDs of the Geni trees once, before any hook asks: a hook must never see a Geni tree as a local one. */
+    private fun loadTrees() {
+        if (treesLoaded) return
+        try {
+            kotlinx.coroutines.runBlocking(Dispatchers.IO) { GeniTrees.load(Geni.store(Global.context)) }
+            treesLoaded = true
+        } catch (e: Exception) {
+            Log.e("GeniSync", "Geni trees not read", e) // Tried again by the next hook
+        }
+    }
+
     fun install() {
+        loadTrees()
         if (Geni.host == null) Geni.host = AppTreeHost
         if (!resumed && Geni.isConfigured) {
             resumed = true
@@ -53,12 +74,93 @@ object GeniGlue {
         GeniHooks.addTreesMenu(activity, menu)
     }
 
+    /** True for a Geni tree: its people must not be merged into other trees. */
+    fun isGeniTree(treeId: Int): Boolean {
+        install()
+        return GeniTrees.isGeni(treeId)
+    }
+
+    /** Hides share, merge and compare from the menu of a Geni tree. */
+    fun trimTreeMenu(treeId: Int, menu: Menu) {
+        install()
+        GeniHooks.trimTreeMenu(treeId, menu)
+    }
+
+    /** In a Geni tree an unlink is refused: Geni's API cannot remove a relationship. True when the caller must not unlink. */
+    fun blockUnlink(context: android.content.Context): Boolean {
+        install()
+        if (!GeniTrees.isGeni(Global.settings.openTree)) return false
+        AlertDialog.Builder(context).setMessage(R.string.geni_unlink_blocked).setPositiveButton(android.R.string.ok, null).show()
+        return true
+    }
+
+    /**
+     * Deleting a person in a Geni tree: handled here instead of upstream's delete. Returns true when the caller must stop
+     * (a dialog follows); false for a person that is not on Geni, which upstream deletes as usual.
+     * [onDone] refreshes the screen after the person was removed from this device.
+     */
+    fun handleDelete(context: Context, person: Person, onDone: () -> Unit): Boolean {
+        install()
+        val treeId = Global.settings.openTree
+        val geniId = GeniMapper.getGeniId(person)
+        if (!GeniTrees.isGeni(treeId) || geniId == null) return false
+        val owner = context as? LifecycleOwner ?: return false
+        owner.lifecycleScope.launch {
+            val store = Geni.store(context)
+            val name = U.properName(person)
+            when (DeleteRules.decide(true, geniId, store.tree(treeId)?.rootGeniId)) {
+                DeleteDecision.Upstream -> Unit
+                DeleteDecision.BlockedRoot -> AlertDialog.Builder(context).setMessage(R.string.geni_delete_root)
+                    .setPositiveButton(android.R.string.ok, null).show()
+                DeleteDecision.Dialog -> {
+                    // Managed profiles are listed by guid; offline or on an error the Geni choice is simply not offered
+                    val managed = try {
+                        DeleteRules.isManaged(store.link(treeId, geniId)?.snapshot, Geni.client(context).managedGuids())
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w("GeniSync", "Managed profiles not read", e)
+                        null
+                    }
+                    val dialog = AlertDialog.Builder(context).setTitle(name)
+                        .setMessage(context.getString(R.string.geni_delete_message) + when (managed) {
+                            true -> ""
+                            false -> "\n\n" + context.getString(R.string.geni_delete_not_managed)
+                            null -> "\n\n" + context.getString(R.string.geni_delete_unchecked)
+                        })
+                        .setPositiveButton(R.string.geni_delete_local) { _, _ ->
+                            owner.lifecycleScope.launch {
+                                if (withContext(Dispatchers.IO) { PersonRemoval(store, AppTreeHost).removeFromTree(treeId, geniId) }) onDone()
+                            }
+                        }
+                        .setNegativeButton(android.R.string.cancel, null)
+                    if (managed == true) dialog.setNeutralButton(R.string.geni_delete_geni) { _, _ -> confirmDeleteOnGeni(context, treeId, geniId, name) }
+                    dialog.show()
+                }
+            }
+        }
+        return true
+    }
+
+    private fun confirmDeleteOnGeni(context: Context, treeId: Int, geniId: String, name: String) {
+        AlertDialog.Builder(context).setTitle(name).setMessage(R.string.geni_delete_confirm)
+            .setPositiveButton(R.string.geni_delete_geni) { _, _ ->
+                scope.launch {
+                    Geni.queue(context).enqueueDelete(treeId, geniId, name)
+                    GeniSync.kick(context, treeId)
+                }
+                Toast.makeText(context, R.string.geni_delete_queued, Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
     private var loginToastShown = false
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
 
     /** Forgets the Geni data of a deleted tree, so a new tree with the same ID does not inherit it. */
     fun onTreeDeleted(treeId: Int) {
         install()
+        GeniTrees.remove(treeId)
         scope.launch { Geni.store(Global.context).deleteTree(treeId) }
     }
 

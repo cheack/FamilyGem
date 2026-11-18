@@ -513,6 +513,7 @@ class ProfileActivity : AppCompatActivity() {
                 startActivity(intent)
             }
             5 -> { // Delete
+                if (app.familygem.geni.GeniGlue.handleDelete(this, person!!) { goBack() }) return true // GENI-HOOK
                 Util.confirmDelete(this) {
                     val families = person!!.delete()
                     if (!U.deleteEmptyFamilies(this, { this.goBack() }, true, *families)) goBack()
