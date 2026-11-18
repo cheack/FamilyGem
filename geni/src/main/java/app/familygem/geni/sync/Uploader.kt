@@ -58,6 +58,7 @@ open class Uploader(
         when (job.kind) {
             JobKind.UPDATE_PROFILE, JobKind.UPDATE_UNION -> update(job)
             JobKind.ADD_CHILD, JobKind.ADD_PARTNER -> add(job)
+            JobKind.DELETE_PROFILE -> delete(job)
         }
     } catch (e: CancellationException) {
         throw e
@@ -101,6 +102,16 @@ open class Uploader(
             if (before != null) store.updateSnapshot(job.treeId, geniId, before, SnapshotOverlay.apply(before, job.params, geniId), link?.geniUpdatedAt)
             Outcome.Done
         }
+    }
+
+    /** Deletes the profile on Geni; only after Geni answered does the person leave the tree. */
+    private suspend fun delete(job: UploadJob): Outcome {
+        val geniId = job.geniId ?: return Outcome.Failed("no Geni ID")
+        client.post("$geniId/delete", emptyList())
+        // Geni has deleted it: a failure here must not make the job post the delete again
+        bestEffort { PersonRemoval(store, host).removeFromTree(job.treeId, geniId) }
+        bestEffort { store.deleteLink(job.treeId, geniId) }
+        return Outcome.Done
     }
 
     /** An update without parameters only fetches the snapshot (after an add whose snapshot could not be fetched). */

@@ -186,6 +186,7 @@ class TreesActivity : AppCompatActivity() {
                     if (exists && Global.settings.expert && !exhausted)
                         menu.add(0, 9, 0, R.string.export_gedcom)
                     menu.add(0, 10, 0, R.string.delete)
+                    app.familygem.geni.GeniGlue.trimTreeMenu(treeId, menu) // GENI-HOOK
                     popup.setOnMenuItemClickListener(MenuItemClickListener(position, treeId))
                     popup.show()
                 }

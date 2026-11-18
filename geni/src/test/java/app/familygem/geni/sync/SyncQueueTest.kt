@@ -505,4 +505,38 @@ class SyncQueueTest {
         queue.runPending(1)
         assertEquals(listOf("occupation" to "Driver"), uploader.ran.last().params)
     }
+
+    @Test
+    fun enqueueDeleteStoresOneJobPerProfileAndRunsIt() = runTest {
+        linkBoth()
+        queue.enqueueDelete(1, "profile-2", "Anna User")
+        queue.enqueueDelete(1, "profile-2", "Anna User")
+        val job = store.jobs(1).single()
+        assertEquals("delete:profile-2", job.key)
+        assertEquals(JobKind.DELETE_PROFILE, job.kind)
+        assertEquals("Anna User", job.label)
+        queue.runPending(1)
+        assertEquals(listOf("delete:profile-2"), uploader.ran.map { it.key })
+        assertTrue(store.jobs(1).isEmpty())
+    }
+
+    @Test
+    fun enqueueDeleteDropsAWaitingUpdateOfTheSameProfile() = runTest {
+        linkBoth()
+        store.saveJob(UploadJob(treeId = 1, key = "profile:profile-2", kind = JobKind.UPDATE_PROFILE, geniId = "profile-2",
+            params = listOf("occupation" to "Pilot"), label = "Anna User", localHash = 1))
+        queue.enqueueDelete(1, "profile-2", "Anna User")
+        assertEquals(listOf("delete:profile-2"), store.jobs(1).map { it.key })
+    }
+
+    @Test
+    fun enqueueDeleteAgainPutsAFailedDeleteBackInTheQueue() = runTest {
+        linkBoth()
+        queue.enqueueDelete(1, "profile-2", "Anna User")
+        store.saveJob(store.jobs(1).single().copy(state = JobState.FAILED, error = "Access denied"))
+        queue.enqueueDelete(1, "profile-2", "Anna User")
+        val job = store.jobs(1).single()
+        assertEquals(JobState.PENDING, job.state)
+        assertNull(job.error)
+    }
 }

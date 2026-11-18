@@ -102,6 +102,7 @@ class GeniLoader(
         val info = GeniTreeInfo(treeId, root.id)
         store.deleteTree(treeId) // Rows left by a deleted tree that had the same ID
         store.saveTree(info)
+        app.familygem.geni.GeniTrees.add(treeId)
         load(treeId, root.id)
         store.link(treeId, root.id)?.let { host.setRoot(treeId, it.gedcomId) }
         host.schedulePrefetch(treeId, root.id, info.prefetchDepth)

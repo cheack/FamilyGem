@@ -372,6 +372,7 @@ class RelativesFragment : BaseFragment() {
             }
             314 -> PersonUtil.chooseLineage(requireContext(), selected, family) // Lineage
             315 -> { // Unlink
+                if (app.familygem.geni.GeniGlue.blockUnlink(requireContext())) return true // GENI-HOOK
                 FamilyUtil.unlinkPerson(selected, family)
                 FamilyUtil.updateSpouseRoles(family)
                 save(true, family, selected)
@@ -379,6 +380,7 @@ class RelativesFragment : BaseFragment() {
                 U.deleteEmptyFamilies(context, { this.refresh() }, false, family)
             }
             316 -> { // Delete
+                if (app.familygem.geni.GeniGlue.handleDelete(requireContext(), selected) { if (isAdded) refresh() }) return true // GENI-HOOK
                 Util.confirmDelete(requireContext()) {
                     selected.delete()
                     refresh()

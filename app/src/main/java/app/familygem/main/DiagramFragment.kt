@@ -787,6 +787,7 @@ class DiagramFragment : BaseFragment(R.layout.diagram_fragment) {
             intent.putExtra(Extra.PERSON_ID, personId)
             startActivity(intent)
         } else if (id == 6) { // Unlink
+            if (app.familygem.geni.GeniGlue.blockUnlink(context())) return true // GENI-HOOK
             /* TODO to be precise we should use FamilyUtil.unlinkRefs(sfr, sr)
                which removes exactly the single link instead of all links if a person is linked multiple times in the same family */
             val modified = ArrayList<Family>()
@@ -805,6 +806,7 @@ class DiagramFragment : BaseFragment(R.layout.diagram_fragment) {
             TreeUtil.save(true, *modifiedArray)
             refreshAll()
         } else if (id == 7) { // Delete
+            if (app.familygem.geni.GeniGlue.handleDelete(context(), person) { if (isAdded) refreshAll() }) return true // GENI-HOOK
             confirmDelete(context()) {
                 val families = person.delete()
                 refreshAll()

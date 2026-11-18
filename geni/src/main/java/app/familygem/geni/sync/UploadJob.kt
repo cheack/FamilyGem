@@ -1,6 +1,6 @@
 package app.familygem.geni.sync
 
-enum class JobKind { UPDATE_PROFILE, UPDATE_UNION, ADD_PARTNER, ADD_CHILD }
+enum class JobKind { UPDATE_PROFILE, UPDATE_UNION, ADD_PARTNER, ADD_CHILD, DELETE_PROFILE }
 
 /** PENDING runs; FAILED waits for the user; DISMISSED is hidden and kept so the same change is not planned again. */
 enum class JobState {
@@ -11,7 +11,7 @@ enum class JobState {
 
 /**
  * A change waiting to be uploaded to Geni. One job per record, identified by [key] within the tree:
- * `profile:<geniId>`, `union:<geniId>` or `add:<personGedcomId>`.
+ * `profile:<geniId>`, `union:<geniId>`, `add:<personGedcomId>` or `delete:<geniId>`.
  * @param anchors For adds: relatives to attach the new profile to, as "child:<gedcomId>" or "partner:<gedcomId>"
  * @param params Form parameters for Geni
  * @param label What the user sees in the list of failed changes

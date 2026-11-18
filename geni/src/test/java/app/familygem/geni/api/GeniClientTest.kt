@@ -166,4 +166,24 @@ class GeniClientTest {
             other.close()
         }
     }
+
+    @Test
+    fun managedGuidsReadsAllPagesUntilEmpty() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        server.enqueue(ok("""{"results":[{"guid":"11","name":"A"},{"guid":"12","name":"B"}],"total_count":3,"page":1}"""))
+        server.enqueue(ok("""{"results":[{"guid":"13","name":"C"}],"total_count":3,"page":2}"""))
+        server.enqueue(ok("""{"results":[],"total_count":3,"page":3}"""))
+        assertEquals(setOf("11", "12", "13"), client().managedGuids())
+        assertEquals("/api/user/managed-profiles", server.takeRequest().url.encodedPath)
+        assertEquals("2", server.takeRequest().url.queryParameter("page"))
+    }
+
+    @Test
+    fun managedGuidsStopsWhenAPageAddsNothingNew() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        val page = """{"results":[{"guid":"11"},{"guid":"12"}],"total_count":2}"""
+        repeat(3) { server.enqueue(ok(page)) }
+        assertEquals(setOf("11", "12"), client().managedGuids())
+        assertEquals(2, server.requestCount)
+    }
 }

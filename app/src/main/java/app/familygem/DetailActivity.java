@@ -1263,6 +1263,7 @@ public abstract class DetailActivity extends BaseActivity {
                 PersonUtil.INSTANCE.chooseLineage(this, person, (Family)object);
                 break;
             case 22: // Unlink family member
+                if (app.familygem.geni.GeniGlue.INSTANCE.blockUnlink(this)) return true; // GENI-HOOK
                 FamilyUtil.INSTANCE.unlinkRefs((SpouseFamilyRef)pieceView.getTag(R.id.tag_family_ref),
                         (SpouseRef)pieceView.getTag(R.id.tag_ref));
                 ChangeUtil.INSTANCE.updateChangeDate(person);
@@ -1270,6 +1271,7 @@ public abstract class DetailActivity extends BaseActivity {
                 findAnotherRepresentativeOfTheFamily(person);
                 break;
             case 23: // Delete family member
+                if (app.familygem.geni.GeniGlue.INSTANCE.handleDelete(this, person, () -> { findAnotherRepresentativeOfTheFamily(person); refresh(); return Unit.INSTANCE; })) return true; // GENI-HOOK
                 Util.INSTANCE.confirmDelete(this, () -> {
                     PersonUtilKt.delete(person);
                     findAnotherRepresentativeOfTheFamily(person);

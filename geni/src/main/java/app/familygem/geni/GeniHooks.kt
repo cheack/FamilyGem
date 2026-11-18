@@ -15,4 +15,10 @@ object GeniHooks {
             true
         }
     }
+
+    /** Removes the items that would send a Geni tree to a third party or merge it: share (5), merge (6), compare (7). */
+    fun trimTreeMenu(treeId: Int, menu: Menu) {
+        if (!GeniTrees.isGeni(treeId)) return
+        for (id in intArrayOf(5, 6, 7)) menu.removeItem(id)
+    }
 }

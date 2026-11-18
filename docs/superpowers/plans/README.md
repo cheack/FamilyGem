@@ -123,14 +123,31 @@ Plan: [2026-11-17-geni-4-refresh-conflicts.md](2026-11-17-geni-4-refresh-conflic
 
 ## 5. Upstream UI rules
 
-Plan: not written yet.
+Plan: [2026-11-18-geni-5-upstream-ui.md](2026-11-18-geni-5-upstream-ui.md)
 
-- [ ] Hide merge, shared-tree import and sharing for Geni trees
-- [ ] Delete person in a Geni tree: only managed profiles, with explicit confirmation, then `profile-X/delete`; otherwise blocked
-- [ ] "Remove from this device" action (cache only)
-- [ ] Block unlinking a spouse or child in Geni trees (no API for it)
-- [ ] Backup restore of a Geni tree: reset snapshots, no uploads, ask about pending jobs
-- [ ] GEDCOM export stays allowed
+- [x] Hide merge, shared-tree import and sharing for Geni trees
+- [x] Delete person in a Geni tree: only managed profiles, with explicit confirmation, then `profile-X/delete`; otherwise blocked
+- [x] "Remove from this device" action (cache only; in the delete dialog)
+- [x] Block unlinking a spouse or child in Geni trees (no API for it)
+- [x] Backup restore of a Geni tree: a restored backup is a new local tree (new tree ID), so nothing to reset
+- [x] GEDCOM export stays allowed
+
+### Deferred from stage 5
+
+- [ ] A person removed from this device returns as an edge person when a relative is loaded (a removed-marker would need a Room migration)
+- [ ] "Remove from this device" and the not-managed / offline dialogs are covered by unit tests only, not checked on the phone
+- [ ] An edit of a profile made after "Delete on Geni" was queued is not dropped from the queue (only an update already waiting is)
+- [ ] `GeniGlue` reads the Geni tree IDs with a blocking Room read on the first hook (main thread), and a failed read leaves hooks treating Geni trees as local until the next hook; use an explicit unknown state
+- [ ] A delete queued under one Geni account can be sent under another after a login change: record the confirming account on the job
+- [ ] A family refresh started before a delete can restore the profile after the local cleanup: keep a record of confirmed deletions for the loader
+- [ ] Local removal after Geni confirmed a delete is best effort: a failure leaves the person on the device with the link dropped; persist a cleanup-only phase
+- [ ] With Auto Save off, "Remove from this device" drops links and jobs before the tree is saved; revert brings the person back unlinked
+- [ ] `onTreeDeleted` clears Room rows asynchronously: a tree created with a reused ID before it runs loses its rows
+- [ ] A concurrent reload after a GEDCOM ID edit can have its new link deleted by the removal (delete the link only if it is still the one read)
+- [ ] A removal with Auto Save on does not check that the file write succeeded before dropping links
+- [ ] The save hook of a removal can start the worker before a queued delete on Geni is cancelled
+- [ ] `enqueueDelete` and the removal of the waiting edit are not one transaction
+- [ ] Backup restore and GEDCOM export of a Geni tree not re-checked on the phone (by design they touch no Geni data)
 
 ## Other tasks
 
@@ -145,6 +162,8 @@ Plan: not written yet.
 ## Progress log
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
+
+- 2026-11-18: UI rules for Geni trees (PR [#7](https://github.com/cheack/Treekin/pull/7)): sharing, merging and comparing are hidden for the Geni tree; unlinking a relative is refused with an explanation; deleting a person offers "Remove from this device" and, for profiles the user manages, "Delete on Geni" after a second confirmation; the user's own profile cannot be removed. Stage 5 done.
 
 - 2026-11-18: Refresh and conflicts, part 3 (PR [#6](https://github.com/cheack/Treekin/pull/6)): Geni trees refresh daily on Wi-Fi and an open card re-checks Geni after an hour; profiles deleted on Geni leave the device unless edited locally (then the user chooses), merged profiles move to the survivor. Stage 4 done.
 - 2026-11-17: Refresh and conflicts, part 2 (PR [#5](https://github.com/cheack/Treekin/pull/5)): the Geni account screen lists conflicts; for each field the user keeps their value or takes Geni's, and only kept values are uploaded.

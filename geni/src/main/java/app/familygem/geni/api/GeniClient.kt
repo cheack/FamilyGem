@@ -2,6 +2,7 @@ package app.familygem.geni.api
 
 import app.familygem.geni.auth.TokenStore
 import com.google.gson.Gson
+import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
@@ -42,6 +43,25 @@ class GeniClient(
 
     /** Profile of the logged-in user. */
     suspend fun currentProfile(): GeniProfile = gson.fromJson(getJson("profile"), GeniProfile::class.java)
+
+    /**
+     * Guids of the profiles the user manages (and so may delete). Geni lists them by numeric guid, the same as
+     * the `guid` field of a profile, not by `profile-N` ID. Pages are read until one is empty.
+     */
+    suspend fun managedGuids(): Set<String> {
+        val guids = mutableSetOf<String>()
+        var page = 1
+        while (true) {
+            val results = JsonParser.parseString(getJson("user/managed-profiles?fields=guid&page=$page")).asJsonObject
+                .getAsJsonArray("results")
+            if (results == null || results.size() == 0) return guids
+            // A page that adds nothing new means the server ignores `page`: stop instead of looping
+            var added = false
+            results.forEach { it.asJsonObject.get("guid")?.asString?.let { guid -> if (guids.add(guid)) added = true } }
+            if (!added) return guids
+            page++
+        }
+    }
 
     /** IDs in the immediate family of a profile. */
     suspend fun immediateFamily(profileId: String): ImmediateFamily = ImmediateFamily.parse(getJson("$profileId/immediate-family"))

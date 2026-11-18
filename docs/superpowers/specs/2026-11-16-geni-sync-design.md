@@ -100,14 +100,15 @@ The user picked A.
 ### Delete and unlink
 
 - Deleting a person in a Geni tree deletes the profile on Geni only if the user manages that profile, and only after an explicit confirmation that names the consequence for the shared tree. Otherwise deletion is blocked with an explanation.
-- A separate "Remove from this device" action drops a person from the cache only; nothing is sent to Geni. The person is not prefetched again unless opened.
+- A separate "Remove from this device" action drops a person from the cache only; nothing is sent to Geni. It is a choice in the same delete dialog (not a menu item of its own). The person may come back as an edge person when a relative is loaded.
+- "Delete on Geni" is a queued job; the person leaves the tree only after Geni answered `Deleted`. The user's own profile (the root) is never removed.
 - Removing a relationship (unlinking a spouse or child from a family) is blocked in Geni trees until the sandbox shows an API way to do it.
 
 ### FamilyGem features on a Geni tree
 
 - Hidden for Geni trees (one-line hooks): merging another tree into it (`merge/`), importing shared-tree updates (`share/CompareActivity`, `ProcessActivity`), sharing through the FamilyGem server (`SharingActivity`, which would send other Geni users' data, living people included, to a third-party server).
 - Allowed: GEDCOM export (a local file made by the user).
-- Allowed: backup restore, which restores the cache only. After a restore, snapshots are reset to the restored content, so nothing is uploaded, and pending jobs for that tree are shown to the user to keep or drop. Profiles then refresh from Geni as usual.
+- Allowed: backup restore. A restored backup is always a new tree with a new tree ID (`TreeUtil.unzipTree` uses `Global.settings.max() + 1`), and the Geni rows are keyed by tree ID, so it is a plain local tree: it never uploads, never loads, has no Geni menu items. The `_GENI_ID` tags stay in its GEDCOM.
 
 ### Changes made by others and conflicts
 
@@ -155,6 +156,8 @@ Write path on the sandbox (2026-11-17, Pixel 6): profile edits (birth date and p
 - Without a network a request fails before connecting (`UnknownHostException`, `ConnectException`): nothing reached Geni, so even an add is retried. Only a failure after the request was sent makes an add fail for the user to check.
 - Back-off alone could wait up to 30 min after the network returns: a network callback resumes the uploads at once.
 - The account screen without a network showed the raw error and "Log in" although the token was kept; it now says the login is kept and changes wait for the network.
+
+Managed profiles on the sandbox (2026-11-18): `GET user/managed-profiles` answers `{"results":[{"guid":"1165127","name":"Ivan P"}],"total_count":17}` with the numeric `guid`, not the `profile-N` ID; a profile's own `guid` field matches it. Page 2 answers an empty `results`. `POST profile-X/delete` of a profile the user created and manages: `Deleted`.
 
 Merged and deleted profiles on the sandbox (2026-11-17): `POST profile-A/merge/profile-B` answers `{"result":"profile-B merged into profile-A ..."}`; `profile-B` is still returned under its own ID, with `"deleted": true` and `"merged_into"` the URL of `profile-A`. `POST profile-X/delete` answers `{"result":"Deleted"}`; the profile is still returned with `"deleted": true`, without unions. Batch requests return deleted profiles too, not in request order. The app removes such a person from the cache when it holds no local work, moves it to the surviving profile when that one is not cached yet, and otherwise lets the user choose (conflict "deleted on Geni").
 
