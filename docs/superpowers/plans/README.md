@@ -149,6 +149,16 @@ Plan: [2026-11-18-geni-5-upstream-ui.md](2026-11-18-geni-5-upstream-ui.md)
 - [ ] `enqueueDelete` and the removal of the waiting edit are not one transaction
 - [ ] Backup restore and GEDCOM export of a Geni tree not re-checked on the phone (by design they touch no Geni data)
 
+## 6. Photos
+
+Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-11-18-geni-photos-design.md](../specs/2026-11-18-geni-photos-design.md). Replaces the stage 2 photo item.
+
+- [ ] PR 1: photo API client (list, get, upload, delete, download) and sandbox check
+- [ ] PR 2: main photo read: shown on card and diagram, kept current on refresh
+- [ ] PR 3: album read: browse, on-demand download, "Keep offline" option
+- [ ] PR 4: upload: add photo, set main photo, offline queue and failure list
+- [ ] PR 5: delete on Geni (managed profiles), deletions from Geni, conflicts
+
 ## Other tasks
 
 - [x] Register a Geni sandbox app and fill `geni.properties` (`geniAppId`, `geniHost=sandbox.geni.com`)
