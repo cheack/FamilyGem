@@ -186,4 +186,84 @@ class GeniClientTest {
         assertEquals(setOf("11", "12"), client().managedGuids())
         assertEquals(2, server.requestCount)
     }
+
+    private fun photoJson(id: String) = """{"id":"photo-$id","title":"T$id","sizes":{"thumb":"https://x/$id.jpg"}}"""
+
+    @Test
+    fun photosReadsAllPages() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        server.enqueue(ok("""{"results":[${photoJson("1")},${photoJson("2")}],"total_count":3}"""))
+        server.enqueue(ok("""{"results":[${photoJson("3")}],"total_count":3}"""))
+        server.enqueue(ok("""{"results":[]}"""))
+        assertEquals(listOf("photo-1", "photo-2", "photo-3"), client().photos("profile-9").map { it.id })
+        assertEquals("/api/profile-9/photos", server.takeRequest().url.encodedPath)
+        assertEquals("2", server.takeRequest().url.queryParameter("page"))
+    }
+
+    @Test
+    fun photosStopsWhenPageAddsNothing() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        val page = """{"results":[${photoJson("1")}],"total_count":1}"""
+        repeat(3) { server.enqueue(ok(page)) }
+        assertEquals(1, client().photos("profile-9").size)
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun photosPath404ThrowsGeniApiException() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        server.enqueue(MockResponse.Builder().code(404).body("{}").build())
+        try {
+            client().photos("profile-9")
+            org.junit.Assert.fail("expected exception")
+        } catch (e: GeniApiException) {
+            assertEquals(404, e.code)
+        }
+    }
+
+    @Test
+    fun addPhotoSendsBase64FileNameAndTitle() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        server.enqueue(ok(photoJson("5")))
+        val bytes = ByteArray(300) { it.toByte() }
+        val photo = client().addPhoto("profile-9", "a.jpg", "Title", bytes)
+        assertEquals("photo-5", photo.id)
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/profile-9/add-photo", request.url.encodedPath)
+        val form = request.body!!.utf8().split("&").associate {
+            val (k, v) = it.split("=", limit = 2)
+            k to java.net.URLDecoder.decode(v, "UTF-8")
+        }
+        assertEquals("a.jpg", form["file_name"])
+        assertEquals("Title", form["title"])
+        assertTrue(!form["file"]!!.contains("\n"))
+        assertTrue(bytes.contentEquals(java.util.Base64.getDecoder().decode(form["file"])))
+    }
+
+    @Test
+    fun addPhotoOmitsNullTitle() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        server.enqueue(ok(photoJson("5")))
+        client().addPhoto("profile-9", "a.jpg", null, byteArrayOf(1, 2))
+        assertTrue(!server.takeRequest().body!!.utf8().contains("title="))
+    }
+
+    @Test
+    fun deletePhotoPostsToPhotoDelete() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        client().deletePhoto("photo-2175")
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/photo-2175/delete", request.url.encodedPath)
+    }
+
+    @Test
+    fun photoReadsSingle() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        server.enqueue(ok(photoJson("7")))
+        assertEquals("photo-7", client().photo("photo-7").id)
+        assertEquals("/api/photo-7", server.takeRequest().url.encodedPath)
+    }
 }
