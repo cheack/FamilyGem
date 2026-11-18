@@ -69,4 +69,20 @@ class GeniPhotoTest {
         assertTrue(parsePhotos("""{"results":[]}""").isEmpty())
         assertTrue(parsePhotos("{}").isEmpty())
     }
+
+    @Test
+    fun parsePhotoRejectsBodyWithoutId() {
+        val error = runCatching { parsePhoto("""{"result":"Deleted"}""") }.exceptionOrNull()
+        assertTrue(error is GeniApiException)
+        assertEquals(200, (error as GeniApiException).code)
+    }
+
+    @Test
+    fun parsePhotosRejectsResultsItemWithoutId() {
+        val error = runCatching {
+            parsePhotos("""{"results":[{"id":"photo-1"},{"title":"no id"}]}""")
+        }.exceptionOrNull()
+        assertTrue(error is GeniApiException)
+        assertEquals(200, (error as GeniApiException).code)
+    }
 }

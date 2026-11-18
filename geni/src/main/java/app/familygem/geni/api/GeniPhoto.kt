@@ -18,7 +18,7 @@ data class GeniPhoto(
 }
 
 private class RawPhoto(
-    val id: String,
+    val id: String?,
     val title: String?,
     @SerializedName("content_type") val contentType: String?,
     val sizes: Map<String, String>?,
@@ -29,7 +29,7 @@ private class RawPhoto(
 private fun toPhoto(json: String): GeniPhoto {
     val raw = Gson().fromJson(json, RawPhoto::class.java)
     return GeniPhoto(
-        raw.id, raw.title, raw.contentType,
+        raw.id ?: throw GeniApiException(200, "photo without id"), raw.title, raw.contentType,
         raw.sizes.orEmpty().filterKeys { it != "url" },
         raw.updatedAt, raw.albumId
     )

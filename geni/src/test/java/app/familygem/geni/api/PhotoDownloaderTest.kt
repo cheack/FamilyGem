@@ -128,4 +128,40 @@ class PhotoDownloaderTest {
         assertEquals("old", target.readText())
         assertFalse(folder.root.resolve("h.jpg.part").exists())
     }
+
+    private fun assertCancelsPromptly(response: MockResponse, name: String) = runBlocking {
+        server.enqueue(response)
+        val target = folder.newFile(name).also { it.writeText("old") }
+        var failure: Throwable? = null
+        val job = launch(Dispatchers.Default) {
+            try {
+                downloader().download(server.url("/p").toString(), target)
+            } catch (e: Throwable) {
+                failure = e
+                throw e
+            }
+        }
+        server.takeRequest()
+        Thread.sleep(500)
+        val start = System.currentTimeMillis()
+        job.cancelAndJoin()
+        assertTrue("cancel took too long", System.currentTimeMillis() - start < 3_000)
+        assertTrue(failure is kotlinx.coroutines.CancellationException)
+        assertEquals("old", target.readText())
+        assertFalse(folder.root.resolve("$name.part").exists())
+    }
+
+    @Test
+    fun cancellationInterruptsStalledBodyRead() = assertCancelsPromptly(
+        MockResponse.Builder().code(200).addHeader("Content-Type", "image/jpeg")
+            .body(okio.Buffer().write(ByteArray(900)))
+            .throttleBody(1, 60, TimeUnit.SECONDS).build(),
+        "i.jpg"
+    )
+
+    @Test
+    fun cancellationInterruptsStalledResponse() = assertCancelsPromptly(
+        MockResponse.Builder().onRequestStart(mockwebserver3.SocketEffect.Stall).build(),
+        "j.jpg"
+    )
 }
