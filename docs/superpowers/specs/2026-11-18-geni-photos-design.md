@@ -13,7 +13,7 @@ Photos are the last missing everyday Geni feature, and the user's own memories l
 - The main Geni photo of a person shows on the card and in the diagram.
 - A person's other Geni photos can be browsed and are kept on the device.
 - A photo added in the app is uploaded, offline or not, with the same retry and failure display as other changes.
-- A photo can be made the main one.
+- The main photo shows; Geni has no call to change it, so a photo added to a profile without one becomes its main photo, and changing it is done on Geni.
 - A photo can be deleted on Geni from the app (managed profiles only, with confirmation); a photo deleted on Geni leaves the device.
 - Photos stay usable offline and survive the end of Geni API access.
 
@@ -67,7 +67,7 @@ Only media with a `photo_links` row or one the user explicitly sends to Geni is 
 
 ### Write (PR 4)
 
-- New job types: `ADD_PHOTO` (file path, title, make-main flag), `SET_MAIN_PHOTO`.
+- New job type: `ADD_PHOTO` (file path, title) (set-main dropped: sandbox check found no Geni call for it).
 - The planner finds new linked-eligible `OBJE` entries on Geni persons in the same diff pass that finds other changes.
 - Upload via `add-photo` (base64 or multipart, as the sandbox shows); the result's photo ID is stored in `photo_links`.
 - Large photos are scaled down before upload to a size cap decided in PR 4 (Geni accepts files of limited size; confirm in PR 1).
@@ -83,7 +83,7 @@ Only media with a `photo_links` row or one the user explicitly sends to Geni is 
 1. **API client:** sandbox check; `GeniPhoto` model; client methods (list, get, upload, delete, set main); photo download helper with host rule; unit tests with fixtures. No user-visible change.
 2. **Main photo, read:** `photo_links` table and migration; mapper adds the main photo; download; card and diagram show it; refresh keeps it current.
 3. **Album, read:** album list and viewer; on-demand download; "Keep offline" option.
-4. **Upload:** `ADD_PHOTO` and `SET_MAIN_PHOTO` jobs; planner; UI to add or choose main; failure display.
+4. **Upload:** `ADD_PHOTO` job; planner; UI to add or keep local; failure display.
 5. **Delete and conflicts:** `DELETE_PHOTO`; removals from Geni; conflict cases; roadmap and progress log final.
 
 Each PR follows the project workflow: feature branch, plan checklist, CodeRabbit review loop, merge into `geni`, progress-log line.

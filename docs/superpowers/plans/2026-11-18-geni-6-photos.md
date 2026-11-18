@@ -17,7 +17,7 @@
 - Photo downloads and API calls go through the rate limiter where the host is the API.
 - Only media with a `photo_links` row, or chosen by the user, is uploaded; nothing is deleted on Geni without confirmation.
 - Never commit tokens or `geni.properties`; ask before every commit and every GitHub comment (project memory: stage mode may be autonomous only if the user says so).
-- Endpoint names and limits below marked "(verify)" are settled in Task 1 and the plan is corrected before Task 2.
+- Task 1 is done (2026-11-18, sandbox): findings in the "Task 1 findings" section below override anything else in this plan.
 
 ## Review Focus
 
@@ -27,9 +27,20 @@
 - Profile with no photo (`mugshot_urls` null or empty): no media is created and an old Geni-linked photo is removed only when Geni says it is gone.
 - Same photo uploaded twice after a failed response: not duplicated (job state kept as for profile adds).
 
+## Task 1 findings (sandbox, 2026-11-18)
+
+- `GET profile-X/photos` → `{"results":[photo,...],"total_count":N}`; an empty album is `{"results":[]}`. Each photo: `id` ("photo-2175"), `guid`, `created_at`, `updated_at` (Unix seconds as strings), `content_type`, `url` (API URL), `title`, `album_id`, `sizes` (map: `large, medium, small, thumb, thumb2, print, original, url`), `tags` (list of profile API URLs). `GET photo-X` returns the same object.
+- `profile?fields=mugshot_urls` → `{"id":..,"mugshot_urls":{large,medium,small,thumb,print,thumb2,original,url}}` where `url` is the photo's API URL (`.../photo-2175`): the photo ID of the main photo. No photo → `mugshot_urls` absent.
+- Photo file URLs are on `sandbox-photos.geni.com` (https), signed (`?hash=<hex>.<expiry>`, expiry about 1 day ahead), and download with no token (HTTP 200, `image/jpeg`).
+- Upload: `POST profile-X/add-photo` with form `file` (base64), `file_name`, `title` returns the photo object (new `id`); content type becomes `image/jpeg`. The first photo of a profile becomes its main photo; later uploads do not.
+- Delete: `POST photo-X/delete` → `{"result":"Deleted"}`; deleting the main photo leaves the profile with none. `POST photo-X/update` with `title` works.
+- Setting an existing photo as main: no call found (`mugshot_id` on `profile-X/update`, `photo-X/set-mugshot`, `profile-X/add-mugshot`, `photo-X/make-main`, `photo-X/set-main` all do nothing). So `SET_MAIN_PHOTO` is dropped from the plan; `addPhoto` has no `makeMain` flag.
+
+Fixtures: `geni/src/test/resources/geni/photo-list.json`, `photo-single.json`, `photo-upload-response.json`, `profile-mugshot.json`.
+
 ## PR 1: API client (Tasks 1–4)
 
-### Task 1: Sandbox check of the photo endpoints
+### Task 1: Sandbox check of the photo endpoints (DONE, see findings)
 
 **Files:**
 - Modify: `app/src/androidTest/java/app/familygem/geni/GeniSandboxTool.kt` (new commands `photos`, `photo`)
@@ -39,10 +50,10 @@
 **Interfaces:**
 - Produces: the settled endpoint names, field names, photo sizes, upload size limit, whether URLs need a token or expire, and the delete and set-main calls. Later tasks use exactly these.
 
-- [ ] **Step 1: Using the existing dev tool on the phone (user logged in on the sandbox), request `profile-X/photos`, `photo-Y`, and `profile-X?fields=mugshot_urls`; save the raw JSON.**
-- [ ] **Step 2: Try the calls for: upload to album without setting main (`add-photo` flag or other call), set main, delete (`photo-Y/delete`) on a throwaway profile; record each result and HTTP code.**
-- [ ] **Step 3: Fetch a photo URL once without and once with the token header; note host, expiry in the URL, content type, and size per `mugshot_urls` key.**
-- [ ] **Step 4: Write the findings into `geni-api.md` and correct this plan's "(verify)" marks and the field list in Task 2.**
+- [x] **Step 1: Using the existing dev tool on the phone (user logged in on the sandbox), request `profile-X/photos`, `photo-Y`, and `profile-X?fields=mugshot_urls`; save the raw JSON.**
+- [x] **Step 2: Try the calls for: upload to album without setting main (`add-photo` flag or other call), set main, delete (`photo-Y/delete`) on a throwaway profile; record each result and HTTP code.**
+- [x] **Step 3: Fetch a photo URL once without and once with the token header; note host, expiry in the URL, content type, and size per `mugshot_urls` key.**
+- [x] **Step 4: Write the findings into `geni-api.md` and correct this plan's "(verify)" marks and the field list in Task 2.**
 
 ### Task 2: Photo model and parser
 
@@ -51,9 +62,9 @@
 - Test: `geni/src/test/java/app/familygem/geni/api/GeniPhotoTest.kt`
 
 **Interfaces:**
-- Produces: `data class GeniPhoto(val id: String, val title: String?, val contentType: String?, val urls: Map<String, String>, val updatedAt: String?)` with `fun bestUrl(maxSide: Int): String?` returning the largest URL not above that size, else the smallest; `fun parsePhotos(json: String): List<GeniPhoto>`; `fun mugshotToPhoto(profile: GeniProfile): GeniPhoto?` (main photo as a photo, `id` from the URL's photo ID; null if none). Final fields follow Task 1.
+- Produces: `data class GeniPhoto(val id: String, val title: String?, val contentType: String?, val urls: Map<String, String>, val updatedAt: String?, val albumId: String?)` where `urls` holds the size URLs only (the `url` key is not one); `fun urlFor(vararg preferred: String): String?` returning the URL of the first size name present (names: `thumb`, `small`, `medium`, `large`, `original`), else null; `fun parsePhoto(json: String): GeniPhoto` (a single photo or an upload response); `fun parsePhotos(json: String): List<GeniPhoto>` (`results` array, empty when missing); `fun mugshotToPhoto(profile: GeniProfile): GeniPhoto?` (main photo: `id` = `geniId(mugshotUrls["url"])`, `urls` = the other entries; null when `mugshotUrls` is null, empty or has no `url`).
 
-- [ ] **Step 1: Write failing tests** `parsesAlbumFixture`, `bestUrlPicksLargestWithinLimit`, `bestUrlFallsBackToSmallest`, `emptyMugshotGivesNull` using the Task 1 fixtures.
+- [ ] **Step 1: Write failing tests** `parsesAlbumFixture`, `parsesAlbumFixture` (2 photos, ids `photo-2176`, `photo-2175`), `parsesUploadResponse`, `urlForPicksFirstPresentName`, `mugshotGivesPhotoIdFromUrlKey` (from `profile-mugshot.json`, id `photo-2175`), `emptyMugshotGivesNull`, `emptyResultsGivesEmptyList` using the Task 1 fixtures.
 - [ ] **Step 2: Run** `gradle :geni:testDebugUnitTest --tests '*GeniPhotoTest*'`; expect FAIL (undefined).
 - [ ] **Step 3: Implement the signatures above in `GeniPhoto.kt` with Gson and the `rawResults` style of `GeniModels.kt`.**
 - [ ] **Step 4: Run the same command; expect PASS.**
@@ -66,9 +77,9 @@
 
 **Interfaces:**
 - Consumes: `GeniPhoto`, `parsePhotos` (Task 2), `GeniClient.post`, `getJson`.
-- Produces on `GeniClient`: `suspend fun photos(profileId: String): List<GeniPhoto>` (all pages, stops on a page that adds nothing, like `managedGuids`); `suspend fun photo(photoId: String): GeniPhoto`; `suspend fun addPhoto(profileId: String, fileName: String, title: String?, bytes: ByteArray, makeMain: Boolean): GeniPhoto`; `suspend fun deletePhoto(photoId: String)`; `suspend fun setMainPhoto(photoId: String)` only if Task 1 found a call (verify).
+- Produces on `GeniClient`: `suspend fun photos(profileId: String): List<GeniPhoto>` (all pages, stops on a page that adds nothing, like `managedGuids`); `suspend fun photo(photoId: String): GeniPhoto`; `suspend fun addPhoto(profileId: String, fileName: String, title: String?, bytes: ByteArray): GeniPhoto` (the first photo of a profile becomes its main one on Geni; no flag); `suspend fun deletePhoto(photoId: String)` (`POST photo-X/delete`). No `setMainPhoto`: Geni has no call for it.
 
-- [ ] **Step 1: Write failing tests with MockWebServer:** `photosReadsAllPages`, `photosStopsWhenPageAddsNothing`, `addPhotoSendsBase64FileNameAndTitle` (assert form keys `file`, `file_name`, `title` and that base64 decodes to the bytes), `deletePhotoPostsToPhotoDelete`, `photosPath404ThrowsGeniApiException`.
+- [ ] **Step 1: Write failing tests with MockWebServer:** `photosReadsAllPages` (pages until `results` is empty or a page adds no new ID), `photosStopsWhenPageAddsNothing`, `addPhotoSendsBase64FileNameAndTitle` (assert form keys `file`, `file_name`, `title` and that base64 decodes to the bytes), `deletePhotoPostsToPhotoDelete`, `photosPath404ThrowsGeniApiException`.
 - [ ] **Step 2: Run the class; expect FAIL.**
 - [ ] **Step 3: Implement the methods; reuse `post` for uploads (form POST with base64), no new HTTP stack.**
 - [ ] **Step 4: Run the class; expect PASS.**
@@ -80,7 +91,7 @@
 - Test: `geni/src/test/java/app/familygem/geni/api/PhotoDownloaderTest.kt`
 
 **Interfaces:**
-- Produces: `class PhotoDownloader(http: OkHttpClient = default, maxBytes: Long = 15_000_000)` with `suspend fun download(url: String, target: java.io.File): String` returning the content type. Writes to `target.name + ".part"` in the same folder and renames on success; throws `GeniApiException` for non-2xx, `IllegalArgumentException` for non-https (except localhost in tests via an `allowHttp` constructor flag), `IOException` for too large or non-image content type.
+- Produces: `class PhotoDownloader(http: OkHttpClient = default, maxBytes: Long = 15_000_000)` with `suspend fun download(url: String, target: java.io.File): String` returning the content type. Writes to `target.name + ".part"` in the same folder and renames on success; throws `GeniApiException` for non-2xx, `IllegalArgumentException` for non-https (except localhost in tests via an `allowHttp` constructor flag), `IOException` for too large or non-image content type. Photo URLs are signed and expire (about a day) and need no token.
 
 - [ ] **Step 1: Write failing tests:** `savesImageBytes`, `sendsNoAuthorizationHeader`, `rejectsHtmlContentType`, `stopsAtSizeCapAndLeavesNoFile`, `failedDownloadKeepsExistingTarget`, `refusesRedirects`.
 - [ ] **Step 2: Run the class; expect FAIL.**
@@ -111,18 +122,18 @@ Detailed steps are written when PR 1 is merged, from its findings. Deliverables:
 - Task 10: album entry on the person card of a Geni person (hook in upstream's profile media tab; list, tap to download, progress, failure message).
 - Task 11: "Keep offline" option "include photos" (setting, off by default) and PR 3.
 
-## PR 4: Upload (Tasks 12–15)
+## PR 4: Upload (Tasks 12–15; no set-main, Geni has no call for it)
 
-- Task 12: `ADD_PHOTO` and `SET_MAIN_PHOTO` job types in `UploadJob` and the Room queue (migration).
-- Task 13: `UploadPlanner` finds new `OBJE` on Geni persons without a link and queues `ADD_PHOTO` (default upload, local-only switch); scales the image before upload.
+- Task 12: `ADD_PHOTO` job type in `UploadJob` and the Room queue (migration).
+- Task 13: `UploadPlanner` finds new `OBJE` on Geni persons without a link and queues `ADD_PHOTO` (default upload, local-only switch; if the profile has no photo, the upload becomes its main one); scales the image before upload.
 - Task 14: `Uploader` runs the jobs, writes the returned photo ID into `photo_links`, handles the "response lost" case without duplicates.
-- Task 15: UI: switch to keep a photo local, "Use as main photo"; failed uploads appear in the account screen list; PR 4.
+- Task 15: UI: switch to keep a photo local, a note that the first photo becomes the main one; failed uploads appear in the account screen list; PR 4.
 
 ## PR 5: Delete and conflicts (Tasks 16–18)
 
 - Task 16: `DELETE_PHOTO` job, managed profiles only, confirmation dialog text, reuse of stage 5 rules.
 - Task 17: photos deleted on Geni leave the device (extend `PhotoSync` and `AlbumLoader`); local edits to a deleted photo go to the conflict list.
-- Task 18: main photo changed on both sides (Geni wins, local file stays in the album); roadmap, README progress log, memory update; PR 5.
+- Task 18: main photo changed on Geni (replace the local main file; the old one stays in the album); roadmap, README progress log, memory update; PR 5.
 
 ## Self-review notes
 

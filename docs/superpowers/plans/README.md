@@ -156,7 +156,7 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 - [ ] PR 1: photo API client (list, get, upload, delete, download) and sandbox check
 - [ ] PR 2: main photo read: shown on card and diagram, kept current on refresh
 - [ ] PR 3: album read: browse, on-demand download, "Keep offline" option
-- [ ] PR 4: upload: add photo, set main photo, offline queue and failure list
+- [ ] PR 4: upload: add photo (first one becomes main), offline queue and failure list
 - [ ] PR 5: delete on Geni (managed profiles), deletions from Geni, conflicts
 
 ## Other tasks
