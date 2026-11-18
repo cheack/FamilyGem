@@ -118,6 +118,8 @@ Plan: [2026-11-17-geni-4-refresh-conflicts.md](2026-11-17-geni-4-refresh-conflic
 - [ ] With Auto Save off, a removal or move changes links before the tree is saved; reconcile if the user discards it
 - [ ] Daily refresh while the app stays open for days on the same Wi-Fi: add a time-based trigger
 - [ ] A Wi-Fi trigger that arrives while the tree's daily pass is still finishing is dropped until the next trigger
+- [ ] Daily refresh time kept per tree ID: clear it when a tree is deleted, and do not save it if the root or depth changed during the pass
+- [ ] A family emptied by a removal keeps marriage or divorce edits not uploaded yet (compare with its union snapshot)
 
 ## 5. Upstream UI rules
 

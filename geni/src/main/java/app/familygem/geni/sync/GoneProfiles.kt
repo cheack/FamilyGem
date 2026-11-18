@@ -1,6 +1,7 @@
 package app.familygem.geni.sync
 
 import app.familygem.geni.map.ProfileFields
+import org.folg.gedcom.model.EventFact
 import org.folg.gedcom.model.Gedcom
 import org.folg.gedcom.model.Person
 
@@ -18,7 +19,7 @@ object GoneProfiles {
         val facts = person.eventsFacts.orEmpty()
         val localData = person.notes.orEmpty().isNotEmpty() || person.noteRefs.orEmpty().isNotEmpty() ||
                 person.sourceCitations.orEmpty().isNotEmpty() || person.media.orEmpty().isNotEmpty() || person.mediaRefs.orEmpty().isNotEmpty() ||
-                facts.any { it.notes.orEmpty().isNotEmpty() || it.noteRefs.orEmpty().isNotEmpty() || it.sourceCitations.orEmpty().isNotEmpty() } ||
+                facts.any(::hasAttachments) ||
                 facts.any { it.tag !in MAPPED_FACTS } || facts.groupBy { it.tag }.any { it.value.size > 1 } ||
                 // Geni's occupation has no date or place
                 facts.any { it.tag == "OCCU" && (!it.date.isNullOrBlank() || !it.place.isNullOrBlank()) } ||
@@ -48,11 +49,14 @@ object GoneProfiles {
                     family.sourceCitations.orEmpty().isNotEmpty() || family.media.orEmpty().isNotEmpty() || family.mediaRefs.orEmpty().isNotEmpty() ||
                     // Events Geni does not have (it has one marriage and one divorce), or with notes or sources
                     facts.any { it.tag != "MARR" && it.tag != "DIV" } || facts.groupBy { it.tag }.any { it.value.size > 1 } ||
-                    facts.any { it.notes.orEmpty().isNotEmpty() || it.noteRefs.orEmpty().isNotEmpty() || it.sourceCitations.orEmpty().isNotEmpty() }
+                    facts.any(::hasAttachments)
             if (members.all { it.ref == personId } && !ownData) emptied += family.id
         }
         gedcom.families = gedcom.families.orEmpty().filter { it.id !in emptied }.toMutableList()
         gedcom.createIndexes()
         return emptied
     }
+
+    private fun hasAttachments(fact: EventFact) = fact.notes.orEmpty().isNotEmpty() || fact.noteRefs.orEmpty().isNotEmpty() ||
+            fact.sourceCitations.orEmpty().isNotEmpty() || fact.media.orEmpty().isNotEmpty() || fact.mediaRefs.orEmpty().isNotEmpty()
 }

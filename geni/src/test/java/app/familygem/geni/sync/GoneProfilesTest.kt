@@ -99,4 +99,10 @@ class GoneProfilesTest {
         assertEquals(emptyList<String>(), GoneProfiles.remove(gedcom, "I1"))
         assertEquals(listOf("F1"), gedcom.families.map { it.id })
     }
+
+    @Test
+    fun mediaOnAFactIsLocalWork() {
+        val person = person("I1").apply { eventsFacts.single { it.tag == "OCCU" }.addMedia(org.folg.gedcom.model.Media().apply { file = "diploma.jpg" }) }
+        assertTrue(GoneProfiles.hasLocalWork(person, link))
+    }
 }
