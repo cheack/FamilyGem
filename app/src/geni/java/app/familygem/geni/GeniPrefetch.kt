@@ -25,6 +25,8 @@ object GeniPrefetch {
     private const val TAG = "GeniPrefetch"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutexes = mutableMapOf<Int, Mutex>()
+    /** Trees with a daily refresh queued or running. */
+    private val dailyRunning = mutableSetOf<Int>()
 
     /** Queues a prefetch after any other prefetch of the same tree. */
     fun enqueue(context: Context, treeId: Int, startGeniId: String, depth: Int) {
@@ -75,21 +77,28 @@ object GeniPrefetch {
                 for (tree in Geni.store(app).trees()) {
                     if (!withContext(Dispatchers.Main) { AppTreeHost.treeExists(tree.treeId) }) continue
                     val key = "tree${tree.treeId}"
-                    // Reserved before queueing, so a second trigger (app start and network) does not queue it again
-                    val previous = synchronized(this@GeniPrefetch) {
-                        val last = prefs.getLong(key, -1).takeIf { it >= 0 }
-                        if (!LoadPolicy.dailyRefreshDue(last, now, metered)) return@synchronized null
-                        prefs.edit().putLong(key, now).commit()
-                        last ?: -1L
-                    } ?: continue
+                    // Reserved in memory before queueing, so a second trigger (app start and network) does not queue it again;
+                    // the time is saved only after a complete pass, so a pass cut short (app closed, login needed,
+                    // metered network, failed loads) is due again at the next trigger
+                    val admitted = synchronized(dailyRunning) {
+                        tree.treeId !in dailyRunning &&
+                                LoadPolicy.dailyRefreshDue(prefs.getLong(key, -1).takeIf { it >= 0 }, now, metered) &&
+                                dailyRunning.add(tree.treeId)
+                    }
+                    if (!admitted) continue
                     Log.d(TAG, "Daily refresh of tree ${tree.treeId}")
                     queue(app, tree.treeId) {
-                        val info = Geni.store(it).tree(tree.treeId) ?: return@queue // The root may have moved meanwhile
-                        if (!run(it, info.treeId, info.rootGeniId, info.prefetchDepth, unmeteredOnly = true)) {
-                            // Login needed or the network became metered: due again at the next trigger
-                            synchronized(this@GeniPrefetch) {
-                                if (prefs.getLong(key, -1) == now) prefs.edit().putLong(key, previous).commit()
+                        try {
+                            val info = Geni.store(it).tree(tree.treeId) ?: return@queue // The root may have moved meanwhile
+                            if (run(it, info.treeId, info.rootGeniId, info.prefetchDepth, unmeteredOnly = true)) {
+                                prefs.edit().putLong(key, System.currentTimeMillis()).apply()
                             }
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Daily refresh of tree ${tree.treeId} failed", e)
+                        } finally {
+                            synchronized(dailyRunning) { dailyRunning.remove(tree.treeId) }
                         }
                     }
                 }

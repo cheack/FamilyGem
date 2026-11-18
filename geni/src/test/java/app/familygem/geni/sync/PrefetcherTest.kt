@@ -70,4 +70,19 @@ class PrefetcherTest {
         assertEquals(false, "father" in asked)
         assertEquals(1, loaded.count { it == "grandfather" } + loaded.count { it == "father" }) // The survivor is not loaded again
     }
+
+    @Test
+    fun failedLoadLeavesThePassIncomplete() = runTest {
+        val prefetcher = prefetcher(result = { if (it == "mother") LoadResult.Failed("503") else LoadResult.Loaded(0) })
+        prefetcher.run("root", depth = 3)
+        assertTrue("grandfather" in loaded) // The others are still visited
+        assertEquals(false, prefetcher.completed)
+    }
+
+    @Test
+    fun allFreshPassIsComplete() = runTest {
+        val prefetcher = prefetcher(fresh = graph.keys)
+        prefetcher.run("root", depth = 3)
+        assertEquals(true, prefetcher.completed)
+    }
 }

@@ -96,9 +96,10 @@ class ConflictResolver(
     private suspend fun resolveGone(job: UploadJob, link: GeniLink, keep: Boolean) {
         var emptied = emptyList<String>()
         host.edit(job.treeId) { gedcom ->
-            val person = gedcom.people.orEmpty().firstOrNull { it.id == link.gedcomId }
+            val same = gedcom.people.orEmpty().filter { it.id == link.gedcomId }
+            val person = same.firstOrNull()
             // The GEDCOM ID may have been given to another person meanwhile
-            check(person == null || GeniMapper.getGeniId(person) == link.geniId) { CHANGED }
+            check(same.size <= 1 && (person == null || GeniMapper.getGeniId(person) == link.geniId)) { CHANGED }
             if (!keep && person != null) emptied = GoneProfiles.remove(gedcom, link.gedcomId)
             queue.setLocal(job.treeId, LocalTree.capture(gedcom))
         }

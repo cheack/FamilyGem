@@ -19,7 +19,11 @@ object GoneProfiles {
         val localData = person.notes.orEmpty().isNotEmpty() || person.noteRefs.orEmpty().isNotEmpty() ||
                 person.sourceCitations.orEmpty().isNotEmpty() || person.media.orEmpty().isNotEmpty() || person.mediaRefs.orEmpty().isNotEmpty() ||
                 facts.any { it.notes.orEmpty().isNotEmpty() || it.noteRefs.orEmpty().isNotEmpty() || it.sourceCitations.orEmpty().isNotEmpty() } ||
-                facts.any { it.tag !in MAPPED_FACTS } || facts.groupBy { it.tag }.any { it.value.size > 1 }
+                facts.any { it.tag !in MAPPED_FACTS } || facts.groupBy { it.tag }.any { it.value.size > 1 } ||
+                // Geni's occupation has no date or place
+                facts.any { it.tag == "OCCU" && (!it.date.isNullOrBlank() || !it.place.isNullOrBlank()) } ||
+                // Geni has one main name and one birth name
+                person.names.orEmpty().partition { it.type == "birth" }.let { (birth, other) -> birth.size > 1 || other.size > 1 }
         if (localData) return true
         val local = ProfileFields.of(person)
         val snapshot = link.snapshot?.let { ProfileFields.ofSnapshot(it) }
@@ -28,7 +32,7 @@ object GoneProfiles {
 
     /**
      * Removes a person from the tree and from its families, and the families this left without anyone, unless they
-     * hold data of their own (notes, sources, media); returns the IDs of the removed families.
+     * hold data of their own (notes, sources, media, events Geni does not have); returns the IDs of the removed families.
      */
     fun remove(gedcom: Gedcom, personId: String): List<String> {
         gedcom.people = gedcom.people.orEmpty().filter { it.id != personId }.toMutableList()
@@ -39,8 +43,12 @@ object GoneProfiles {
             family.husbandRefs = family.husbandRefs.orEmpty().filter { it.ref != personId }.toMutableList()
             family.wifeRefs = family.wifeRefs.orEmpty().filter { it.ref != personId }.toMutableList()
             family.childRefs = family.childRefs.orEmpty().filter { it.ref != personId }.toMutableList()
+            val facts = family.eventsFacts.orEmpty()
             val ownData = family.notes.orEmpty().isNotEmpty() || family.noteRefs.orEmpty().isNotEmpty() ||
-                    family.sourceCitations.orEmpty().isNotEmpty() || family.media.orEmpty().isNotEmpty() || family.mediaRefs.orEmpty().isNotEmpty()
+                    family.sourceCitations.orEmpty().isNotEmpty() || family.media.orEmpty().isNotEmpty() || family.mediaRefs.orEmpty().isNotEmpty() ||
+                    // Events Geni does not have (it has one marriage and one divorce), or with notes or sources
+                    facts.any { it.tag != "MARR" && it.tag != "DIV" } || facts.groupBy { it.tag }.any { it.value.size > 1 } ||
+                    facts.any { it.notes.orEmpty().isNotEmpty() || it.noteRefs.orEmpty().isNotEmpty() || it.sourceCitations.orEmpty().isNotEmpty() }
             if (members.all { it.ref == personId } && !ownData) emptied += family.id
         }
         gedcom.families = gedcom.families.orEmpty().filter { it.id !in emptied }.toMutableList()

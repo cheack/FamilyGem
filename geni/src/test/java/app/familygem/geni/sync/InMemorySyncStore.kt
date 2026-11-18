@@ -8,6 +8,11 @@ open class InMemorySyncStore : SyncStore {
     override suspend fun saveTree(info: GeniTreeInfo) {
         trees[info.treeId] = info
     }
+    override suspend fun updateRoot(treeId: Int, oldRoot: String, newRoot: String): Boolean {
+        val tree = trees[treeId]?.takeIf { it.rootGeniId == oldRoot } ?: return false
+        trees[treeId] = tree.copy(rootGeniId = newRoot)
+        return true
+    }
     override suspend fun trees() = trees.values.toList()
     override suspend fun link(treeId: Int, geniId: String) = linkMap[treeId to geniId]
     override suspend fun links(treeId: Int) = linkMap.values.filter { it.treeId == treeId }

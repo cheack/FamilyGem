@@ -116,6 +116,8 @@ Plan: [2026-11-17-geni-4-refresh-conflicts.md](2026-11-17-geni-4-refresh-conflic
 - [ ] Resume a "deleted on Geni" resolution or a profile move interrupted between the tree save and the link writes
 - [ ] A deleted profile whose person has only local data (no upload job): offer the keep-or-remove choice too
 - [ ] With Auto Save off, a removal or move changes links before the tree is saved; reconcile if the user discards it
+- [ ] Daily refresh while the app stays open for days on the same Wi-Fi: add a time-based trigger
+- [ ] A Wi-Fi trigger that arrives while the tree's daily pass is still finishing is dropped until the next trigger
 
 ## 5. Upstream UI rules
 

@@ -14,13 +14,14 @@ class Prefetcher(
     private val isFresh: suspend (String) -> Boolean,
     private val mayLoad: suspend () -> Boolean = { true }
 ) {
-    /** False if the last [run] stopped before visiting everyone (login needed, not a Geni tree, [mayLoad] false). */
+    /** False if the last [run] stopped before visiting everyone (login needed, not a Geni tree, [mayLoad] false) or a load failed. */
     var completed = false
         private set
 
     /** @return Number of successful loads */
     suspend fun run(startGeniId: String, depth: Int): Int {
         completed = false
+        var failed = false
         var loads = 0
         val visited = mutableSetOf(startGeniId)
         var level = listOf(startGeniId)
@@ -37,7 +38,7 @@ class Prefetcher(
                             result.profileId?.takeIf { it != geniId }?.let { geniId = it; visited.add(it) }
                         }
                         LoadResult.NeedsLogin, LoadResult.NotAGeniTree -> return loads
-                        is LoadResult.Failed -> Unit // Skipped; its known relatives are still visited
+                        is LoadResult.Failed -> failed = true // Skipped; its known relatives are still visited
                         is LoadResult.Gone -> Unit
                     }
                 }
@@ -45,7 +46,7 @@ class Prefetcher(
             }
             level = next
         }
-        completed = true
+        completed = !failed
         return loads
     }
 }

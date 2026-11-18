@@ -202,4 +202,12 @@ class GeniLoaderTest {
         assertEquals(LoadResult.Loaded(newPeople = 0, profileId = "profile-7"), loader().load(treeId, "profile-9"))
         assertEquals(GeniTreeInfo(treeId, "profile-7", prefetchDepth = 2), store.tree(treeId))
     }
+
+    @Test
+    fun mergedRootDoesNotRecreateADeletedTreeRow() = runTest {
+        val treeId = goneTree(ninth.replace("}", ""","deleted":true,"merged_into":"https://api.sandbox.geni.com/profile-7"}"""), "profile-7")
+        store.trees.remove(treeId)
+        assertTrue(store.updateRoot(treeId, "profile-9", "profile-7").not())
+        assertEquals(null, store.tree(treeId))
+    }
 }

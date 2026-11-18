@@ -83,7 +83,7 @@ class GeniLoader(
         store.deleteLink(treeId, profile.id)
         if (action == GoneAction.MOVED) {
             store.saveLinks(listOf(GeniLink(treeId, survivor!!, link.gedcomId, false, null, null, 0)))
-            store.tree(treeId)?.takeIf { it.rootGeniId == profile.id }?.let { store.saveTree(it.copy(rootGeniId = survivor)) }
+            store.updateRoot(treeId, profile.id, survivor)
             return load(treeId, survivor)
         }
         emptied.forEach { family -> store.linkByGedcomId(treeId, family)?.let { store.deleteLink(treeId, it.geniId) } }

@@ -167,4 +167,15 @@ class ConflictResolverTest {
         assertEquals("Geni changed again meanwhile; open the conflict again", error?.message)
         assertEquals(listOf(person), host.trees.getValue(1).people)
     }
+
+    @Test
+    fun goneRemovalRefusesTwoPeopleWithTheSameId() = runTest {
+        val (resolver, job) = setUpConflict()
+        val other = Person().apply { id = "I1" }
+        host.trees.getValue(1).addPerson(other) // After the linked person
+        server.enqueue(ok(deleted))
+        val error = runCatching { resolver.resolve(job, keepMine = emptySet(), shown = setOf("GONE")) }.exceptionOrNull()
+        assertEquals("Geni changed again meanwhile; open the conflict again", error?.message)
+        assertEquals(listOf(person, other), host.trees.getValue(1).people)
+    }
 }
