@@ -1,6 +1,11 @@
 package app.familygem.geni.api
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
+import java.util.concurrent.TimeUnit
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import okhttp3.Headers
@@ -104,5 +109,23 @@ class PhotoDownloaderTest {
             PhotoDownloader().download("http://example.com/p.jpg", folder.root.resolve("g.jpg"))
         }.exceptionOrNull()
         assertTrue(error is IllegalArgumentException)
+    }
+
+    @Test
+    fun cancellationStopsDownloadAndKeepsTarget() = runBlocking {
+        server.enqueue(
+            MockResponse.Builder().code(200).addHeader("Content-Type", "image/jpeg")
+                .body(okio.Buffer().write(ByteArray(900)))
+                .throttleBody(10, 100, TimeUnit.MILLISECONDS).build()
+        )
+        val target = folder.newFile("h.jpg").also { it.writeText("old") }
+        val start = System.currentTimeMillis()
+        val job = launch(Dispatchers.Default) { downloader().download(server.url("/p").toString(), target) }
+        server.takeRequest()
+        Thread.sleep(300)
+        job.cancelAndJoin()
+        assertTrue(System.currentTimeMillis() - start < 5_000)
+        assertEquals("old", target.readText())
+        assertFalse(folder.root.resolve("h.jpg.part").exists())
     }
 }
