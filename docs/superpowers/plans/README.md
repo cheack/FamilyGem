@@ -143,6 +143,9 @@ Plan: [2026-11-18-geni-5-upstream-ui.md](2026-11-18-geni-5-upstream-ui.md)
 - [ ] Local removal after Geni confirmed a delete is best effort: a failure leaves the person on the device with the link dropped; persist a cleanup-only phase
 - [ ] With Auto Save off, "Remove from this device" drops links and jobs before the tree is saved; revert brings the person back unlinked
 - [ ] `onTreeDeleted` clears Room rows asynchronously: a tree created with a reused ID before it runs loses its rows
+- [ ] A concurrent reload after a GEDCOM ID edit can have its new link deleted by the removal (delete the link only if it is still the one read)
+- [ ] A removal with Auto Save on does not check that the file write succeeded before dropping links
+- [ ] The save hook of a removal can start the worker before a queued delete on Geni is cancelled
 - [ ] `enqueueDelete` and the removal of the waiting edit are not one transaction
 - [ ] Backup restore and GEDCOM export of a Geni tree not re-checked on the phone (by design they touch no Geni data)
 

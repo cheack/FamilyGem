@@ -1,5 +1,6 @@
 package app.familygem.geni.sync
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -77,7 +78,14 @@ class SyncQueue(
         } else store.saveJob(UploadJob(treeId = treeId, key = key, kind = JobKind.DELETE_PROFILE,
             geniId = geniId, params = emptyList(), label = label, localHash = 0))
         // Stored first, so a failure leaves the edit queued. An edit still waiting would fail once Geni has deleted the profile
-        store.jobs(treeId).firstOrNull { it.key == "profile:$geniId" }?.let { store.deleteJob(it.id) }
+        // The delete is stored: a failure here must not report the request as failed
+        try {
+            store.jobs(treeId).firstOrNull { it.key == "profile:$geniId" }?.let { store.deleteJob(it.id) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // The update would fail on Geni after the delete and show in the failed list
+        }
     }
 
     /** Called with the tree lock held. */

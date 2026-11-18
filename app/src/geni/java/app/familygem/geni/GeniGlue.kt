@@ -132,6 +132,7 @@ object GeniGlue {
                             owner.lifecycleScope.launch {
                                 try {
                                     if (withContext(Dispatchers.IO) { PersonRemoval(store, AppTreeHost).removeFromTree(treeId, geniId) }) onDone()
+                                    else Toast.makeText(context, R.string.geni_delete_failed, Toast.LENGTH_LONG).show()
                                 } catch (e: CancellationException) {
                                     throw e
                                 } catch (e: Exception) {
