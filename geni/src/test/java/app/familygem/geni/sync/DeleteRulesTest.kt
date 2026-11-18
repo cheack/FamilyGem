@@ -82,4 +82,35 @@ class DeleteRulesTest {
         PersonRemoval(store, host).removeFromTree(1, "profile-2")
         assertTrue(store.jobs(1).isEmpty())
     }
+
+    @Test
+    fun removeFromTreeFindsThePersonByGeniTagAfterAGedcomIdEdit() = runTest {
+        val host = FakeTreeHost().apply { trees[1] = Gedcom().apply { addPerson(person("I9", "profile-2")); addPerson(person("I1", "profile-1")) } }
+        val store = InMemorySyncStore()
+        store.saveLinks(listOf(GeniLink(1, "profile-2", "I2", true, null, "{}", 0))) // The link still has the old ID
+        assertTrue(PersonRemoval(store, host).removeFromTree(1, "profile-2"))
+        assertEquals(listOf("I1"), host.trees.getValue(1).people.map { it.id })
+        assertNull(store.link(1, "profile-2"))
+    }
+
+    @Test
+    fun removeFromTreeNeverRemovesTheRoot() = runTest {
+        val host = FakeTreeHost().apply { trees[1] = Gedcom().apply { addPerson(person("I1", "profile-1")) } }
+        val store = InMemorySyncStore()
+        store.saveTree(GeniTreeInfo(1, "profile-1"))
+        store.saveLinks(listOf(GeniLink(1, "profile-1", "I1", true, null, "{}", 0)))
+        assertFalse(PersonRemoval(store, host).removeFromTree(1, "profile-1"))
+        assertEquals(1, host.trees.getValue(1).people.size)
+    }
+
+    @Test
+    fun removeFromTreeCancelsAQueuedDeleteOnGeni() = runTest {
+        val host = FakeTreeHost().apply { trees[1] = Gedcom().apply { addPerson(person("I2", "profile-2")) } }
+        val store = InMemorySyncStore()
+        store.saveLinks(listOf(GeniLink(1, "profile-2", "I2", true, null, "{}", 0)))
+        store.saveJob(UploadJob(treeId = 1, key = "delete:profile-2", kind = JobKind.DELETE_PROFILE, geniId = "profile-2",
+            params = emptyList(), label = "x", localHash = 0))
+        PersonRemoval(store, host).removeFromTree(1, "profile-2")
+        assertTrue(store.jobs(1).isEmpty())
+    }
 }

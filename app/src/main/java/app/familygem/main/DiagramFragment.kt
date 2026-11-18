@@ -806,7 +806,7 @@ class DiagramFragment : BaseFragment(R.layout.diagram_fragment) {
             TreeUtil.save(true, *modifiedArray)
             refreshAll()
         } else if (id == 7) { // Delete
-            if (app.familygem.geni.GeniGlue.handleDelete(context(), person) { refreshAll() }) return true // GENI-HOOK
+            if (app.familygem.geni.GeniGlue.handleDelete(context(), person) { if (isAdded) refreshAll() }) return true // GENI-HOOK
             confirmDelete(context()) {
                 val families = person.delete()
                 refreshAll()

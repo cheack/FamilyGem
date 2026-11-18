@@ -2,27 +2,37 @@ package app.familygem.geni.sync
 
 import app.familygem.geni.TreeHost
 import app.familygem.geni.map.GeniMapper
+import org.folg.gedcom.model.Gedcom
+import org.folg.gedcom.model.Person
 
 /** Takes a person out of a Geni tree on this device only; nothing is sent to Geni. */
 class PersonRemoval(private val store: SyncStore, private val host: TreeHost) {
 
     /**
-     * Removes the person of [geniId], and the families this leaves empty, from the tree and drops their links.
-     * @return false if the tree has no such person
+     * Removes the person of [geniId], and the families this leaves empty, from the tree and drops their links
+     * and waiting jobs (an edit, or a queued delete on Geni: the user chose this device only). The root is never removed.
+     * @return false if the tree has no such person, or it is the root
      */
     suspend fun removeFromTree(treeId: Int, geniId: String): Boolean {
+        if (store.tree(treeId)?.rootGeniId == geniId) return false
         val link = store.link(treeId, geniId) ?: return false
         var emptied: List<String>? = null
         host.edit(treeId) { gedcom ->
-            val person = gedcom.people.orEmpty().firstOrNull { it.id == link.gedcomId && GeniMapper.getGeniId(it) == geniId }
+            val person = find(gedcom, link.gedcomId, geniId)
             if (person != null) emptied = GoneProfiles.remove(gedcom, person.id)
         }
         val families = emptied ?: return false
         store.deleteLink(treeId, geniId)
-        // An edit still waiting must not reach Geni: this person is gone from the device
-        store.jobs(treeId).filter { it.key == "profile:$geniId" }.forEach { store.deleteJob(it.id) }
         families.forEach { family -> store.linkByGedcomId(treeId, family)?.let { store.deleteLink(treeId, it.geniId) } }
+        store.jobs(treeId).filter { it.key == "profile:$geniId" || it.key == "delete:$geniId" }.forEach { store.deleteJob(it.id) }
         host.refreshScreens()
         return true
+    }
+
+    /** The person under the linked GEDCOM ID, or, if the ID was edited since, the only person with this Geni tag. */
+    private fun find(gedcom: Gedcom, gedcomId: String, geniId: String): Person? {
+        val people = gedcom.people.orEmpty()
+        people.firstOrNull { it.id == gedcomId && GeniMapper.getGeniId(it) == geniId }?.let { return it }
+        return people.filter { GeniMapper.getGeniId(it) == geniId }.singleOrNull()
     }
 }

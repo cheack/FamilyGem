@@ -51,4 +51,5 @@
     <string name="geni_delete_geni">Delete on Geni</string>
     <string name="geni_delete_confirm">The profile is deleted on Geni for everyone who shares this tree: relatives and other family members will no longer see it. This cannot be undone here. It is removed from this device once Geni has deleted it.</string>
     <string name="geni_delete_queued">Deletion on Geni is queued</string>
+    <string name="geni_delete_failed">The change could not be saved. Try again.</string>
 </resources>

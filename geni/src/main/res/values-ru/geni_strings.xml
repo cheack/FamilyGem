@@ -51,4 +51,5 @@
     <string name="geni_delete_geni">Удалить на Geni</string>
     <string name="geni_delete_confirm">Профиль будет удалён на Geni для всех, кто делит это дерево: родственники и другие члены семьи его больше не увидят. Отменить это отсюда нельзя. С этого устройства он исчезнет, когда Geni его удалит.</string>
     <string name="geni_delete_queued">Удаление на Geni поставлено в очередь</string>
+    <string name="geni_delete_failed">Не удалось сохранить изменение. Попробуйте ещё раз.</string>
 </resources>

@@ -1271,11 +1271,7 @@ public abstract class DetailActivity extends BaseActivity {
                 findAnotherRepresentativeOfTheFamily(person);
                 break;
             case 23: // Delete family member
-                if (app.familygem.geni.GeniGlue.INSTANCE.handleDelete(this, person, () -> { // GENI-HOOK
-                    findAnotherRepresentativeOfTheFamily(person);
-                    refresh();
-                    return Unit.INSTANCE;
-                })) return true;
+                if (app.familygem.geni.GeniGlue.INSTANCE.handleDelete(this, person, () -> { findAnotherRepresentativeOfTheFamily(person); refresh(); return Unit.INSTANCE; })) return true; // GENI-HOOK
                 Util.INSTANCE.confirmDelete(this, () -> {
                     PersonUtilKt.delete(person);
                     findAnotherRepresentativeOfTheFamily(person);

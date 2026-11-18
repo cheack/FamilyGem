@@ -137,6 +137,13 @@ Plan: [2026-11-18-geni-5-upstream-ui.md](2026-11-18-geni-5-upstream-ui.md)
 - [ ] A person removed from this device returns as an edge person when a relative is loaded (a removed-marker would need a Room migration)
 - [ ] "Remove from this device" and the not-managed / offline dialogs are covered by unit tests only, not checked on the phone
 - [ ] An edit of a profile made after "Delete on Geni" was queued is not dropped from the queue (only an update already waiting is)
+- [ ] `GeniGlue` reads the Geni tree IDs with a blocking Room read on the first hook (main thread), and a failed read leaves hooks treating Geni trees as local until the next hook; use an explicit unknown state
+- [ ] A delete queued under one Geni account can be sent under another after a login change: record the confirming account on the job
+- [ ] A family refresh started before a delete can restore the profile after the local cleanup: keep a record of confirmed deletions for the loader
+- [ ] Local removal after Geni confirmed a delete is best effort: a failure leaves the person on the device with the link dropped; persist a cleanup-only phase
+- [ ] With Auto Save off, "Remove from this device" drops links and jobs before the tree is saved; revert brings the person back unlinked
+- [ ] `onTreeDeleted` clears Room rows asynchronously: a tree created with a reused ID before it runs loses its rows
+- [ ] `enqueueDelete` and the removal of the waiting edit are not one transaction
 - [ ] Backup restore and GEDCOM export of a Geni tree not re-checked on the phone (by design they touch no Geni data)
 
 ## Other tasks

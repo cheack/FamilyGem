@@ -525,7 +525,7 @@ class PersonsFragment : BaseFragment() {
             }
             5 -> U.editId(context, person) { adapter.notifyDataSetChanged() } // Edit ID
             6 -> { // Delete person
-                if (app.familygem.geni.GeniGlue.handleDelete(requireContext(), person) { (requireActivity() as MainActivity).refreshInterface() }) return true // GENI-HOOK
+                if (app.familygem.geni.GeniGlue.handleDelete(requireContext(), person) { if (isAdded) (requireActivity() as MainActivity).refreshInterface() }) return true // GENI-HOOK
                 Util.confirmDelete(requireContext()) {
                     val families = person.delete()
                     if (prepareJob?.isCompleted == true) {

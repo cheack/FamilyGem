@@ -380,7 +380,7 @@ class RelativesFragment : BaseFragment() {
                 U.deleteEmptyFamilies(context, { this.refresh() }, false, family)
             }
             316 -> { // Delete
-                if (app.familygem.geni.GeniGlue.handleDelete(requireContext(), selected) { refresh() }) return true // GENI-HOOK
+                if (app.familygem.geni.GeniGlue.handleDelete(requireContext(), selected) { if (isAdded) refresh() }) return true // GENI-HOOK
                 Util.confirmDelete(requireContext()) {
                     selected.delete()
                     refresh()

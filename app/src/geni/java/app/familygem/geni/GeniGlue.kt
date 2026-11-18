@@ -130,7 +130,14 @@ object GeniGlue {
                         })
                         .setPositiveButton(R.string.geni_delete_local) { _, _ ->
                             owner.lifecycleScope.launch {
-                                if (withContext(Dispatchers.IO) { PersonRemoval(store, AppTreeHost).removeFromTree(treeId, geniId) }) onDone()
+                                try {
+                                    if (withContext(Dispatchers.IO) { PersonRemoval(store, AppTreeHost).removeFromTree(treeId, geniId) }) onDone()
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    Log.e("GeniSync", "Removing $geniId from tree $treeId failed", e)
+                                    Toast.makeText(context, R.string.geni_delete_failed, Toast.LENGTH_LONG).show()
+                                }
                             }
                         }
                         .setNegativeButton(android.R.string.cancel, null)
@@ -146,10 +153,20 @@ object GeniGlue {
         AlertDialog.Builder(context).setTitle(name).setMessage(R.string.geni_delete_confirm)
             .setPositiveButton(R.string.geni_delete_geni) { _, _ ->
                 scope.launch {
-                    Geni.queue(context).enqueueDelete(treeId, geniId, name)
-                    GeniSync.kick(context, treeId)
+                    val queued = try {
+                        Geni.queue(context).enqueueDelete(treeId, geniId, name)
+                        true
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.e("GeniSync", "Queueing the delete of $geniId failed", e)
+                        false
+                    }
+                    if (queued) GeniSync.kick(context, treeId)
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, if (queued) R.string.geni_delete_queued else R.string.geni_delete_failed, Toast.LENGTH_LONG).show()
+                    }
                 }
-                Toast.makeText(context, R.string.geni_delete_queued, Toast.LENGTH_LONG).show()
             }
             .setNegativeButton(android.R.string.cancel, null).show()
     }
