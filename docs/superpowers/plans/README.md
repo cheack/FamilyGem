@@ -100,13 +100,13 @@ Moved out of stage 3: photo upload goes with "Show Geni profile photos" (stage 2
 
 Plan: [2026-11-17-geni-4-refresh-conflicts.md](2026-11-17-geni-4-refresh-conflicts.md)
 
-- [ ] Refresh on open: fetch current Geni version, update cache and snapshot when nothing is pending
-- [ ] Daily refresh of radius N on an unmetered network
-- [ ] Refresh updates only Geni-mapped fields; local-only data is kept
-- [ ] Conflict check before upload using `updated_at`; paused job when someone else changed the profile
-- [ ] Conflict screen: both versions, choice per field (based on `share/CompareActivity`)
-- [ ] Merged profiles (`merged_into`): remap to the surviving ID
-- [ ] Deleted or hidden profiles: removed from the cache unless they have pending changes; otherwise the user decides
+- [x] Refresh on open: fetch current Geni version, update cache and snapshot when nothing is pending
+- [x] Daily refresh of radius N on an unmetered network
+- [x] Refresh updates only Geni-mapped fields; local-only data is kept
+- [x] Conflict check before upload using `updated_at`; paused job when someone else changed the profile
+- [x] Conflict screen: both versions, choice per field (based on `share/CompareActivity`)
+- [x] Merged profiles (`merged_into`): remap to the surviving ID
+- [x] Deleted or hidden profiles: removed from the cache unless they have pending changes; otherwise the user decides
 
 ## 5. Upstream UI rules
 
@@ -133,6 +133,7 @@ Plan: not written yet.
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
+- 2026-11-18: Refresh and conflicts, part 3 (PR [#6](https://github.com/cheack/Treekin/pull/6)): Geni trees refresh daily on Wi-Fi and an open card re-checks Geni after an hour; profiles deleted on Geni leave the device unless edited locally (then the user chooses), merged profiles move to the survivor. Stage 4 done.
 - 2026-11-17: Refresh and conflicts, part 2 (PR [#5](https://github.com/cheack/Treekin/pull/5)): the Geni account screen lists conflicts; for each field the user keeps their value or takes Geni's, and only kept values are uploaded.
 - 2026-11-17: Refresh and conflicts, part 1 (PR [#4](https://github.com/cheack/Treekin/pull/4)): a load from Geni no longer overwrites an edit waiting for upload, and an upload no longer overwrites what someone changed on Geni meanwhile (other fields are merged, the same field stops as a conflict).
 - 2026-11-17: Write path, part 3 (PR [#3](https://github.com/cheack/Treekin/pull/3)): edits of a Geni tree are uploaded after each save, offline changes wait for the network, and the Geni account screen shows waiting and failed changes. Stage 3 done.

@@ -148,6 +148,6 @@
 
 ### Task 10: Phone check and PR 3
 
-- [ ] On the phone over adb: daily refresh log line, merged and deleted cases from Step 1 reach the app.
-- [ ] Findings in the spec; stage 4 ticked in the roadmap; progress log lines for the merged PRs.
-- [ ] Push `geni-refresh-3`, PR, CodeRabbit, merge.
+- [x] On the phone over adb: daily refresh log line, merged and deleted cases from Step 1 reach the app (deleted case checked on the phone; merged case covered by unit tests and the sandbox exploration).
+- [x] Findings in the spec; stage 4 ticked in the roadmap; progress log lines for the merged PRs.
+- [x] Push `geni-refresh-3`, PR, CodeRabbit, merge.
