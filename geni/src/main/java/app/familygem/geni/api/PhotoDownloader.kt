@@ -7,6 +7,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.Authenticator
 import okhttp3.Call
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
@@ -19,6 +20,11 @@ import kotlin.coroutines.coroutineContext
 /**
  * Downloads a photo file from a signed (expiring) Geni CDN URL.
  * It needs no token: uses its own client without auth, and never follows redirects.
+ *
+ * @param http base client (connection pool, dispatcher, timeouts, TLS are kept). Its interceptors,
+ * network interceptors and authenticators are dropped, so no credential it would add (like the
+ * Geni bearer token) can reach the photo host.
+ * @param allowHttp permits plain http, but only to loopback hosts (for tests).
  */
 class PhotoDownloader(
     http: OkHttpClient = OkHttpClient(),
@@ -30,13 +36,19 @@ class PhotoDownloader(
     private val http: OkHttpClient = http.newBuilder()
         .followRedirects(false)
         .followSslRedirects(false)
+        .apply {
+            interceptors().clear()
+            networkInterceptors().clear()
+        }
+        .authenticator(Authenticator.NONE)
+        .proxyAuthenticator(Authenticator.NONE)
         .callTimeout(2, TimeUnit.MINUTES)
         .build()
 
     /** Saves the photo to [target] and returns its content type. */
     suspend fun download(url: String, target: File): String = withContext(Dispatchers.IO) {
         val httpUrl = url.toHttpUrlOrNull() ?: throw IllegalArgumentException("Invalid photo URL")
-        require(httpUrl.isHttps || allowHttp) { "Photo URL must be https" }
+        require(httpUrl.isHttps || (allowHttp && httpUrl.host in LOOPBACK_HOSTS)) { "Photo URL must be https" }
         val call = http.newCall(Request.Builder().url(httpUrl).get().build())
         // Unique staging file, so concurrent downloads to one target never touch each other's data
         val part = File.createTempFile(target.name + ".", ".part", target.absoluteFile.parentFile)
@@ -96,5 +108,9 @@ class PhotoDownloader(
             if (!part.renameTo(target)) throw IOException("Cannot save ${target.name}")
             type
         }
+    }
+
+    private companion object {
+        val LOOPBACK_HOSTS = setOf("localhost", "127.0.0.1", "::1")
     }
 }

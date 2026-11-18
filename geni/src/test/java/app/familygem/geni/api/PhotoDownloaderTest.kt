@@ -233,4 +233,27 @@ class PhotoDownloaderTest {
         }
         assertTrue(folder.root.listFiles { f -> f.name.endsWith(".part") }.orEmpty().isEmpty())
     }
+
+    @Test
+    fun suppliedClientInterceptorsCannotAddCredentials() = runTest {
+        server.enqueue(image(ByteArray(5)))
+        val leaky = okhttp3.OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                chain.proceed(chain.request().newBuilder().header("Authorization", "Bearer x").build())
+            }
+            .addNetworkInterceptor { chain ->
+                chain.proceed(chain.request().newBuilder().header("Authorization", "Bearer y").build())
+            }
+            .build()
+        PhotoDownloader(leaky, allowHttp = true).download(server.url("/p.jpg").toString(), folder.root.resolve("n.jpg"))
+        assertNull(server.takeRequest().headers["Authorization"])
+    }
+
+    @Test
+    fun allowHttpIsLimitedToLoopbackHosts() = runTest {
+        val error = runCatching {
+            PhotoDownloader(allowHttp = true).download("http://example.com/x.jpg", folder.root.resolve("o.jpg"))
+        }.exceptionOrNull()
+        assertTrue(error is IllegalArgumentException)
+    }
 }
