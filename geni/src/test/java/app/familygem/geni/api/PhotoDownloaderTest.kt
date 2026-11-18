@@ -203,10 +203,34 @@ class PhotoDownloaderTest {
     }
 
     @Test
-    fun failedDownloadDoesNotDeleteAnotherDownloadsStagingFile() = runTest {
-        val other = folder.root.resolve("m.jpg.other.part").also { it.writeText("in progress") }
-        server.enqueue(MockResponse.Builder().code(404).body("nope").build())
-        runCatching { downloader().download(server.url("/p").toString(), folder.root.resolve("m.jpg")) }
-        assertTrue(other.exists())
+    fun failedDownloadDoesNotDeleteAnotherDownloadsStagingFile() = runBlocking {
+        val target = folder.root.resolve("m.jpg")
+        // First download stalls after the first body byte; second one, to the SAME target, gets a 404
+        server.enqueue(
+            MockResponse.Builder().code(200).addHeader("Content-Type", "image/jpeg")
+                .body(okio.Buffer().write(ByteArray(900) { 7 }))
+                .throttleBody(1, 60, TimeUnit.SECONDS).build()
+        )
+        val first = launch(Dispatchers.Default) { downloader().download(server.url("/p").toString(), target) }
+        try {
+            assertNotNull("download never reached the server", server.takeRequest(5, TimeUnit.SECONDS))
+            val deadline = System.currentTimeMillis() + 5_000
+            fun staged() = folder.root.listFiles { f -> f.name.endsWith(".part") && f.length() > 0 }.orEmpty()
+            while (staged().isEmpty()) {
+                assertTrue("body never started", System.currentTimeMillis() < deadline)
+                Thread.sleep(20)
+            }
+            val firstPart = staged().single()
+            val firstBytes = firstPart.readBytes()
+
+            server.enqueue(MockResponse.Builder().code(404).body("nope").build())
+            val error = runCatching { downloader().download(server.url("/q").toString(), target) }.exceptionOrNull()
+            assertTrue(error is GeniApiException)
+            assertTrue("first staging file was deleted", firstPart.exists())
+            assertArrayEquals(firstBytes, firstPart.readBytes())
+        } finally {
+            first.cancelAndJoin()
+        }
+        assertTrue(folder.root.listFiles { f -> f.name.endsWith(".part") }.orEmpty().isEmpty())
     }
 }

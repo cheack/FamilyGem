@@ -136,7 +136,10 @@ class GeniClient(
      * Repeated keys are allowed; an empty value clears the field on Geni.
      */
     suspend fun post(path: String, params: List<Pair<String, String>>): String {
-        val form = FormBody.Builder().apply { params.forEach { (key, value) -> add(key, value) } }.build()
+        // add() canonicalizes every value, which is slow for a big base64 photo: keep it off the caller's thread
+        val form = withContext(Dispatchers.IO) {
+            FormBody.Builder().apply { params.forEach { (key, value) -> add(key, value) } }.build()
+        }
         return execute(Request.Builder().url(apiUrl(path)).post(form))
     }
 

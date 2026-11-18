@@ -37,9 +37,9 @@ class PhotoDownloader(
     suspend fun download(url: String, target: File): String = withContext(Dispatchers.IO) {
         val httpUrl = url.toHttpUrlOrNull() ?: throw IllegalArgumentException("Invalid photo URL")
         require(httpUrl.isHttps || allowHttp) { "Photo URL must be https" }
+        val call = http.newCall(Request.Builder().url(httpUrl).get().build())
         // Unique staging file, so concurrent downloads to one target never touch each other's data
         val part = File.createTempFile(target.name + ".", ".part", target.absoluteFile.parentFile)
-        val call = http.newCall(Request.Builder().url(httpUrl).get().build())
         try {
             coroutineScope {
                 // execute() and source.read() block their thread and ignore coroutine cancellation.
