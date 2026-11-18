@@ -5,7 +5,7 @@ Date: 2026-11-18. Extends [the sync design](2026-11-16-geni-sync-design.md). Roa
 ## Intent
 
 A Geni tree in Treekin shows the photos people have on Geni, and photos added or removed in the app reach Geni.
-The user wants all of it: see the main photo, browse a person's album, add photos, set the main photo, delete photos.
+The user wants all of it: see the main photo, browse a person's album, add photos, delete photos. Setting an existing photo as the main one is not possible: Geni has no such call.
 Photos are the last missing everyday Geni feature, and the user's own memories live in them.
 
 ## Goals
@@ -80,7 +80,7 @@ Only media with a `photo_links` row or one the user explicitly sends to Geni is 
 
 ### Split into PRs
 
-1. **API client:** sandbox check; `GeniPhoto` model; client methods (list, get, upload, delete, set main); photo download helper with host rule; unit tests with fixtures. No user-visible change.
+1. **API client:** sandbox check; `GeniPhoto` model; client methods (list, get, upload, delete); photo download helper with host rule; unit tests with fixtures. No user-visible change.
 2. **Main photo, read:** `photo_links` table and migration; mapper adds the main photo; download; card and diagram show it; refresh keeps it current.
 3. **Album, read:** album list and viewer; on-demand download; "Keep offline" option.
 4. **Upload:** `ADD_PHOTO` job; planner; UI to add or keep local; failure display.

@@ -36,7 +36,7 @@
 - Delete: `POST photo-X/delete` → `{"result":"Deleted"}`; deleting the main photo leaves the profile with none. `POST photo-X/update` with `title` works.
 - Setting an existing photo as main: no call found (`mugshot_id` on `profile-X/update`, `photo-X/set-mugshot`, `profile-X/add-mugshot`, `photo-X/make-main`, `photo-X/set-main` all do nothing). So `SET_MAIN_PHOTO` is dropped from the plan; `addPhoto` has no `makeMain` flag.
 
-Fixtures: `geni/src/test/resources/geni/photo-list.json`, `photo-single.json`, `photo-upload-response.json`, `profile-mugshot.json`.
+Fixtures: `geni/src/test/resources/geni/photo-list.json`, `photo-single.json`, `profile-mugshot.json` (real responses, URL signatures replaced) and `photo-upload-response.json` (an edited copy of `photo-single.json` with the id and title changed: the real upload response has the same shape).
 
 ## PR 1: API client (Tasks 1–4)
 
@@ -64,10 +64,10 @@ Fixtures: `geni/src/test/resources/geni/photo-list.json`, `photo-single.json`, `
 **Interfaces:**
 - Produces: `data class GeniPhoto(val id: String, val title: String?, val contentType: String?, val urls: Map<String, String>, val updatedAt: String?, val albumId: String?)` where `urls` holds the size URLs only (the `url` key is not one); `fun urlFor(vararg preferred: String): String?` returning the URL of the first size name present (names: `thumb`, `small`, `medium`, `large`, `original`), else null; `fun parsePhoto(json: String): GeniPhoto` (a single photo or an upload response); `fun parsePhotos(json: String): List<GeniPhoto>` (`results` array, empty when missing); `fun mugshotToPhoto(profile: GeniProfile): GeniPhoto?` (main photo: `id` = `geniId(mugshotUrls["url"])`, `urls` = the other entries; null when `mugshotUrls` is null, empty or has no `url`).
 
-- [ ] **Step 1: Write failing tests** `parsesAlbumFixture`, `parsesAlbumFixture` (2 photos, ids `photo-2176`, `photo-2175`), `parsesUploadResponse`, `urlForPicksFirstPresentName`, `mugshotGivesPhotoIdFromUrlKey` (from `profile-mugshot.json`, id `photo-2175`), `emptyMugshotGivesNull`, `emptyResultsGivesEmptyList` using the Task 1 fixtures.
-- [ ] **Step 2: Run** `gradle :geni:testDebugUnitTest --tests '*GeniPhotoTest*'`; expect FAIL (undefined).
-- [ ] **Step 3: Implement the signatures above in `GeniPhoto.kt` with Gson and the `rawResults` style of `GeniModels.kt`.**
-- [ ] **Step 4: Run the same command; expect PASS.**
+- [x] **Step 1: Write failing tests** `parsesAlbumFixture`, `parsesAlbumFixture` (2 photos, ids `photo-2176`, `photo-2175`), `parsesUploadResponse`, `urlForPicksFirstPresentName`, `mugshotGivesPhotoIdFromUrlKey` (from `profile-mugshot.json`, id `photo-2175`), `emptyMugshotGivesNull`, `emptyResultsGivesEmptyList` using the Task 1 fixtures.
+- [x] **Step 2: Run** `gradle :geni:testDebugUnitTest --tests '*GeniPhotoTest*'`; expect FAIL (undefined).
+- [x] **Step 3: Implement the signatures above in `GeniPhoto.kt` with Gson and the `rawResults` style of `GeniModels.kt`.**
+- [x] **Step 4: Run the same command; expect PASS.**
 
 ### Task 3: Client methods for photos
 
@@ -79,10 +79,10 @@ Fixtures: `geni/src/test/resources/geni/photo-list.json`, `photo-single.json`, `
 - Consumes: `GeniPhoto`, `parsePhotos` (Task 2), `GeniClient.post`, `getJson`.
 - Produces on `GeniClient`: `suspend fun photos(profileId: String): List<GeniPhoto>` (all pages, stops on a page that adds nothing, like `managedGuids`); `suspend fun photo(photoId: String): GeniPhoto`; `suspend fun addPhoto(profileId: String, fileName: String, title: String?, bytes: ByteArray): GeniPhoto` (the first photo of a profile becomes its main one on Geni; no flag); `suspend fun deletePhoto(photoId: String)` (`POST photo-X/delete`). No `setMainPhoto`: Geni has no call for it.
 
-- [ ] **Step 1: Write failing tests with MockWebServer:** `photosReadsAllPages` (pages until `results` is empty or a page adds no new ID), `photosStopsWhenPageAddsNothing`, `addPhotoSendsBase64FileNameAndTitle` (assert form keys `file`, `file_name`, `title` and that base64 decodes to the bytes), `deletePhotoPostsToPhotoDelete`, `photosPath404ThrowsGeniApiException`.
-- [ ] **Step 2: Run the class; expect FAIL.**
-- [ ] **Step 3: Implement the methods; reuse `post` for uploads (form POST with base64), no new HTTP stack.**
-- [ ] **Step 4: Run the class; expect PASS.**
+- [x] **Step 1: Write failing tests with MockWebServer:** `photosReadsAllPages` (pages until `results` is empty or a page adds no new ID), `photosStopsWhenPageAddsNothing`, `addPhotoSendsBase64FileNameAndTitle` (assert form keys `file`, `file_name`, `title` and that base64 decodes to the bytes), `deletePhotoPostsToPhotoDelete`, `photosPath404ThrowsGeniApiException`.
+- [x] **Step 2: Run the class; expect FAIL.**
+- [x] **Step 3: Implement the methods; reuse `post` for uploads (form POST with base64), no new HTTP stack.**
+- [x] **Step 4: Run the class; expect PASS.**
 
 ### Task 4: Photo downloader
 
@@ -93,10 +93,10 @@ Fixtures: `geni/src/test/resources/geni/photo-list.json`, `photo-single.json`, `
 **Interfaces:**
 - Produces: `class PhotoDownloader(http: OkHttpClient = default, maxBytes: Long = 15_000_000)` with `suspend fun download(url: String, target: java.io.File): String` returning the content type. Writes to `target.name + ".part"` in the same folder and renames on success; throws `GeniApiException` for non-2xx, `IllegalArgumentException` for non-https (except localhost in tests via an `allowHttp` constructor flag), `IOException` for too large or non-image content type. Photo URLs are signed and expire (about a day) and need no token.
 
-- [ ] **Step 1: Write failing tests:** `savesImageBytes`, `sendsNoAuthorizationHeader`, `rejectsHtmlContentType`, `stopsAtSizeCapAndLeavesNoFile`, `failedDownloadKeepsExistingTarget`, `refusesRedirects`.
-- [ ] **Step 2: Run the class; expect FAIL.**
-- [ ] **Step 3: Implement with its own OkHttp client (no redirects, no auth interceptor), streaming copy that counts bytes; delete the `.part` file on any failure.**
-- [ ] **Step 4: Run the class and the whole `:geni` unit suite; expect PASS.**
+- [x] **Step 1: Write failing tests:** `savesImageBytes`, `sendsNoAuthorizationHeader`, `rejectsHtmlContentType`, `stopsAtSizeCapAndLeavesNoFile`, `failedDownloadKeepsExistingTarget`, `refusesRedirects`.
+- [x] **Step 2: Run the class; expect FAIL.**
+- [x] **Step 3: Implement with its own OkHttp client (no redirects, no auth interceptor), streaming copy that counts bytes; delete the `.part` file on any failure.**
+- [x] **Step 4: Run the class and the whole `:geni` unit suite; expect PASS.**
 - [ ] **Step 5: Tick Task 1–4 here, add the PR's roadmap line, open PR 1 (ask the user before commit and push).**
 
 ## PR 2: Main photo, read (Tasks 5–8)
@@ -107,7 +107,8 @@ Detailed steps are written when PR 1 is merged, from its findings. Deliverables:
 - Create `PhotoLinkEntity` and `PhotoLinkDao` in `geni/.../sync` next to the other Room classes; add to `SyncStore` and `RoomSyncStore` (`photoLinks(treeId)`, `savePhotoLink`, `deletePhotoLink`); migration test.
 
 ### Task 6: Mapping the main photo into the tree
-- `PhotoSync` in `geni/.../sync/PhotoSync.kt`: given a loaded profile, compare its `mugshotToPhoto` with the link (by photo ID and `updatedAt`), download when new or changed, create or replace the `OBJE` through `LocalTree`, set `_GENI_PHOTO_ID`; remove it when Geni has no photo and the link is not pending.
+- Note from the PR 1 review: `mugshotToPhoto` has no `updatedAt` and signed URLs change daily, so detect a changed photo by photo ID (or the URL path without its query), never by the full URL. Check the downloaded bytes are an image (magic bytes or decode) before creating the media entry. Download one photo per target file at a time (the `.part` name is shared).
+- `PhotoSync` in `geni/.../sync/PhotoSync.kt`: given a loaded profile, compare its `mugshotToPhoto` with the link (by photo ID, see the note above), download when new or changed, create or replace the `OBJE` through `LocalTree`, set `_GENI_PHOTO_ID`; remove it when Geni has no photo and the link is not pending.
 - Tests with `FakeTreeHost` and a fake downloader: new photo, unchanged photo not re-downloaded, changed photo replaced, photo gone, failed download keeps the old file.
 
 ### Task 7: Loader and refresh hooks
@@ -137,5 +138,5 @@ Detailed steps are written when PR 1 is merged, from its findings. Deliverables:
 
 ## Self-review notes
 
-- Spec coverage: read main, album, offline, upload, set main, delete, conflicts, local-only rule, token rule: all have tasks. "No second copy of unchanged photos" is tested in Task 6.
+- Spec coverage: read main, album, offline, upload, delete (set main is impossible on Geni), conflicts, local-only rule, token rule: all have tasks. "No second copy of unchanged photos" is tested in Task 6.
 - PR 2–5 are outlines on purpose: their exact signatures depend on Task 1's findings and on the Room schema as it stands after PR 1; they are expanded into steps before each PR starts.
