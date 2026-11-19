@@ -91,6 +91,7 @@ class GeniLoaderTest {
         }.load(treeId, "profile-36430")
         assertTrue(result is LoadResult.Loaded)
         assertEquals(1, urls.size)
+        assertEquals(2, host.refreshes) // Once before the photos, once after
         val link = store.photoLinks(treeId).single()
         assertEquals("profile-36430", link.geniProfileId)
         assertEquals(1, host.trees.getValue(treeId).people.count { it.media.orEmpty().isNotEmpty() })

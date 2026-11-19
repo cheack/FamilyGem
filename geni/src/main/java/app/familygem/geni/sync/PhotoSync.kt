@@ -69,8 +69,10 @@ class PhotoSync(
             true
         }
         if (!attached) return false
-        previous?.takeIf { it.geniPhotoId != photo.id }?.fileName?.let { File(host.mediaDir(treeId), it).delete() }
-        previous?.takeIf { it.geniPhotoId != photo.id }?.let { store.deletePhotoLink(treeId, profile.id, it.geniPhotoId) }
+        previous?.takeIf { it.geniPhotoId != photo.id }?.let {
+            store.deletePhotoLink(treeId, profile.id, it.geniPhotoId)
+            deleteFileIfUnused(treeId, it.fileName)
+        }
         store.savePhotoLink(PhotoLink(treeId, profile.id, photo.id, null, true, marker(photo), fileName, PhotoState.DOWNLOADED))
         return true
     }
@@ -79,9 +81,15 @@ class PhotoSync(
         host.edit(treeId) { gedcom ->
             gedcom.people.orEmpty().firstOrNull { it.id == personGedcomId && GeniMapper.getGeniId(it) == profile.id }?.let { removeGeniMedia(it) }
         }
-        link.fileName?.let { File(host.mediaDir(treeId), it).delete() }
         store.deletePhotoLink(treeId, profile.id, link.geniPhotoId)
+        deleteFileIfUnused(treeId, link.fileName)
         return true
+    }
+
+    /** Two profiles can share one Geni photo and so one file: it goes only when no photo link uses it any more. */
+    private suspend fun deleteFileIfUnused(treeId: Int, fileName: String?) {
+        if (fileName == null || store.photoLinks(treeId).any { it.fileName == fileName }) return
+        File(host.mediaDir(treeId), fileName).delete()
     }
 
     private fun removeGeniMedia(person: Person) {

@@ -148,6 +148,17 @@ class PhotoSyncTest {
     }
 
     @Test
+    fun sharedFileStaysWhileAnotherProfileUsesIt() = runTest {
+        gedcom.addPerson(Person().apply { id = "I2"; GeniMapper.setGeniId(this, "profile-2") })
+        sync.sync(treeId, profile("photo-7"), "I1")
+        sync.sync(treeId, profile("photo-7").copy(id = "profile-2"), "I2")
+        assertTrue(sync.sync(treeId, profile(null), "I1"))
+        assertTrue(File(dir(), "geni-photo-7.jpg").isFile)
+        assertTrue(sync.sync(treeId, profile(null).copy(id = "profile-2"), "I2"))
+        assertFalse(File(dir(), "geni-photo-7.jpg").exists())
+    }
+
+    @Test
     fun detectsImageHeaders() {
         fun file(vararg b: Int) = File.createTempFile("img", null).apply { writeBytes(ByteArray(b.size) { b[it].toByte() }); deleteOnExit() }
         assertTrue(PhotoSync.looksLikeImage(file(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A)))
