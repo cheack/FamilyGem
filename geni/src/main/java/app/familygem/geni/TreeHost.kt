@@ -1,6 +1,7 @@
 package app.familygem.geni
 
 import org.folg.gedcom.model.Gedcom
+import java.io.File
 
 /** What :geni needs from the app to read and write FamilyGem trees (implemented in the app module). */
 interface TreeHost {
@@ -23,6 +24,9 @@ interface TreeHost {
 
     /** Starts loading the relatives of a profile in background, up to [depth] relationship steps. */
     fun schedulePrefetch(treeId: Int, startGeniId: String, depth: Int)
+
+    /** Media folder of the tree (created if missing): files named in `OBJE.FILE` live here. */
+    fun mediaDir(treeId: Int): File
 
     /** Tells the open screens that the tree changed. */
     fun refreshScreens()

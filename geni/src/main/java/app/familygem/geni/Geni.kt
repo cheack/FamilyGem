@@ -7,6 +7,7 @@ import app.familygem.geni.api.RateLimiter
 import app.familygem.geni.auth.EncryptedTokenStore
 import app.familygem.geni.sync.ConflictResolver
 import app.familygem.geni.sync.GeniLoader
+import app.familygem.geni.sync.PhotoSync
 import app.familygem.geni.sync.RoomSyncStore
 import app.familygem.geni.sync.SyncQueue
 import app.familygem.geni.sync.SyncStore
@@ -58,6 +59,13 @@ object Geni {
     fun resolver(context: Context): ConflictResolver =
         ConflictResolver(client(context), store(context), host ?: error("Geni tree host not installed"), queue(context))
 
-    fun loader(context: Context): GeniLoader =
-        GeniLoader(client(context), store(context), host ?: error("Geni tree host not installed"))
+    fun loader(context: Context): GeniLoader {
+        val treeHost = host ?: error("Geni tree host not installed")
+        val store = store(context)
+        return GeniLoader(
+            client(context), store, treeHost,
+            photos = PhotoSync(store, treeHost),
+            onPhotoError = { profileId, e -> Log.w("GeniSync", "Photo of $profileId not synced", e) }
+        )
+    }
 }
