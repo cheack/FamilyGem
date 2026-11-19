@@ -86,6 +86,9 @@ object GeniGlue {
         GeniHooks.trimTreeMenu(treeId, menu)
     }
 
+    /** The link to the Geni profile must not be edited or deleted by hand: the tag is shown but not opened. */
+    fun isLockedTag(tag: org.folg.gedcom.model.GedcomTag): Boolean = tag.tag == app.familygem.geni.map.GeniMapper.GENI_ID_TAG
+
     /** In a Geni tree an unlink is refused: Geni's API cannot remove a relationship. True when the caller must not unlink. */
     fun blockUnlink(context: android.content.Context): Boolean {
         install()
