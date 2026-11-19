@@ -127,6 +127,7 @@ class FactsFragment : BaseFragment() {
                 }
             }
         } else if (obj is GedcomTag) {
+            if (app.familygem.geni.GeniGlue.isLockedTag(obj)) return // GENI-HOOK: shown, not editable, no context menu
             eventView.setOnClickListener {
                 Memory.add(obj)
                 startActivity(Intent(context, ExtensionActivity::class.java))
