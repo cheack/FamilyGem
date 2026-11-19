@@ -52,6 +52,18 @@ data class UploadJobEntity(
     val version: Int
 )
 
+@Entity(tableName = "photo_link", primaryKeys = ["treeId", "geniProfileId", "geniPhotoId"])
+data class PhotoLinkEntity(
+    val treeId: Int,
+    val geniProfileId: String,
+    val geniPhotoId: String,
+    val gedcomMediaId: String?,
+    val isMain: Boolean,
+    val marker: String?,
+    val fileName: String?,
+    val state: String
+)
+
 @Dao
 interface SyncDao {
     @Query("SELECT * FROM tree WHERE treeId = :treeId")
@@ -116,9 +128,24 @@ interface SyncDao {
 
     @Query("DELETE FROM job WHERE treeId = :treeId")
     suspend fun deleteJobs(treeId: Int)
+
+    @Query("SELECT * FROM photo_link WHERE treeId = :treeId")
+    suspend fun photoLinks(treeId: Int): List<PhotoLinkEntity>
+
+    @Query("SELECT * FROM photo_link WHERE treeId = :treeId AND geniProfileId = :geniProfileId")
+    suspend fun photoLinks(treeId: Int, geniProfileId: String): List<PhotoLinkEntity>
+
+    @Upsert
+    suspend fun savePhotoLink(link: PhotoLinkEntity)
+
+    @Query("DELETE FROM photo_link WHERE treeId = :treeId AND geniProfileId = :geniProfileId AND geniPhotoId = :geniPhotoId")
+    suspend fun deletePhotoLink(treeId: Int, geniProfileId: String, geniPhotoId: String)
+
+    @Query("DELETE FROM photo_link WHERE treeId = :treeId")
+    suspend fun deletePhotoLinks(treeId: Int)
 }
 
-@Database(entities = [GeniTreeEntity::class, GeniLinkEntity::class, UploadJobEntity::class], version = 3, exportSchema = false)
+@Database(entities = [GeniTreeEntity::class, GeniLinkEntity::class, UploadJobEntity::class, PhotoLinkEntity::class], version = 4, exportSchema = false)
 abstract class SyncDatabase : RoomDatabase() {
     abstract fun dao(): SyncDao
 
@@ -144,8 +171,19 @@ abstract class SyncDatabase : RoomDatabase() {
             }
         }
 
+        /** Version 4: links between Geni photos and GEDCOM media records. */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `photo_link` (`treeId` INTEGER NOT NULL, `geniProfileId` TEXT NOT NULL, " +
+                            "`geniPhotoId` TEXT NOT NULL, `gedcomMediaId` TEXT, `isMain` INTEGER NOT NULL, `marker` TEXT, " +
+                            "`fileName` TEXT, `state` TEXT NOT NULL, PRIMARY KEY(`treeId`, `geniProfileId`, `geniPhotoId`))"
+                )
+            }
+        }
+
         /** Every migration, in order: the app and the tests open the database with this same list. */
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
     }
 }
 
@@ -186,7 +224,19 @@ class RoomSyncStore(private val dao: SyncDao) : SyncStore {
 
     override suspend fun setOrphaned(treeId: Int, geniId: String, orphaned: Boolean) = dao.setOrphaned(treeId, geniId, orphaned)
 
+    override suspend fun photoLinks(treeId: Int) = dao.photoLinks(treeId).map { it.toPhotoLink() }
+
+    override suspend fun photoLinks(treeId: Int, geniProfileId: String) = dao.photoLinks(treeId, geniProfileId).map { it.toPhotoLink() }
+
+    override suspend fun savePhotoLink(link: PhotoLink) = dao.savePhotoLink(
+        PhotoLinkEntity(link.treeId, link.geniProfileId, link.geniPhotoId, link.gedcomMediaId, link.isMain, link.marker, link.fileName, link.state.name)
+    )
+
+    override suspend fun deletePhotoLink(treeId: Int, geniProfileId: String, geniPhotoId: String) =
+        dao.deletePhotoLink(treeId, geniProfileId, geniPhotoId)
+
     override suspend fun deleteTree(treeId: Int) {
+        dao.deletePhotoLinks(treeId)
         dao.deleteJobs(treeId)
         dao.deleteLinks(treeId)
         dao.deleteTreeRow(treeId)
@@ -207,6 +257,9 @@ class RoomSyncStore(private val dao: SyncDao) : SyncStore {
     override suspend fun deleteJob(id: Long) = dao.deleteJob(id)
 
     override suspend fun deleteJobIfVersion(id: Long, version: Int) = dao.deleteJobIfVersion(id, version) > 0
+
+    private fun PhotoLinkEntity.toPhotoLink() =
+        PhotoLink(treeId, geniProfileId, geniPhotoId, gedcomMediaId, isMain, marker, fileName, PhotoState.valueOf(state))
 
     private fun GeniLinkEntity.toLink() = GeniLink(treeId, geniId, gedcomId, fullyLoaded, geniUpdatedAt, snapshot, loadedAtMillis, verifiedHash, orphaned)
 

@@ -97,6 +97,8 @@ class RoomSyncStoreTest {
             assertEquals(listOf(GeniLink(1, "profile-1", "I1", true, "170", """{"id":"profile-1"}""", 5, null, orphaned = false)), migratedStore.links(1))
             val id = migratedStore.saveJob(job("profile:profile-1"))
             assertEquals(id, migratedStore.jobs(1).single().id)
+            migratedStore.savePhotoLink(photoLink("profile-1", "photo-1"))
+            assertEquals(1, migratedStore.photoLinks(1).size)
         } finally {
             migrated.close()
             context.deleteDatabase(name)
@@ -153,5 +155,27 @@ class RoomSyncStoreTest {
         assertEquals(9L, updated.loadedAtMillis)
         store.setOrphaned(1, "profile-1", true)
         assertTrue(store.link(1, "profile-1")!!.orphaned)
+    }
+
+    private fun photoLink(profile: String, photo: String) =
+        PhotoLink(1, profile, photo, "M1", true, "/p/photo-1.jpg", "photo-1.jpg", PhotoState.DOWNLOADED)
+
+    @Test
+    fun photoLinksRoundTrip() = runTest {
+        store.savePhotoLink(photoLink("profile-1", "photo-1"))
+        store.savePhotoLink(photoLink("profile-2", "photo-2").copy(gedcomMediaId = null, fileName = null, state = PhotoState.PENDING_DOWNLOAD))
+        store.savePhotoLink(photoLink("profile-1", "photo-1").copy(marker = "/p/new.jpg"))
+        assertEquals(listOf("/p/new.jpg"), store.photoLinks(1, "profile-1").map { it.marker })
+        assertEquals(2, store.photoLinks(1).size)
+        assertEquals(PhotoState.PENDING_DOWNLOAD, store.photoLinks(1, "profile-2").single().state)
+        store.deletePhotoLink(1, "profile-1", "photo-1")
+        assertEquals(listOf("photo-2"), store.photoLinks(1).map { it.geniPhotoId })
+    }
+
+    @Test
+    fun deleteTreeDeletesPhotoLinks() = runTest {
+        store.savePhotoLink(photoLink("profile-1", "photo-1"))
+        store.deleteTree(1)
+        assertEquals(emptyList<PhotoLink>(), store.photoLinks(1))
     }
 }

@@ -35,7 +35,17 @@ open class InMemorySyncStore : SyncStore {
     override suspend fun setOrphaned(treeId: Int, geniId: String, orphaned: Boolean) {
         linkMap[treeId to geniId]?.let { linkMap[treeId to geniId] = it.copy(orphaned = orphaned) }
     }
+    val photoLinkMap = linkedMapOf<Triple<Int, String, String>, PhotoLink>()
+    override suspend fun photoLinks(treeId: Int) = photoLinkMap.values.filter { it.treeId == treeId }
+    override suspend fun photoLinks(treeId: Int, geniProfileId: String) = photoLinks(treeId).filter { it.geniProfileId == geniProfileId }
+    override suspend fun savePhotoLink(link: PhotoLink) {
+        photoLinkMap[Triple(link.treeId, link.geniProfileId, link.geniPhotoId)] = link
+    }
+    override suspend fun deletePhotoLink(treeId: Int, geniProfileId: String, geniPhotoId: String) {
+        photoLinkMap.remove(Triple(treeId, geniProfileId, geniPhotoId))
+    }
     override suspend fun deleteTree(treeId: Int) {
+        photoLinkMap.keys.removeAll { it.first == treeId }
         trees.remove(treeId)
         linkMap.keys.removeAll { it.first == treeId }
         jobMap.values.removeAll { it.treeId == treeId }
