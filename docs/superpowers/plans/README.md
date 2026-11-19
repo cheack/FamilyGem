@@ -153,11 +153,23 @@ Plan: [2026-11-18-geni-5-upstream-ui.md](2026-11-18-geni-5-upstream-ui.md)
 
 Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-11-18-geni-photos-design.md](../specs/2026-11-18-geni-photos-design.md). Replaces the stage 2 photo item.
 
-- [ ] PR 1: photo API client (list, get, upload, delete, download) and sandbox check
-- [ ] PR 2: main photo read: shown on card and diagram, kept current on refresh
+- [x] PR 1: photo API client (list, get, upload, delete, download) and sandbox check
+- [x] PR 2: main photo read: shown on card and diagram, kept current on refresh (phone-checked on sandbox)
 - [ ] PR 3: album read: browse, on-demand download, "Keep offline" option
 - [ ] PR 4: upload: add photo (first one becomes main), offline queue and failure list
 - [ ] PR 5: delete on Geni (managed profiles), deletions from Geni, conflicts
+
+### Deferred from the review of photos PR 1
+
+- [ ] `PhotoDownloader`: the derived client inherits the supplied client's cache and cookie jar; set `cache(null)` and `CookieJar.NO_COOKIES` (with a test that no `Cookie` header is sent)
+- [ ] `PhotoDownloader` accepts any https host; consider allowing only Geni photo hosts
+- [x] Check downloaded bytes are an image (magic bytes or decode) before creating the media entry (done in PR 2)
+
+### Deferred from the review of photos PR 2
+
+- [ ] Decode a downloaded photo fully (not only its first bytes) before it replaces the current one; a truncated JPEG now passes (needs Android `BitmapFactory`; maybe compare with `Content-Length` in `PhotoDownloader` instead)
+- [ ] With auto-save off, a photo change is only in memory: the old file is deleted and the link saved before the tree is saved, so closing without saving leaves a media entry with no file; tie the link and file retirement to the deferred save, and check the real media attachment, not only the link, before skipping a sync
+- [ ] Photos of a whole family download one after another on load; consider a background pass with a second refresh per photo
 
 ## Other tasks
 
@@ -173,6 +185,8 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
+- 2026-11-19: Geni photos, part 2 (PR [#9](https://github.com/cheack/Treekin/pull/9)): the main Geni photo of each loaded person now downloads to the device and shows on the card and in the person's media; an unchanged photo is not downloaded again, a changed one replaces the old, one removed on Geni leaves the device. Also (PR [#10](https://github.com/cheack/Treekin/pull/10)): the `_GENI_ID` tag on the card can no longer be edited or deleted.
+- 2026-11-18: Geni photos, part 1 (PR [#8](https://github.com/cheack/Treekin/pull/8)): the app can list, read, upload and delete Geni photos and download photo files safely (no token sent to photo hosts, size cap, cancellable). Nothing is visible to the user yet; the main photo comes next.
 - 2026-11-18: UI rules for Geni trees (PR [#7](https://github.com/cheack/Treekin/pull/7)): sharing, merging and comparing are hidden for the Geni tree; unlinking a relative is refused with an explanation; deleting a person offers "Remove from this device" and, for profiles the user manages, "Delete on Geni" after a second confirmation; the user's own profile cannot be removed. Stage 5 done.
 
 - 2026-11-18: Refresh and conflicts, part 3 (PR [#6](https://github.com/cheack/Treekin/pull/6)): Geni trees refresh daily on Wi-Fi and an open card re-checks Geni after an hour; profiles deleted on Geni leave the device unless edited locally (then the user chooses), merged profiles move to the survivor. Stage 4 done.

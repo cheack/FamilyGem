@@ -75,6 +75,39 @@ class GeniLoaderTest {
         assertTrue(ids.second!!.split(',').containsAll(listOf("profile-36430", "profile-36431")))
     }
 
+    private fun TestScope.photoLoader(errors: MutableList<String>, download: suspend (String, java.io.File) -> String) = GeniLoader(
+        GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime }),
+        store, host, now = { 5_000L }, photos = PhotoSync(store, host, download), onPhotoError = { id, _ -> errors += id }
+    )
+
+    @Test
+    fun loadDownloadsMainPhotoOfProfilesThatHaveOne() = runTest {
+        val treeId = geniTree()
+        val urls = mutableListOf<String>()
+        val result = photoLoader(mutableListOf()) { url, target ->
+            urls += url
+            target.writeBytes(byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte()))
+            "image/jpeg"
+        }.load(treeId, "profile-36430")
+        assertTrue(result is LoadResult.Loaded)
+        assertEquals(1, urls.size)
+        assertEquals(2, host.refreshes) // Once before the photos, once after
+        val link = store.photoLinks(treeId).single()
+        assertEquals("profile-36430", link.geniProfileId)
+        assertEquals(1, host.trees.getValue(treeId).people.count { it.media.orEmpty().isNotEmpty() })
+    }
+
+    @Test
+    fun photoFailureDoesNotFailTheLoad() = runTest {
+        val treeId = geniTree()
+        val errors = mutableListOf<String>()
+        val result = photoLoader(errors) { _, _ -> throw java.io.IOException("cdn down") }.load(treeId, "profile-36430")
+        assertTrue(result is LoadResult.Loaded)
+        assertEquals(listOf("profile-36430"), errors)
+        assertEquals(8, host.trees.getValue(treeId).people.size)
+        assertTrue(store.photoLinks(treeId).isEmpty())
+    }
+
     @Test
     fun networkErrorLeavesTreeUnchanged() = runTest {
         val treeId = geniTree()

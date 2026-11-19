@@ -1,6 +1,7 @@
 package app.familygem.geni
 
 import org.folg.gedcom.model.Gedcom
+import java.io.File
 
 /** Tree host for tests: trees in memory. */
 open class FakeTreeHost : TreeHost {
@@ -28,6 +29,10 @@ open class FakeTreeHost : TreeHost {
     override fun schedulePrefetch(treeId: Int, startGeniId: String, depth: Int) {
         prefetches += Triple(treeId, startGeniId, depth)
     }
+
+    val mediaRoot: File by lazy { kotlin.io.path.createTempDirectory("geni-media").toFile() }
+
+    override fun mediaDir(treeId: Int) = File(mediaRoot, treeId.toString()).apply { mkdirs() }
 
     override fun refreshScreens() {
         refreshes++

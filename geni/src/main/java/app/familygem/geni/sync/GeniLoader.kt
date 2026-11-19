@@ -24,7 +24,9 @@ class GeniLoader(
     private val client: GeniClient,
     private val store: SyncStore,
     private val host: TreeHost,
-    private val now: () -> Long = System::currentTimeMillis
+    private val now: () -> Long = System::currentTimeMillis,
+    private val photos: PhotoSync? = null,
+    private val onPhotoError: (String, Exception) -> Unit = { _, _ -> }
 ) {
 
     /**
@@ -49,7 +51,8 @@ class GeniLoader(
                 )
             }
             store.saveLinks(links)
-            host.refreshScreens()
+            host.refreshScreens() // Before the photos: a download must not delay the card
+            if (syncPhotos(treeId, profiles.values.map { it.first }, links)) host.refreshScreens()
             LoadResult.Loaded(newPeople = links.count { it.geniId.startsWith("profile-") && it.geniId !in existing }, profileId = geniProfileId)
         } catch (e: CancellationException) {
             throw e
@@ -58,6 +61,25 @@ class GeniLoader(
         } catch (e: Exception) {
             LoadResult.Failed(e.message ?: e.javaClass.simpleName)
         }
+    }
+
+    /** Main photos of the loaded profiles; a failure is reported and never fails the load. */
+    private suspend fun syncPhotos(treeId: Int, profiles: List<GeniProfile>, links: List<GeniLink>): Boolean {
+        val sync = photos ?: return false
+        var changed = false
+        val gedcomIds = links.associate { it.geniId to it.gedcomId }
+        for (profile in profiles) {
+            if (profile.deleted == true) continue
+            val gedcomId = gedcomIds[profile.id] ?: continue
+            try {
+                if (sync.sync(treeId, profile, gedcomId)) changed = true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onPhotoError(profile.id, e)
+            }
+        }
+        return changed
     }
 
     private enum class GoneAction { MISSING, KEPT, MOVED, REMOVED }

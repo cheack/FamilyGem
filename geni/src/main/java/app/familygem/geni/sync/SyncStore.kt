@@ -23,6 +23,27 @@ data class GeniLink(
     val orphaned: Boolean = false
 )
 
+/** State of a photo's local copy. */
+enum class PhotoState { DOWNLOADED, PENDING_DOWNLOAD, PENDING_UPLOAD, PENDING_DELETE }
+
+/**
+ * Link between a Geni photo of a profile and a GEDCOM media record (`OBJE`) of a tree.
+ * @param gedcomMediaId ID of the `OBJE`, null while the photo is not in the tree yet
+ * @param isMain The photo is the profile's main photo on Geni
+ * @param marker Change marker of the Geni photo (the URL path without its query), never the signed URL itself
+ * @param fileName Name of the local file in the tree's media folder, null while not downloaded
+ */
+data class PhotoLink(
+    val treeId: Int,
+    val geniProfileId: String,
+    val geniPhotoId: String,
+    val gedcomMediaId: String?,
+    val isMain: Boolean,
+    val marker: String?,
+    val fileName: String?,
+    val state: PhotoState
+)
+
 /** Geni metadata of the trees, kept apart from upstream settings. */
 interface SyncStore {
     suspend fun tree(treeId: Int): GeniTreeInfo?
@@ -44,7 +65,13 @@ interface SyncStore {
      */
     suspend fun updateSnapshot(treeId: Int, geniId: String, expected: String?, snapshot: String, geniUpdatedAt: String?): Boolean
     suspend fun setOrphaned(treeId: Int, geniId: String, orphaned: Boolean)
-    /** Deletes the tree with its links and jobs. */
+    /** Photo links of a tree. */
+    suspend fun photoLinks(treeId: Int): List<PhotoLink>
+    /** Photo links of one profile. */
+    suspend fun photoLinks(treeId: Int, geniProfileId: String): List<PhotoLink>
+    suspend fun savePhotoLink(link: PhotoLink)
+    suspend fun deletePhotoLink(treeId: Int, geniProfileId: String, geniPhotoId: String)
+    /** Deletes the tree with its links, photo links and jobs. */
     suspend fun deleteTree(treeId: Int)
 
     /** Upload jobs of a tree in upload order. */

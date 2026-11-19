@@ -8,6 +8,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.folg.gedcom.model.Gedcom
+import java.io.File
 
 /** Tree host on top of FamilyGem's settings and JSON tree files. */
 object AppTreeHost : TreeHost {
@@ -65,6 +66,12 @@ object AppTreeHost : TreeHost {
 
     override fun schedulePrefetch(treeId: Int, startGeniId: String, depth: Int) =
         GeniPrefetch.enqueue(Global.context, treeId, startGeniId, depth)
+
+    override fun mediaDir(treeId: Int): File {
+        val dir = Global.context.getExternalFilesDir(treeId.toString()) ?: error("No external storage")
+        dir.mkdirs()
+        return dir
+    }
 
     override fun refreshScreens() {
         Global.edited = true
