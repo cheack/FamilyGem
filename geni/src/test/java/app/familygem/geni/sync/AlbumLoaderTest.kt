@@ -1,0 +1,89 @@
+package app.familygem.geni.sync
+
+import app.familygem.geni.FakeTreeHost
+import app.familygem.geni.api.GeniClient
+import app.familygem.geni.api.RateLimiter
+import app.familygem.geni.auth.AuthResult
+import app.familygem.geni.auth.InMemoryTokenStore
+import app.familygem.geni.map.GeniMapper
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runTest
+import mockwebserver3.MockResponse
+import mockwebserver3.MockWebServer
+import org.folg.gedcom.model.Gedcom
+import org.folg.gedcom.model.Person
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.io.IOException
+
+class AlbumLoaderTest {
+
+    private val server = MockWebServer().apply { start() }
+    private val tokens = InMemoryTokenStore().apply { kotlinx.coroutines.runBlocking { save(AuthResult.Success("abc", 10_000L)) } }
+    private val host = FakeTreeHost()
+    private val store = InMemorySyncStore()
+    private val gedcom = Gedcom().apply { addPerson(Person().apply { id = "I1"; GeniMapper.setGeniId(this, "profile-1") }) }
+    private val treeId = kotlinx.coroutines.runBlocking { host.createTree("t", gedcom) }
+    private val failing = mutableSetOf<String>()
+    private val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 1)
+
+    private val sync = PhotoSync(store, host) { url, target ->
+        if (failing.any { url.contains(it) }) throw IOException("cdn")
+        target.writeBytes(jpeg)
+        "image/jpeg"
+    }
+
+    @After
+    fun tearDown() = server.close()
+
+    private fun TestScope.loader() = AlbumLoader(
+        GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime }, now = { 1_000L }),
+        store, sync, host::mediaDir
+    )
+
+    private fun photoJson(n: Int) = """{"id":"photo-$n","title":"T$n","sizes":{"medium":"https://p.example/$n/m.jpg","thumb":"https://p.example/$n/t.jpg"}}"""
+
+    private fun enqueueAlbum(vararg ids: Int) {
+        server.enqueue(MockResponse.Builder().code(200).body("""{"results":[${ids.joinToString(",") { photoJson(it) }}]}""").build())
+        server.enqueue(MockResponse.Builder().code(200).body("""{"results":[]}""").build())
+    }
+
+    @Test
+    fun listMarksDownloadedAndMainPhotos() = runTest {
+        sync.addAlbumPhoto(treeId, "profile-1", "I1", loaderPhoto(2))
+        store.savePhotoLink(PhotoLink(treeId, "profile-1", "photo-1", null, true, null, "geni-photo-1.jpg", PhotoState.DOWNLOADED))
+        java.io.File(host.mediaDir(treeId), "geni-photo-1.jpg").writeBytes(jpeg)
+        enqueueAlbum(1, 2, 3)
+        val entries = loader().list(treeId, "profile-1")
+        assertEquals(listOf(true, true, false), entries.map { it.downloaded })
+        assertEquals(listOf(true, false, false), entries.map { it.isMain })
+    }
+
+    private fun loaderPhoto(n: Int) = app.familygem.geni.api.parsePhoto(photoJson(n))
+
+    @Test
+    fun downloadAllAddsMissingPhotosAndSkipsFailures() = runTest {
+        failing += "/2/"
+        enqueueAlbum(1, 2, 3)
+        val errors = mutableListOf<String>()
+        val added = loader().downloadAll(treeId, "profile-1", "I1") { photo, _ -> errors += photo.id }
+        assertEquals(2, added)
+        assertEquals(listOf("photo-2"), errors)
+        assertEquals(listOf("geni-photo-1.jpg", "geni-photo-3.jpg"), gedcom.people.single().media.map { it.file })
+        assertEquals(listOf("photo-1", "photo-3"), store.photoLinks(treeId).map { it.geniPhotoId })
+    }
+
+    @Test
+    fun downloadAllTwiceDownloadsNothingNew() = runTest {
+        enqueueAlbum(1, 2)
+        assertEquals(2, loader().downloadAll(treeId, "profile-1", "I1"))
+        enqueueAlbum(1, 2)
+        assertEquals(0, loader().downloadAll(treeId, "profile-1", "I1"))
+        assertEquals(2, gedcom.people.single().media.size)
+        assertTrue(store.photoLinks(treeId).none { it.isMain })
+        assertFalse(gedcom.people.single().media.any { it.primary == "Y" })
+    }
+}

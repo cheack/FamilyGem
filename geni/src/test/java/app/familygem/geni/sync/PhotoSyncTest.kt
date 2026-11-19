@@ -1,6 +1,7 @@
 package app.familygem.geni.sync
 
 import app.familygem.geni.FakeTreeHost
+import app.familygem.geni.api.GeniPhoto
 import app.familygem.geni.api.GeniProfile
 import app.familygem.geni.map.GeniMapper
 import kotlinx.coroutines.test.runTest
@@ -74,13 +75,50 @@ class PhotoSyncTest {
     }
 
     @Test
-    fun changedPhotoReplacesMediaAndFile() = runTest {
+    fun changedMainPhotoBecomesPrimaryAndOldOneStaysAsAlbumPhoto() = runTest {
         sync.sync(treeId, profile("photo-7"), "I1")
         assertTrue(sync.sync(treeId, profile("photo-8"), "I1"))
-        assertEquals(listOf("geni-photo-8.jpg"), person.media.map { it.file })
-        assertFalse(File(dir(), "geni-photo-7.jpg").exists())
+        assertEquals(listOf("geni-photo-7.jpg", "geni-photo-8.jpg"), person.media.map { it.file })
+        assertEquals(listOf(null, "Y"), person.media.map { it.primary })
+        assertTrue(File(dir(), "geni-photo-7.jpg").isFile)
         assertTrue(File(dir(), "geni-photo-8.jpg").isFile)
-        assertEquals(listOf("photo-8"), store.photoLinks(treeId).map { it.geniPhotoId })
+        assertEquals(mapOf("photo-7" to false, "photo-8" to true), store.photoLinks(treeId).associate { it.geniPhotoId to it.isMain })
+    }
+
+    @Test
+    fun albumPhotoBecomingMainIsNotDownloadedAgain() = runTest {
+        sync.sync(treeId, profile("photo-7"), "I1")
+        val album = GeniPhoto("photo-8", null, null, mapOf("medium" to "https://photos.example/photo-8/medium.jpg"), null, null)
+        assertTrue(sync.addAlbumPhoto(treeId, "profile-1", "I1", album))
+        assertEquals(2, downloads.size)
+        assertEquals(null, person.media.single { GeniMapper.getTag(it, PhotoSync.PHOTO_TAG) == "photo-8" }.primary)
+        assertTrue(sync.sync(treeId, profile("photo-8"), "I1"))
+        assertEquals(2, downloads.size)
+        assertEquals(2, person.media.size)
+        assertEquals("Y", person.media.single { GeniMapper.getTag(it, PhotoSync.PHOTO_TAG) == "photo-8" }.primary)
+        assertEquals(mapOf("photo-7" to false, "photo-8" to true), store.photoLinks(treeId).associate { it.geniPhotoId to it.isMain })
+    }
+
+    @Test
+    fun albumPhotoIsAddedOnceAsPlainMedia() = runTest {
+        val album = GeniPhoto("photo-9", "Wedding", null, mapOf("medium" to "https://photos.example/photo-9/medium.jpg"), null, null)
+        assertTrue(sync.addAlbumPhoto(treeId, "profile-1", "I1", album))
+        assertFalse(sync.addAlbumPhoto(treeId, "profile-1", "I1", album))
+        assertEquals(1, downloads.size)
+        val media = person.media.single()
+        assertEquals("geni-photo-9.jpg", media.file)
+        assertNull(media.primary)
+        assertEquals(PhotoLink(treeId, "profile-1", "photo-9", null, false, "https://photos.example/photo-9/medium.jpg", "geni-photo-9.jpg", PhotoState.DOWNLOADED), store.photoLinks(treeId).single())
+    }
+
+    @Test
+    fun mainPhotoGoneLeavesAlbumPhotos() = runTest {
+        sync.sync(treeId, profile("photo-7"), "I1")
+        val album = GeniPhoto("photo-9", null, null, mapOf("medium" to "https://photos.example/photo-9/medium.jpg"), null, null)
+        sync.addAlbumPhoto(treeId, "profile-1", "I1", album)
+        assertTrue(sync.sync(treeId, profile(null), "I1"))
+        assertEquals(listOf("geni-photo-9.jpg"), person.media.map { it.file })
+        assertEquals(listOf("photo-9"), store.photoLinks(treeId).map { it.geniPhotoId })
     }
 
     @Test
