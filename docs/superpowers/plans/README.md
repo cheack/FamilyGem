@@ -163,7 +163,7 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 
 - [ ] `PhotoDownloader`: the derived client inherits the supplied client's cache and cookie jar; set `cache(null)` and `CookieJar.NO_COOKIES` (with a test that no `Cookie` header is sent)
 - [ ] `PhotoDownloader` accepts any https host; consider allowing only Geni photo hosts
-- [ ] Check downloaded bytes are an image (magic bytes or decode) before creating the media entry (PR 2)
+- [x] Check downloaded bytes are an image (magic bytes or decode) before creating the media entry (done in PR 2)
 
 ## Other tasks
 
