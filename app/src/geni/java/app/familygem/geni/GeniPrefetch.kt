@@ -3,7 +3,10 @@ package app.familygem.geni
 import android.content.Context
 import android.net.ConnectivityManager
 import android.util.Log
+import app.familygem.geni.sync.AlbumLoader
 import app.familygem.geni.sync.LoadPolicy
+import app.familygem.geni.sync.LoadResult
+import app.familygem.geni.sync.SyncStore
 import app.familygem.geni.sync.Prefetcher
 import app.familygem.geni.sync.RelativesIndex
 import kotlinx.coroutines.CancellationException
@@ -29,8 +32,8 @@ object GeniPrefetch {
     private val dailyRunning = mutableSetOf<Int>()
 
     /** Queues a prefetch after any other prefetch of the same tree. */
-    fun enqueue(context: Context, treeId: Int, startGeniId: String, depth: Int) {
-        queue(context.applicationContext, treeId) { run(it, treeId, startGeniId, depth, unmeteredOnly = false) }
+    fun enqueue(context: Context, treeId: Int, startGeniId: String, depth: Int, includePhotos: Boolean = false) {
+        queue(context.applicationContext, treeId) { run(it, treeId, startGeniId, depth, unmeteredOnly = false, includePhotos = includePhotos) }
     }
 
     private fun queue(app: Context, treeId: Int, block: suspend (Context) -> Unit) {
@@ -41,21 +44,43 @@ object GeniPrefetch {
     }
 
     /** @return False if the pass stopped before visiting everyone */
-    private suspend fun run(context: Context, treeId: Int, start: String, depth: Int, unmeteredOnly: Boolean): Boolean {
+    private suspend fun run(context: Context, treeId: Int, start: String, depth: Int, unmeteredOnly: Boolean, includePhotos: Boolean = false): Boolean {
         if (!withContext(Dispatchers.Main) { AppTreeHost.treeExists(treeId) }) return true
         val store = Geni.store(context)
         val loader = Geni.loader(context)
+        val album = if (includePhotos) Geni.albumLoader(context) else null
         val began = System.currentTimeMillis()
         val prefetcher = Prefetcher(
-            loader = { loader.load(treeId, it) },
+            loader = { id ->
+                loader.load(treeId, id).also { result ->
+                    if (album != null && result is LoadResult.Loaded) downloadAlbum(album, store, treeId, id)
+                }
+            },
             relatives = { RelativesIndex.relatives(store.unionLinks(treeId), it) },
-            isFresh = { id -> store.link(treeId, id)?.let { !LoadPolicy.shouldLoad(it, System.currentTimeMillis()) } ?: false },
+            isFresh = { id ->
+                val fresh = store.link(treeId, id)?.let { !LoadPolicy.shouldLoad(it, System.currentTimeMillis()) } ?: false
+                // A person loaded earlier is skipped, but its photos may still be missing
+                if (fresh && album != null) downloadAlbum(album, store, treeId, id)
+                fresh
+            },
             mayLoad = { !unmeteredOnly || !metered(context) }
         )
         val loads = prefetcher.run(start, depth)
         Log.d(TAG, "Tree $treeId: $loads loads from $start, depth $depth, in ${System.currentTimeMillis() - began} ms" +
                 if (prefetcher.completed) "" else ", stopped")
         return prefetcher.completed
+    }
+
+    /** Photos are a bonus: a failure here never stops the prefetch. */
+    private suspend fun downloadAlbum(album: AlbumLoader, store: SyncStore, treeId: Int, geniId: String) {
+        try {
+            val gedcomId = store.link(treeId, geniId)?.gedcomId ?: return
+            album.downloadAll(treeId, geniId, gedcomId) { photo, e -> Log.w(TAG, "Photo ${photo.id} of $geniId not downloaded", e) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Album of $geniId not downloaded", e)
+        }
     }
 
     private fun metered(context: Context): Boolean {

@@ -52,4 +52,16 @@
     <string name="geni_delete_confirm">Профиль будет удалён на Geni для всех, кто делит это дерево: родственники и другие члены семьи его больше не увидят. Отменить это отсюда нельзя. С этого устройства он исчезнет, когда Geni его удалит.</string>
     <string name="geni_delete_queued">Удаление на Geni поставлено в очередь</string>
     <string name="geni_delete_failed">Не удалось сохранить изменение. Попробуйте ещё раз.</string>
+    <string name="geni_album">Фото на Geni</string>
+    <string name="geni_album_loading">Загружаю фото с Geni…</string>
+    <string name="geni_album_failed">Не удалось загрузить фото: %1$s</string>
+    <string name="geni_album_empty">На Geni нет фото</string>
+    <string name="geni_album_on_device">Есть на устройстве</string>
+    <string name="geni_album_tap_to_download">Нажмите, чтобы скачать</string>
+    <string name="geni_album_download_all">Скачать все</string>
+    <string name="geni_album_added">Добавлено фото: %1$d</string>
+    <string name="geni_album_photo_failed">Фото не скачано: %1$s</string>
+    <string name="geni_keep_offline_photos">Скачать также все фото этих людей? Это больше трафика и места.</string>
+    <string name="geni_keep_offline_with_photos">Да, с фото</string>
+    <string name="geni_keep_offline_no_photos">Нет, только людей</string>
 </resources>

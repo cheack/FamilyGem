@@ -52,4 +52,16 @@
     <string name="geni_delete_confirm">The profile is deleted on Geni for everyone who shares this tree: relatives and other family members will no longer see it. This cannot be undone here. It is removed from this device once Geni has deleted it.</string>
     <string name="geni_delete_queued">Deletion on Geni is queued</string>
     <string name="geni_delete_failed">The change could not be saved. Try again.</string>
+    <string name="geni_album">Geni photos</string>
+    <string name="geni_album_loading">Loading photos from Geni…</string>
+    <string name="geni_album_failed">Could not load photos: %1$s</string>
+    <string name="geni_album_empty">No photos on Geni</string>
+    <string name="geni_album_on_device">On this device</string>
+    <string name="geni_album_tap_to_download">Tap to download</string>
+    <string name="geni_album_download_all">Download all</string>
+    <string name="geni_album_added">Photos added: %1$d</string>
+    <string name="geni_album_photo_failed">Photo not downloaded: %1$s</string>
+    <string name="geni_keep_offline_photos">Also download all photos of these people? This uses more data and storage.</string>
+    <string name="geni_keep_offline_with_photos">Yes, with photos</string>
+    <string name="geni_keep_offline_no_photos">No, people only</string>
 </resources>
