@@ -163,7 +163,7 @@ class PhotoSync(
     /** Two profiles can share one Geni photo and so one file: it goes only when no photo link uses it any more. */
     private suspend fun deleteFileIfUnused(treeId: Int, fileName: String?) {
         if (fileName == null || store.photoLinks(treeId).any { it.fileName == fileName }) return
-        File(host.mediaDir(treeId), fileName).delete()
+        withContext(Dispatchers.IO) { File(host.mediaDir(treeId), fileName).delete() }
     }
 
     companion object {

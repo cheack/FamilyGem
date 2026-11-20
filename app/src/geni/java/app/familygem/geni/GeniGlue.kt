@@ -191,8 +191,9 @@ object GeniGlue {
                 dialog.setPositiveButton(R.string.geni_delete_local) { _, _ ->
                     owner.lifecycleScope.launch {
                         try {
-                            withContext(Dispatchers.IO) { PhotoSync(store, AppTreeHost).removeLocal(treeId, geniId, person.id, photoId) }
-                            onDone()
+                            val removed = withContext(Dispatchers.IO) { PhotoSync(store, AppTreeHost).removeLocal(treeId, geniId, person.id, photoId) }
+                            // Refused (e.g. the media was made shared): say so instead of doing nothing
+                            if (removed) onDone() else Toast.makeText(context, R.string.geni_delete_failed, Toast.LENGTH_LONG).show()
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {
@@ -218,8 +219,9 @@ object GeniGlue {
                 owner.lifecycleScope.launch {
                     val queued = try {
                         withContext(Dispatchers.IO) {
-                            if (removeHere) PhotoSync(Geni.store(context), AppTreeHost).removeLocal(treeId, geniId, personId, photoId)
+                            // The job is stored first so a failure in the local cleanup cannot lose the deletion
                             Geni.queue(context).enqueueDeletePhoto(treeId, photoId, personId, photoId)
+                            if (removeHere) PhotoSync(Geni.store(context), AppTreeHost).removeLocal(treeId, geniId, personId, photoId)
                         }
                         true
                     } catch (e: CancellationException) {
