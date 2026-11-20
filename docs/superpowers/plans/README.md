@@ -195,6 +195,7 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 - [ ] The main photo "Delete on Geni" only queues the job; the photo leaves the device at the next refresh, so it stays visible after the confirmation; refresh the profile when the job is done
 - [ ] Photo media with local data (title or note) that was deleted on Geni stays with a stale link and is not reported to the user
 - [ ] The photo dialog is built before the removal runs: if `PhotoSync.sync` promotes the photo to main in between, local removal can still take the current main photo off the device (check main status inside `removeLocal`)
+- [ ] `PhotoSync.deleteFileIfUnused`: a coroutine cancelled after the link is deleted but before the file delete leaves an orphan file; run the delete in `NonCancellable`
 
 ## Other tasks
 
