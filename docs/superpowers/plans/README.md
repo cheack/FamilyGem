@@ -241,6 +241,7 @@ Plan: `docs/superpowers/plans/2026-11-20-geni-onboarding.md`. Decision (2026-11-
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
+- 2026-11-20: Geni-first onboarding (PR [#17](https://github.com/cheack/Treekin/pull/17)): an empty trees list opens the Geni login; a fresh login creates and opens the account's tree; unsaved edits and the edit lock survive opening a tree after login; the import tool can upload photos and refuses Geni trees.
 - 2026-11-20: Horizontal person cards (PR [#16](https://github.com/cheack/Treekin/pull/16)): diagram cards are all the same size, photo on the left, a coloured sex stripe and tint, straight elbow connection lines instead of curves; the login button reads "Log in with Geni"; a branding audit is in the roadmap.
 - 2026-11-20: Premium advertisement hidden (PR [#15](https://github.com/cheack/Treekin/pull/15)): the About screen no longer offers FamilyGem Premium.
 - 2026-11-20: Other tasks (PR [#14](https://github.com/cheack/Treekin/pull/14)): the example tree and the Premium messages say "Treekin" in every language; a weekly CI job trial-merges the original FamilyGem, builds and tests (fails when attention is needed). The NumberPicker divider needed no fix.
