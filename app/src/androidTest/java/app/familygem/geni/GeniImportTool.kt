@@ -23,6 +23,7 @@ import org.folg.gedcom.parser.JsonParser as GedcomJsonParser
  *
  * `adb shell am instrument -w -e class app.familygem.geni.GeniImportTool -e geniImportTree 1
  *  net.cheack.treekin.test/androidx.test.runner.AndroidJUnitRunner`
+ * With `-e geniCreateRoot profile-X` (no import) it makes a Geni tree rooted at that profile. With `-e geniCreateTree 1` it also makes a Geni tree rooted at the first imported person, to look at the copy in the app.
  */
 @RunWith(AndroidJUnit4::class)
 class GeniImportTool {
@@ -34,10 +35,17 @@ class GeniImportTool {
     fun import() = runBlocking {
         val args = InstrumentationRegistry.getArguments()
         val treeId = args.getString("geniImportTree")
-        assumeTrue("no geniImportTree argument", treeId != null)
+        assumeTrue("no geniImportTree or geniCreateRoot argument", treeId != null || args.getString("geniCreateRoot") != null)
         check(Geni.config.host == "sandbox.geni.com") { "the tool only talks to the sandbox" }
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val client = Geni.client(context)
+        args.getString("geniCreateRoot")?.let { root ->
+            app.familygem.geni.GeniGlue.install()
+            Log.i("GeniImport", "created tree ${Geni.loader(context).createTree(title = "Sandbox tree $root", rootGeniId = root)} rooted at $root")
+            return@runBlocking
+        }
+        // A tree that came from Geni is already there: importing it would only make copies
+        check(Geni.store(context).tree(treeId!!.toInt()) == null) { "tree $treeId is a Geni tree" }
         val gedcom: Gedcom = GedcomJsonParser().fromJson(File(context.filesDir, "$treeId.json").readText())
         val mapFile = File(context.filesDir, "geni-import-$treeId.map")
         if (mapFile.exists()) mapFile.readLines().forEach {
@@ -110,6 +118,12 @@ class GeniImportTool {
         }
         val missing = gedcom.people.map { it.id }.filter { it !in profiles }
         Log.i("GeniImport", "done: ${profiles.size} profiles, ${unions.size} unions, missing: $missing")
+        if (args.getString("geniCreateTree") != null) {
+            app.familygem.geni.GeniGlue.install()
+            val rootGeniId = profiles.getValue(gedcom.people.first().id)
+            val created = Geni.loader(context).createTree(title = "Imported tree $treeId", rootGeniId = rootGeniId)
+            Log.i("GeniImport", "created tree $created rooted at $rootGeniId")
+        }
         Unit
     }
 }
