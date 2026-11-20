@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Treekin overlay of the upstream card: photo at the start, text beside it. Same view IDs as upstream. -->
+<!-- Treekin overlay of the upstream card: photo at the start, text beside it. Same view IDs as upstream.
+     Fixed size, so the texts are plain TextViews (match_parent, ellipsized) in dp: the font scale must not overflow the card. -->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
@@ -55,33 +56,33 @@
             android:layout_weight="1"
             android:orientation="vertical">
 
-            <app.familygem.ElasticTextView
+            <TextView
                 android:id="@+id/card_name"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
                 android:maxLines="2"
-                android:textSize="15sp"
+                android:textSize="15dp"
                 tools:text="Name Surname" />
 
-            <app.familygem.ElasticTextView
+            <TextView
                 android:id="@+id/card_title"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textSize="13sp"
+                android:textSize="13dp"
                 android:textStyle="italic"
                 tools:text="Title" />
 
-            <app.familygem.ElasticTextView
+            <TextView
                 android:id="@+id/card_data"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
                 android:maxLines="2"
                 android:textColor="@color/text_veiled"
-                android:textSize="13sp"
+                android:textSize="13dp"
                 tools:text="Personal details" />
         </LinearLayout>
     </LinearLayout>
