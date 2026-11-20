@@ -35,13 +35,17 @@ class GeniImportTool {
     fun import() = runBlocking {
         val args = InstrumentationRegistry.getArguments()
         val treeId = args.getString("geniImportTree")
-        assumeTrue("no geniImportTree or geniCreateRoot argument", treeId != null || args.getString("geniCreateRoot") != null)
+        assumeTrue("no geniImportTree, geniCreateRoot or geniPhotosTree argument", treeId != null || args.getString("geniCreateRoot") != null || args.getString("geniPhotosTree") != null)
         check(Geni.config.host == "sandbox.geni.com") { "the tool only talks to the sandbox" }
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val client = Geni.client(context)
         args.getString("geniCreateRoot")?.let { root ->
             app.familygem.geni.GeniGlue.install()
             Log.i("GeniImport", "created tree ${Geni.loader(context).createTree(title = "Sandbox tree $root", rootGeniId = root)} rooted at $root")
+            return@runBlocking
+        }
+        args.getString("geniPhotosTree")?.let { photoTree ->
+            uploadPhotos(client, context, photoTree, args.getString("geniPhotosFrom")!!.toInt(), args.getString("geniPhotosCount")!!.toInt())
             return@runBlocking
         }
         // A tree that came from Geni is already there: importing it would only make copies
@@ -125,5 +129,32 @@ class GeniImportTool {
             Log.i("GeniImport", "created tree $created rooted at $rootGeniId")
         }
         Unit
+    }
+
+    /**
+     * Uploads the main photo of each person of a local tree to the sandbox profile of the same name, looking at the
+     * [count] profiles from `profile-<from>` (what an earlier import created). Photos are read from the tree's
+     * external media folder. Profiles that already have a photo are skipped.
+     */
+    private suspend fun uploadPhotos(client: app.familygem.geni.api.GeniClient, context: android.content.Context, treeId: String, from: Int, count: Int) {
+        val gedcom: Gedcom = GedcomJsonParser().fromJson(File(context.filesDir, "$treeId.json").readText())
+        val dir = File(context.getExternalFilesDir(null), treeId)
+        val byName = mutableMapOf<String, String>()
+        (from until from + count).map { "profile-$it" }.chunked(20).forEach { ids ->
+            client.profiles(ids).forEach { (id, pair) -> byName.putIfAbsent("${pair.first.firstName} ${pair.first.lastName}", id) }
+        }
+        var uploaded = 0
+        for (person in gedcom.people) {
+            val fields = ProfileFields.of(person)
+            val key = "${fields.given?.substringBefore(' ')} ${fields.surname}"
+            val id = byName.remove(key) ?: continue
+            val media = person.media.orEmpty().firstOrNull { it.file != null } ?: continue
+            val file = File(dir, media.file.substringAfterLast('/'))
+            if (!file.exists() || client.photos(id).isNotEmpty()) continue
+            client.addPhoto(id, file.name, media.title, file.readBytes())
+            uploaded++
+            Log.i("GeniImport", "photo ${file.name} -> $id")
+        }
+        Log.i("GeniImport", "photos done: $uploaded uploaded")
     }
 }
