@@ -135,6 +135,8 @@ class GeniImportTool {
      * Uploads the main photo of each person of a local tree to the sandbox profile of the same name, looking at the
      * [count] profiles from `profile-<from>` (what an earlier import created). Photos are read from the tree's
      * external media folder. Profiles that already have a photo are skipped.
+     * The saved import map (`geni-import-<treeId>.map`) is used when there is one; without it (data was cleared) profiles are
+     * matched by first and last name, so people sharing a name may be skipped or swapped: a fallback for test data only.
      */
     private suspend fun uploadPhotos(client: app.familygem.geni.api.GeniClient, context: android.content.Context, treeId: String, from: Int, count: Int) {
         val gedcom: Gedcom = GedcomJsonParser().fromJson(File(context.filesDir, "$treeId.json").readText())
@@ -143,11 +145,13 @@ class GeniImportTool {
         (from until from + count).map { "profile-$it" }.chunked(20).forEach { ids ->
             client.profiles(ids).forEach { (id, pair) -> byName.putIfAbsent("${pair.first.firstName} ${pair.first.lastName}", id) }
         }
+        val saved = File(context.filesDir, "geni-import-$treeId.map").takeIf { it.exists() }?.readLines().orEmpty()
+            .map { it.split(' ') }.filter { it[1].startsWith("profile-") }.associate { it[0] to it[1] }
         var uploaded = 0
         for (person in gedcom.people) {
             val fields = ProfileFields.of(person)
             val key = "${fields.given?.substringBefore(' ')} ${fields.surname}"
-            val id = byName.remove(key) ?: continue
+            val id = saved[person.id] ?: byName.remove(key) ?: continue
             val media = person.media.orEmpty().firstOrNull { it.file != null } ?: continue
             val file = File(dir, media.file.substringAfterLast('/'))
             if (!file.exists() || client.photos(id).isNotEmpty()) continue
