@@ -21,8 +21,9 @@ open class FakeTreeHost : TreeHost {
 
     override suspend fun <T> edit(treeId: Int, block: (Gedcom) -> T): T = block(trees.getValue(treeId))
 
-    override suspend fun openTree(activity: android.app.Activity, treeId: Int) {
+    override suspend fun openTree(activity: android.app.Activity, treeId: Int): Boolean {
         opened += treeId
+        return true
     }
 
     override fun treeExists(treeId: Int) = treeId in trees

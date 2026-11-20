@@ -70,4 +70,5 @@
     <string name="geni_keep_offline_no_photos">Нет, только главные</string>
     <string name="geni_upload_photos">Отправлять новые фото на Geni</string>
     <string name="geni_upload_photos_note">Первое фото человека становится его главным фото на Geni.</string>
+    <string name="geni_open_failed">Не удалось открыть дерево. Откройте его из списка деревьев.</string>
 </resources>

@@ -194,8 +194,12 @@ class GeniLoginActivity : AppCompatActivity() {
 
     /** Shows the diagram of the tree and leaves this screen, so Back goes to the trees list. */
     private suspend fun openAndClose(treeId: Int) {
-        Geni.host?.openTree(this, treeId)
-        finish()
+        if (Geni.host?.openTree(this, treeId) == true) {
+            finish()
+        } else {
+            progress.visibility = View.GONE
+            status.setText(R.string.geni_open_failed)
+        }
     }
 
     /** Uploads go on in background: while the screen is visible the counts are read again every few seconds. */
