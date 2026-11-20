@@ -271,6 +271,13 @@ class UploadPlannerTest {
         assertFalse("delete:profile-9" in plan(couple(), jobs = listOf(delete)).deleteKeys)
     }
 
+    @Test
+    fun deletePhotoJobIsNeverDroppedAsGone() {
+        val delete = UploadJob(id = 9, treeId = 1, key = "delphoto:photo-9", kind = JobKind.DELETE_PHOTO, geniId = "photo-9",
+            personGedcomId = "I1", params = emptyList(), label = "x", localHash = 0)
+        assertFalse("delphoto:photo-9" in plan(couple(), jobs = listOf(delete)).deleteKeys)
+    }
+
     private fun photoPlan(media: List<LocalMedia>, photoLinks: List<PhotoLink> = emptyList(), jobs: List<UploadJob> = emptyList(), uploadPhotos: Boolean = true, linked: Boolean = true): Plan {
         val owner = person("I1", "profile-1", ivan).copy(media = if (linked) media else emptyList())
         val stranger = person("I3", null, newFields).copy(media = media) // Not on Geni yet

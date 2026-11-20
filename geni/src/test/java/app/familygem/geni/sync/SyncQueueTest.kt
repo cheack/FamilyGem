@@ -584,6 +584,25 @@ class SyncQueueTest {
         assertNull(job.error)
     }
 
+    @Test
+    fun enqueueDeletePhotoQueuesOnceAndRerequestFailed() = runTest {
+        linkBoth()
+        queue.enqueueDeletePhoto(1, "photo-5", "I1", "Me")
+        queue.enqueueDeletePhoto(1, "photo-5", "I1", "Me")
+        val job = store.jobs(1).single()
+        assertEquals("delphoto:photo-5", job.key)
+        assertEquals(JobKind.DELETE_PHOTO, job.kind)
+        assertEquals("photo-5", job.geniId)
+        store.saveJob(job.copy(state = JobState.FAILED, error = "Access denied"))
+        queue.enqueueDeletePhoto(1, "photo-5", "I1", "Me")
+        val again = store.jobs(1).single()
+        assertEquals(JobState.PENDING, again.state)
+        assertNull(again.error)
+        queue.runPending(1)
+        assertEquals(listOf("delphoto:photo-5"), uploader.ran.map { it.key })
+        assertTrue(store.jobs(1).isEmpty())
+    }
+
     private fun photoJob(state: JobState = JobState.PENDING) = UploadJob(treeId = 1, key = "photo:I1:me.jpg", kind = JobKind.ADD_PHOTO, geniId = "profile-1",
         personGedcomId = "I1", params = listOf("file" to "me.jpg"), label = "Ivan User", localHash = 0, state = state)
 

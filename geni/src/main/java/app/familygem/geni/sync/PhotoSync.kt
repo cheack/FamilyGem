@@ -104,14 +104,29 @@ class PhotoSync(
     }
 
     private suspend fun remove(treeId: Int, profile: GeniProfile, personGedcomId: String, link: PhotoLink): Boolean {
-        host.edit(treeId) { gedcom ->
-            gedcom.people.orEmpty().firstOrNull { it.id == personGedcomId && GeniMapper.getGeniId(it) == profile.id }?.let { person ->
-                person.media = person.media.orEmpty().filter { GeniMapper.getTag(it, PHOTO_TAG) != link.geniPhotoId }.toMutableList()
-            }
-        }
-        store.deletePhotoLink(treeId, profile.id, link.geniPhotoId)
-        deleteFileIfUnused(treeId, link.fileName)
+        removeLink(treeId, profile.id, personGedcomId, link)
         return true
+    }
+
+    /**
+     * Removes a Geni photo from the person: its media, the photo link and the file when no other link uses it.
+     * @return true if the tree changed
+     */
+    suspend fun removeLocal(treeId: Int, geniProfileId: String, personGedcomId: String, geniPhotoId: String): Boolean {
+        val link = store.photoLinks(treeId, geniProfileId).firstOrNull { it.geniPhotoId == geniPhotoId }
+        return removeLink(treeId, geniProfileId, personGedcomId, link ?: PhotoLink(treeId, geniProfileId, geniPhotoId, null, false, null, null, PhotoState.DOWNLOADED))
+    }
+
+    private suspend fun removeLink(treeId: Int, profileId: String, personGedcomId: String, link: PhotoLink): Boolean {
+        val changed = host.edit(treeId) { gedcom ->
+            val person = gedcom.people.orEmpty().firstOrNull { it.id == personGedcomId && GeniMapper.getGeniId(it) == profileId }
+            val before = person?.media.orEmpty().size
+            person?.let { it.media = it.media.orEmpty().filter { m -> GeniMapper.getTag(m, PHOTO_TAG) != link.geniPhotoId }.toMutableList() }
+            person != null && person.media.size != before
+        }
+        store.deletePhotoLink(treeId, profileId, link.geniPhotoId)
+        deleteFileIfUnused(treeId, link.fileName)
+        return changed
     }
 
     /** Two profiles can share one Geni photo and so one file: it goes only when no photo link uses it any more. */

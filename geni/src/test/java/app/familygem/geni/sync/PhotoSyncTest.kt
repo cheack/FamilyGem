@@ -218,6 +218,22 @@ class PhotoSyncTest {
     }
 
     @Test
+    fun removeLocalDropsMediaLinkAndFile() = runTest {
+        gedcom.addPerson(Person().apply { id = "I2"; GeniMapper.setGeniId(this, "profile-2") })
+        val owner = gedcom.people.first { it.id == "I1" }
+        owner.addMedia(Media().apply { file = "mine.jpg" })
+        sync.sync(treeId, profile("photo-7"), "I1")
+        sync.sync(treeId, profile("photo-7").copy(id = "profile-2"), "I2")
+        assertTrue(sync.removeLocal(treeId, "profile-1", "I1", "photo-7"))
+        assertEquals(listOf("mine.jpg"), owner.media.map { it.file })
+        assertEquals(listOf("profile-2"), store.photoLinks(treeId).map { it.geniProfileId })
+        assertTrue(File(dir(), "geni-photo-7.jpg").isFile) // Another profile's link still uses it
+        assertTrue(sync.removeLocal(treeId, "profile-2", "I2", "photo-7"))
+        assertFalse(File(dir(), "geni-photo-7.jpg").exists())
+        assertFalse(sync.removeLocal(treeId, "profile-1", "I1", "photo-7"))
+    }
+
+    @Test
     fun detectsImageHeaders() {
         fun file(vararg b: Int) = File.createTempFile("img", null).apply { writeBytes(ByteArray(b.size) { b[it].toByte() }); deleteOnExit() }
         assertTrue(PhotoSync.looksLikeImage(file(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A)))
