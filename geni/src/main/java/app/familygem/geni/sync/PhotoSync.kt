@@ -137,9 +137,11 @@ class PhotoSync(
     /** @param keepIfEdited leave everything as it is when the media carries a title or notes of the user */
     private suspend fun removeLink(treeId: Int, profileId: String, personGedcomId: String, link: PhotoLink, keepIfEdited: Boolean = false): Boolean {
         var kept = false
+        var found = false
         val changed = host.edit(treeId) { gedcom ->
             val person = gedcom.people.orEmpty().firstOrNull { it.id == personGedcomId && GeniMapper.getGeniId(it) == profileId }
             val before = person?.media.orEmpty().size
+            found = person?.media.orEmpty().any { GeniMapper.getTag(it, PHOTO_TAG) == link.geniPhotoId }
             if (keepIfEdited && person?.media.orEmpty().any { GeniMapper.getTag(it, PHOTO_TAG) == link.geniPhotoId && isEdited(it) }) {
                 kept = true
                 return@edit false
@@ -147,7 +149,8 @@ class PhotoSync(
             person?.let { it.media = it.media.orEmpty().filter { m -> GeniMapper.getTag(m, PHOTO_TAG) != link.geniPhotoId }.toMutableList() }
             person != null && person.media.size != before
         }
-        if (kept) return false
+        // No inline media with the tag (e.g. made a shared media): the user owns it, so its link and file stay
+        if (kept || !found) return false
         store.deletePhotoLink(treeId, profileId, link.geniPhotoId)
         deleteFileIfUnused(treeId, link.fileName)
         return changed

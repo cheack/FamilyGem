@@ -267,6 +267,17 @@ class PhotoSyncTest {
     }
 
     @Test
+    fun keepsLinkAndFileWhenTaggedMediaIsNotInline() = runTest {
+        addAlbum(1, 2)
+        // "Make shared media": the media left the person, which holds only a reference
+        person.media = person.media.filter { it.file != "geni-photo-1.jpg" }.toMutableList()
+        assertEquals(0, sync.reconcileAlbum(treeId, "profile-1", "I1", listOf(albumPhoto(2))))
+        assertFalse(sync.removeLocal(treeId, "profile-1", "I1", "photo-1"))
+        assertEquals(setOf("photo-1", "photo-2"), store.photoLinks(treeId).map { it.geniPhotoId }.toSet())
+        assertTrue(File(dir(), "geni-photo-1.jpg").isFile)
+    }
+
+    @Test
     fun reconcileKeepsPhotosStillInAlbum() = runTest {
         addAlbum(1, 2)
         assertEquals(0, sync.reconcileAlbum(treeId, "profile-1", "I1", listOf(albumPhoto(1), albumPhoto(2))))
