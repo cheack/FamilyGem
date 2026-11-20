@@ -4,7 +4,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="224dp"
-    android:layout_height="100dp">
+    android:layout_height="104dp">
 
     <ImageView
         android:id="@+id/card_background"
@@ -28,7 +28,7 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="0dp"
         android:background="?android:attr/selectableItemBackground"
         android:gravity="center_vertical"
         android:orientation="horizontal"
@@ -36,8 +36,10 @@
         android:paddingTop="6dp"
         android:paddingEnd="8dp"
         android:paddingBottom="6dp"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent">
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
 
         <ImageView
             android:id="@+id/card_picture"

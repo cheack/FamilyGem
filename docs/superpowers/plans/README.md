@@ -216,6 +216,12 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 - [ ] Own privacy policy and user agreement, linked where users open the app (Terms XI.B) and before obtaining user data; link from login and About
 - [ ] Check that the launcher icon is "sufficiently different" from Geni's logo
 
+### Deferred from the review of the cards branch
+
+- [ ] RTL: the stripe corner radii in `person_border_*` (overlay) do not flip with `gravity="start"`; add `drawable-ldrtl` variants or drop the radii
+- [ ] The overlay `person_border_*` drawables also restyle minicards, small person rows, the person list and the merge screens (all keep at least 5dp padding); check them on the phone and decide whether they should keep the stripe
+- [ ] Not checked on the phone: light theme, a right-to-left locale, a 60-character name, PNG/PDF export of the diagram
+
 ## Progress log
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
