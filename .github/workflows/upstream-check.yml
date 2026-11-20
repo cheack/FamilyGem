@@ -1,0 +1,55 @@
+# Weekly trial merge of the original FamilyGem (remote "upstream"), then build and tests.
+# Nothing is pushed: a failed run is the alert that merging upstream/master needs attention.
+name: Upstream trial merge
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trial-merge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: geni
+          fetch-depth: 0
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/michelesalvador/FamilyGem.git
+          git fetch upstream master
+
+      - name: Trial merge
+        run: |
+          git config user.name "upstream-check"
+          git config user.email "upstream-check@users.noreply.github.com"
+          if ! git merge --no-commit --no-ff upstream/master; then
+            echo "::error::Merge conflicts with upstream/master in:"
+            git diff --name-only --diff-filter=U
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.9.0'
+
+      - name: Android SDK platform
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.2"
+
+      - name: Treekin strings are up to date
+        run: python3 scripts/gen_geni_strings.py --check
+
+      - name: Build and test
+        run: gradle --console=plain :geni:testDebugUnitTest :app:assembleDebug

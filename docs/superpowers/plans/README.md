@@ -203,14 +203,15 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 - [x] Own app ID `net.cheack.treekin` and name "Treekin" (in `app/geni.gradle` and `app/src/geni/res`)
 - [x] Redirect scheme `net.cheack.treekin://authorize` instead of `app.familygem.geni://` (also change the Callback URL in the Geni app)
 - [x] Rename the GitHub repository to `cheack/Treekin`
-- [ ] Replace "Family Gem" in other strings (example tree, Premium, about screen)
-- [ ] Take the transparent `NumberPicker` divider fix from Sternbach-Software/GeniForAndroid
-- [ ] CI: weekly trial merge of `upstream/master`, build and tests
+- [x] Replace "Family Gem" in other strings (example tree, Premium): generated overlay `app/src/geni/res/values*/strings.xml` via `scripts/gen_geni_strings.py` (the about screen shows `app_name`; its `www.familygem.app` link and the Premium purchase itself are still upstream's)
+- [x] `NumberPicker` divider fix from Sternbach-Software/GeniForAndroid: not needed, upstream hides the divider through the theme (`AppTheme.Wheel.TransparentLines`) and no code uses reflection on it
+- [x] CI: weekly trial merge of `upstream/master`, build and tests (`.github/workflows/upstream-check.yml`, Mondays 06:00 UTC and manual dispatch; a failed run is the alert)
 
 ## Progress log
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
+- 2026-11-20: Other tasks (PR [#14](https://github.com/cheack/Treekin/pull/14)): the example tree and the Premium messages say "Treekin" in every language; a weekly CI job trial-merges the original FamilyGem, builds and tests (fails when attention is needed). The NumberPicker divider needed no fix.
 - 2026-11-20: Geni photos, part 5 (PR [#13](https://github.com/cheack/Treekin/pull/13)): Delete in a person's media tab on a Geni photo offers "Remove from this device" (the photo can be downloaded again from the album) or, on profiles you manage, "Delete on Geni" after a second confirmation (offline-safe, waits in the queue); the main Geni photo shows an explanation instead; photos deleted on Geni leave the device when the album is read. Stage 6 done.
 - 2026-11-20: Geni photos, part 3 (PR [#11](https://github.com/cheack/Treekin/pull/11)): the person menu has "Geni photos": the album with thumbnails, tap a photo to download it or "Download all"; "Keep offline" can also fetch all album photos; when the main photo changes on Geni the old one stays on the device as an album photo.
 - 2026-11-20: Geni photos, part 4 (PR [#12](https://github.com/cheack/Treekin/pull/12)): a photo added to a person of a Geni tree is uploaded to Geni (scaled to 2048 px, rotated upright), waits offline, shows failures in the account list; the first photo becomes the main one on Geni, later ones go to the album. The account screen has a switch "Send new photos to Geni" (on by default) to keep new photos on the device.
