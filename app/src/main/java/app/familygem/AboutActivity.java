@@ -23,5 +23,6 @@ public class AboutActivity extends BaseActivity {
             webSite.setOnClickListener(view -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.familygem.app"))));
         else
             webSite.setVisibility(View.GONE);
+        app.familygem.geni.GeniGlue.INSTANCE.hidePremium(this); // GENI-HOOK
     }
 }
