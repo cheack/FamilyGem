@@ -177,6 +177,15 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 - [ ] Album repair racing a main-photo change has no per-profile lock; main status is read just before saving, which narrows the window
 - [ ] Album thumbnails load through Glide over plain https without auth; check they still work if Geni signs thumbnail URLs per request
 
+### Deferred from photos PR 4
+
+- [ ] Crop right after adding a photo uploads the uncropped file (the tree is saved before the crop and the queue runs at once); needs a short hold on new photo jobs with a wake-up
+- [ ] `PhotoScaler`: huge images can decode to about 50 MB (an out-of-memory is now caught as a failed upload); small JPEGs keep their EXIF data (GPS) because they are sent as is; PNG transparency turns black after re-encoding to JPEG; only EXIF orientation 6 is tested
+- [ ] Switching the photo upload on re-plans only trees saved in this process; after a cold start the photos wait for the next save of each tree
+- [ ] Local photos of Geni people from earlier builds upload on the first save after the update (the switch defaults to on), with no notice
+- [ ] A photo whose tag edit failed after upload can get a second local media on the next photo sync (found by tag only)
+- [ ] Old photo jobs keep their old label; the pending count may include photo jobs while the switch is off
+
 ## Other tasks
 
 - [x] Register a Geni sandbox app and fill `geni.properties` (`geniAppId`, `geniHost=sandbox.geni.com`)
