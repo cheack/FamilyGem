@@ -157,7 +157,7 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 - [x] PR 2: main photo read: shown on card and diagram, kept current on refresh (phone-checked on sandbox)
 - [x] PR 3: album read: browse, on-demand download, "Keep offline" option (phone-checked on sandbox)
 - [x] PR 4: upload: add photo (first one becomes main), offline queue and failure list (scaling, upload and first-becomes-main checked against the sandbox from the phone; the add-photo screens were not driven by hand)
-- [ ] PR 5: delete on Geni (managed profiles), deletions from Geni, conflicts
+- [x] PR 5: delete: "Delete" in the media tab offers removal from the device or, on managed profiles, deletion on Geni; photos deleted on Geni leave the device when the album is read (phone-checked on sandbox)
 
 ### Deferred from the review of photos PR 1
 
@@ -186,6 +186,14 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 - [ ] A photo whose tag edit failed after upload can get a second local media on the next photo sync (found by tag only)
 - [ ] A pending photo job of an ambiguous person (tag lost and snapshot differs) is kept and could be sent to the stored profile; drop PENDING photo jobs of ambiguous people (keep FAILED and DISMISSED) so they are planned again after the person is resolved
 - [ ] Old photo jobs keep their old label; the pending count may include photo jobs while the switch is off
+
+### Deferred from photos PR 5
+
+- [ ] An empty (successful) album read removes every unedited downloaded non-main photo of the profile; consider a guard if Geni can return an empty list for hidden photos
+- [ ] `AlbumLoader` can download again a photo whose `delphoto:` job is still pending (short window, heals on the next album read); skip photo IDs with a pending delete job
+- [ ] `reconcileAlbum` racing a just finished upload could drop the new photo's local media (re-downloadable from the album)
+- [ ] The main photo "Delete on Geni" only queues the job; the photo leaves the device at the next refresh, so it stays visible after the confirmation; refresh the profile when the job is done
+- [ ] Photo media with local data (title or note) that was deleted on Geni stays with a stale link and is not reported to the user
 
 ## Other tasks
 
