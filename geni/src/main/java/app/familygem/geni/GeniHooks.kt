@@ -16,6 +16,19 @@ object GeniHooks {
         }
     }
 
+    private var onboardingShown = false
+
+    /** The empty trees list gives way to the Geni login once per process; without Geni credentials the upstream prompt stays. */
+    internal fun shouldOnboard(configured: Boolean, alreadyShown: Boolean) = configured && !alreadyShown
+
+    /** Opens the Geni login instead of the "add a tree" prompt; true if it did. Back returns to the list with the prompt. */
+    fun startOnboarding(activity: Activity): Boolean {
+        if (!shouldOnboard(Geni.isConfigured, onboardingShown)) return false
+        onboardingShown = true
+        activity.startActivity(Intent(activity, GeniLoginActivity::class.java))
+        return true
+    }
+
     /** Removes the items that would send a Geni tree to a third party or merge it: share (5), merge (6), compare (7). */
     fun trimTreeMenu(treeId: Int, menu: Menu) {
         if (!GeniTrees.isGeni(treeId)) return

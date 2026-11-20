@@ -144,6 +144,16 @@ class GeniLoaderTest {
     }
 
     @Test
+    fun createTreeFromGivenRootDoesNotAskForCurrentProfile() = runTest {
+        val treeId = loader().createTree(rootGeniId = "profile-36430")
+        assertEquals("profile-36430", store.tree(treeId)?.rootGeniId)
+        assertEquals("Test User", host.titles[treeId])
+        val requests = generateSequence { server.takeRequest(0, java.util.concurrent.TimeUnit.MILLISECONDS) }.map { it.url }.toList()
+        // "profile" without ids is the logged-in user's profile
+        assertTrue(requests.none { it.encodedPath == "/api/profile" && it.queryParameter("ids") == null })
+    }
+
+    @Test
     fun existingTreeOfAccountIsFound() = runTest {
         val treeId = loader().createTree()
         assertEquals(treeId, loader().existingTree("profile-36430"))

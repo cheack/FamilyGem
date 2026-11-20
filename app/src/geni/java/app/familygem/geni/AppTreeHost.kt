@@ -73,6 +73,17 @@ object AppTreeHost : TreeHost {
         return dir
     }
 
+    /** Holds the edit lock, so no edit of the tree being replaced lands in the new one; the tree already open is kept as it is. */
+    override suspend fun openTree(activity: android.app.Activity, treeId: Int): Boolean = mutex.withLock {
+        val alreadyOpen = withContext(Dispatchers.Main) { Global.gc != null && Global.settings.openTree == treeId }
+        // As the trees list does: files are read off the main thread
+        val opened = alreadyOpen || withContext(Dispatchers.IO) { TreeUtil.openGedcom(treeId, true) }
+        if (opened) withContext(Dispatchers.Main) {
+            activity.startActivity(android.content.Intent(activity, app.familygem.main.MainActivity::class.java))
+        }
+        opened
+    }
+
     override fun refreshScreens() {
         Global.edited = true
     }

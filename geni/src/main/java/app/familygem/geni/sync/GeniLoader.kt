@@ -116,10 +116,12 @@ class GeniLoader(
     /**
      * Creates a Geni tree rooted at the logged-in user's profile and loads the root's immediate family.
      * @param title Tree title, by default the name of the root profile
+     * @param rootGeniId Another root than the user's own profile (developer tools; sandbox checks)
      * @return ID of the new tree
      */
-    suspend fun createTree(title: String? = null): Int {
-        val root = client.currentProfile()
+    suspend fun createTree(title: String? = null, rootGeniId: String? = null): Int {
+        val root = if (rootGeniId == null) client.currentProfile()
+        else client.profiles(listOf(rootGeniId))[rootGeniId]?.first ?: error("$rootGeniId not found")
         val treeId = host.createTree(title ?: root.name ?: root.id, Gedcom())
         val info = GeniTreeInfo(treeId, root.id)
         store.deleteTree(treeId) // Rows left by a deleted tree that had the same ID
