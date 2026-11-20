@@ -14,10 +14,10 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 import androidx.appcompat.widget.Toolbar
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
-import androidx.appcompat.widget.SwitchCompat
 import app.familygem.geni.Geni
 import app.familygem.geni.GeniSettings
 import app.familygem.geni.R

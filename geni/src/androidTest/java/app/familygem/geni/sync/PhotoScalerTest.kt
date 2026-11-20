@@ -2,12 +2,14 @@ package app.familygem.geni.sync
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.ExifInterface
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -43,5 +45,19 @@ class PhotoScalerTest {
     fun smallJpegIsUnchanged() = runTest {
         val file = jpeg("small.jpg", 100, 100)
         assertArrayEquals(file.readBytes(), PhotoScaler.scaled(file))
+    }
+
+    @Test
+    fun exifOrientationIsAppliedEvenToSmallJpeg() = runTest {
+        val file = jpeg("rotated.jpg", 200, 100)
+        ExifInterface(file.path).apply {
+            setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_ROTATE_90.toString())
+            saveAttributes()
+        }
+        val bytes = PhotoScaler.scaled(file)
+        assertFalse(bytes.contentEquals(file.readBytes()))
+        val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        assertEquals(100, decoded.width)
+        assertEquals(200, decoded.height)
     }
 }
