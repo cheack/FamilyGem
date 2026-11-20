@@ -28,6 +28,9 @@ interface TreeHost {
     /** Media folder of the tree (created if missing): files named in `OBJE.FILE` live here. */
     fun mediaDir(treeId: Int): File
 
+    /** Opens the tree and shows its diagram, as when the user taps it in the trees list. */
+    suspend fun openTree(activity: android.app.Activity, treeId: Int)
+
     /** Tells the open screens that the tree changed. */
     fun refreshScreens()
 }

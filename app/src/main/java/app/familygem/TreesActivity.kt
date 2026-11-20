@@ -86,7 +86,8 @@ class TreesActivity : AppCompatActivity() {
 
         // At very first startup
         val referrer = Global.settings.referrer
-        if (referrer != null && referrer == "start") retrieveReferrer()
+        if (Global.settings.trees.isEmpty() && app.familygem.geni.GeniGlue.startOnboarding(this)) Unit // GENI-HOOK Geni login instead of the add-tree prompt
+        else if (referrer != null && referrer == "start") retrieveReferrer()
         // If in the referrer has been stored a dateID (which will be annulled as soon as used)
         else if (referrer != null && referrer.matches("\\d{14}".toRegex())) {
             showSharedTreeBanner(referrer) {}

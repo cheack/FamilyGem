@@ -76,6 +76,12 @@ object GeniGlue {
         GeniHooks.addTreesMenu(activity, menu)
     }
 
+    /** True if the Geni login was opened instead of the "add a tree" prompt of an empty trees list. */
+    fun startOnboarding(activity: Activity): Boolean {
+        install()
+        return GeniHooks.startOnboarding(activity)
+    }
+
     /** Removes the upstream Premium advertisement (purchase of FamilyGem Premium) from the About screen. */
     fun hidePremium(activity: androidx.appcompat.app.AppCompatActivity) {
         val manager = activity.supportFragmentManager

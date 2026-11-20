@@ -34,7 +34,9 @@ import app.familygem.geni.sync.UploadJob
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.IOException
 
 /** Logs in to Geni with the OAuth mobile flow and shows the logged-in user. Also receives the OAuth redirect. */
@@ -129,14 +131,15 @@ class GeniLoginActivity : AppCompatActivity() {
             is AuthResult.Success -> {
                 tokens.save(result)
                 Geni.resumeUploads?.invoke() // Uploads stopped for the missing login
-                loadProfile()
+                loadProfile(afterLogin = true)
             }
             is AuthResult.Denied -> showLoggedOut(result.message)
             AuthResult.Invalid -> showLoggedOut(getString(R.string.geni_login_failed))
         }
     }
 
-    private fun loadProfile() {
+    /** @param afterLogin A fresh login: opens the tree of this account, creating it first if there is none. */
+    private fun loadProfile(afterLogin: Boolean = false) {
         progress.visibility = View.VISIBLE
         loginButton.visibility = View.GONE
         logoutButton.visibility = View.GONE
@@ -148,8 +151,11 @@ class GeniLoginActivity : AppCompatActivity() {
                 progress.visibility = View.GONE
                 status.text = getString(R.string.geni_logged_in_as, name)
                 logoutButton.visibility = View.VISIBLE
-                val canCreate = Geni.host != null && Geni.loader(applicationContext).existingTree(profile.id) == null
+                val existing = if (Geni.host != null) Geni.loader(applicationContext).existingTree(profile.id) else null
+                val canCreate = Geni.host != null && existing == null
                 createTreeButton.visibility = if (canCreate) View.VISIBLE else View.GONE
+                if (afterLogin && existing != null) openAndClose(existing)
+                else if (afterLogin && canCreate) createTree()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: GeniAuthRequiredException) {
@@ -170,9 +176,10 @@ class GeniLoginActivity : AppCompatActivity() {
         progress.visibility = View.VISIBLE
         lifecycleScope.launch {
             try {
-                Geni.loader(applicationContext).createTree()
+                // Not cancelled by a rotation or by leaving the screen: a half-made tree would be left behind
+                val treeId = withContext(NonCancellable) { Geni.loader(applicationContext).createTree() }
                 Toast.makeText(this@GeniLoginActivity, R.string.geni_tree_created, Toast.LENGTH_LONG).show()
-                finish()
+                openAndClose(treeId)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: GeniAuthRequiredException) {
@@ -183,6 +190,12 @@ class GeniLoginActivity : AppCompatActivity() {
                 status.text = if (e is IOException) getString(R.string.geni_offline) else e.localizedMessage ?: getString(R.string.geni_login_failed)
             }
         }
+    }
+
+    /** Shows the diagram of the tree and leaves this screen, so Back goes to the trees list. */
+    private suspend fun openAndClose(treeId: Int) {
+        Geni.host?.openTree(this, treeId)
+        finish()
     }
 
     /** Uploads go on in background: while the screen is visible the counts are read again every few seconds. */

@@ -73,6 +73,13 @@ object AppTreeHost : TreeHost {
         return dir
     }
 
+    override suspend fun openTree(activity: android.app.Activity, treeId: Int) {
+        val opened = withContext(Dispatchers.IO) { TreeUtil.openGedcom(treeId, true) }
+        if (opened) withContext(Dispatchers.Main) {
+            activity.startActivity(android.content.Intent(activity, app.familygem.main.MainActivity::class.java))
+        }
+    }
+
     override fun refreshScreens() {
         Global.edited = true
     }

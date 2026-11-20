@@ -9,6 +9,7 @@ open class FakeTreeHost : TreeHost {
     val titles = mutableMapOf<Int, String>()
     val roots = mutableMapOf<Int, String>()
     var refreshes = 0
+    val opened = mutableListOf<Int>()
     val prefetches = mutableListOf<Triple<Int, String, Int>>()
 
     override suspend fun createTree(title: String, gedcom: Gedcom): Int {
@@ -19,6 +20,10 @@ open class FakeTreeHost : TreeHost {
     }
 
     override suspend fun <T> edit(treeId: Int, block: (Gedcom) -> T): T = block(trees.getValue(treeId))
+
+    override suspend fun openTree(activity: android.app.Activity, treeId: Int) {
+        opened += treeId
+    }
 
     override fun treeExists(treeId: Int) = treeId in trees
 

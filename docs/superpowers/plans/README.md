@@ -197,6 +197,21 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 - [ ] The photo dialog is built before the removal runs: if `PhotoSync.sync` promotes the photo to main in between, local removal can still take the current main photo off the device (check main status inside `removeLocal`)
 - [ ] `PhotoSync.deleteFileIfUnused`: a coroutine cancelled after the link is deleted but before the file delete leaves an orphan file; run the delete in `NonCancellable`
 
+## 7. Geni-first onboarding
+
+Plan: `docs/superpowers/plans/2026-11-20-geni-onboarding.md`. Decision (2026-11-20): the app is for Geni only.
+
+- [x] Empty trees list opens "Log in with Geni" instead of the "add a tree" prompt (one hook in `TreesActivity`, once per process; Back shows the normal list)
+- [x] A fresh login opens the account's tree, creating it first if there is none (no button press); on failure the account screen keeps the "Create tree" button and the message
+- [x] `GeniLoader.createTree(rootGeniId)` and the developer tool `GeniImportTool` (androidTest) that copies a local tree into the sandbox account for checks
+- [ ] Not checked: a second login with the tree already there (should open it, not create another); rotation during creation; no `geni.properties` build
+
+### Deferred from Geni-first onboarding
+
+- [ ] Several Geni trees or managed profiles: only the tree of the user's own profile is created
+- [ ] Hide the upstream new-tree entries (share, GEDCOM import, example download) for a Geni-only app, or keep them as an advanced menu
+- [ ] The "Tap to add a family tree" bubble does not show after Back from the login on a fresh install (the first-start branch waits for the Play install referrer, which Treekin does not use)
+
 ## Other tasks
 
 - [x] Register a Geni sandbox app and fill `geni.properties` (`geniAppId`, `geniHost=sandbox.geni.com`)
@@ -226,6 +241,8 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
+- 2026-11-20: Horizontal person cards (PR [#16](https://github.com/cheack/Treekin/pull/16)): diagram cards are all the same size, photo on the left, a coloured sex stripe and tint, straight elbow connection lines instead of curves; the login button reads "Log in with Geni"; a branding audit is in the roadmap.
+- 2026-11-20: Premium advertisement hidden (PR [#15](https://github.com/cheack/Treekin/pull/15)): the About screen no longer offers FamilyGem Premium.
 - 2026-11-20: Other tasks (PR [#14](https://github.com/cheack/Treekin/pull/14)): the example tree and the Premium messages say "Treekin" in every language; a weekly CI job trial-merges the original FamilyGem, builds and tests (fails when attention is needed). The NumberPicker divider needed no fix.
 - 2026-11-20: Geni photos, part 5 (PR [#13](https://github.com/cheack/Treekin/pull/13)): Delete in a person's media tab on a Geni photo offers "Remove from this device" (the photo can be downloaded again from the album) or, on profiles you manage, "Delete on Geni" after a second confirmation (offline-safe, waits in the queue); the main Geni photo shows an explanation instead; photos deleted on Geni leave the device when the album is read. Stage 6 done.
 - 2026-11-20: Geni photos, part 3 (PR [#11](https://github.com/cheack/Treekin/pull/11)): the person menu has "Geni photos": the album with thumbnails, tap a photo to download it or "Download all"; "Keep offline" can also fetch all album photos; when the main photo changes on Geni the old one stays on the device as an album photo.
