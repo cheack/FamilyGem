@@ -54,7 +54,8 @@ class SyncQueueTest {
     }
 
     private val uploader = ScriptedUploader()
-    private val queue = SyncQueue(store, uploader)
+    private var photosOn = true
+    private val queue = SyncQueue(store, uploader, { photosOn })
 
     private suspend fun linkBoth() = store.saveLinks(listOf(
         GeniLink(1, "profile-1", "I1", true, null, ivanJson, 0),
@@ -68,6 +69,25 @@ class SyncQueueTest {
 
     private val driver = ivan.copy(occupation = "Driver")
     private val pilot = ivan.copy(occupation = "Pilot")
+
+    private fun treeWithPhoto() = tree().let { it.copy(people = listOf(it.people[0].copy(media = listOf(LocalMedia("me.jpg", "Me", null))), it.people[1])) }
+
+    @Test
+    fun photoJobIsPlannedOnlyWhileTheSettingIsOn() = runTest {
+        linkBoth()
+        photosOn = false
+        queue.onSaved(1, treeWithPhoto())
+        assertEquals(emptyList<UploadJob>(), store.jobs(1))
+        photosOn = true
+        queue.replan(1)
+        assertEquals(listOf("photo:I1:me.jpg"), store.jobs(1).map { it.key })
+    }
+
+    @Test
+    fun replanWithoutSavedTreeDoesNothing() = runTest {
+        queue.replan(1)
+        assertEquals(emptyList<UploadJob>(), store.jobs(1))
+    }
 
     @Test
     fun samePlanTwiceKeepsOneJob() = runTest {

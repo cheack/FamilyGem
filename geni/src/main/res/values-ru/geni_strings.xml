@@ -64,4 +64,6 @@
     <string name="geni_keep_offline_photos">Главное фото каждого человека скачивается всегда. Скачать также все остальные фото из альбомов? Это больше трафика и места.</string>
     <string name="geni_keep_offline_with_photos">Да, все фото</string>
     <string name="geni_keep_offline_no_photos">Нет, только главные</string>
+    <string name="geni_upload_photos">Отправлять новые фото на Geni</string>
+    <string name="geni_upload_photos_note">Первое фото человека становится его главным фото на Geni.</string>
 </resources>

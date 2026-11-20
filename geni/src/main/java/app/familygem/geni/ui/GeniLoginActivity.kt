@@ -17,7 +17,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
+import androidx.appcompat.widget.SwitchCompat
 import app.familygem.geni.Geni
+import app.familygem.geni.GeniSettings
 import app.familygem.geni.R
 import app.familygem.geni.api.GeniAuthRequiredException
 import app.familygem.geni.auth.AuthResult
@@ -63,6 +65,17 @@ class GeniLoginActivity : AppCompatActivity() {
         failedButton.setOnClickListener { showFailed() }
         conflictsButton = findViewById(R.id.geni_conflicts_button)
         conflictsButton.setOnClickListener { chooseConflict() }
+        val photosSwitch = findViewById<SwitchCompat>(R.id.geni_upload_photos_switch)
+        photosSwitch.isChecked = GeniSettings.uploadPhotos(applicationContext)
+        photosSwitch.setOnCheckedChangeListener { _, on ->
+            GeniSettings.setUploadPhotos(applicationContext, on)
+            // Photos added while it was off are planned now
+            if (on && Geni.isConfigured && Geni.host != null) lifecycleScope.launch {
+                val queue = Geni.queue(applicationContext)
+                Geni.store(applicationContext).trees().forEach { queue.replan(it.treeId) }
+                Geni.resumeUploads?.invoke()
+            }
+        }
         if (!Geni.isConfigured) {
             status.setText(R.string.geni_not_configured)
             return

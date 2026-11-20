@@ -26,6 +26,8 @@ private const val DIFFERENT_VALUE = "sent, but Geni stored a different value; ch
 class SyncQueue(
     private val store: SyncStore,
     private val uploader: Uploader,
+    /** Read at every plan: the "send new photos" setting. */
+    private val uploadPhotos: () -> Boolean = { true },
     /** Told about every finished upload attempt (for the log); never given params or tokens. */
     private val onResult: (UploadJob, Outcome) -> Unit = { _, _ -> }
 ) {
@@ -67,6 +69,11 @@ class SyncQueue(
             ?.let { store.saveJob(it.copy(state = JobState.PENDING, error = null)) }
     }
 
+    /** Plans the last saved tree again, e.g. after the photos setting changed; nothing if no tree was saved yet. */
+    suspend fun replan(treeId: Int) = lock(treeId).withLock {
+        synchronized(lastLocal) { lastLocal[treeId] }?.let { plan(treeId, it) }
+    }
+
     /** Queues the deletion of a profile on Geni (once per profile); [label] is what the user sees if it fails. */
     suspend fun enqueueDelete(treeId: Int, geniId: String, label: String) = lock(treeId).withLock {
         val key = "delete:$geniId"
@@ -92,7 +99,8 @@ class SyncQueue(
     private suspend fun plan(treeId: Int, local: LocalTree) {
         synchronized(planned) { planned[treeId] = local.stamp }
         val existing = store.jobs(treeId).associateBy { it.key }
-        val plan = UploadPlanner.plan(treeId, local, store.links(treeId), existing.values.toList())
+        val plan = UploadPlanner.plan(treeId, local, store.links(treeId), existing.values.toList(),
+            store.photoLinks(treeId), uploadPhotos())
         for (wanted in plan.upserts) {
             val job = existing[wanted.key]
             when {
