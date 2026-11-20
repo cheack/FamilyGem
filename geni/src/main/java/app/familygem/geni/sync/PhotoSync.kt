@@ -104,20 +104,66 @@ class PhotoSync(
     }
 
     private suspend fun remove(treeId: Int, profile: GeniProfile, personGedcomId: String, link: PhotoLink): Boolean {
-        host.edit(treeId) { gedcom ->
-            gedcom.people.orEmpty().firstOrNull { it.id == personGedcomId && GeniMapper.getGeniId(it) == profile.id }?.let { person ->
-                person.media = person.media.orEmpty().filter { GeniMapper.getTag(it, PHOTO_TAG) != link.geniPhotoId }.toMutableList()
-            }
-        }
-        store.deletePhotoLink(treeId, profile.id, link.geniPhotoId)
-        deleteFileIfUnused(treeId, link.fileName)
+        removeLink(treeId, profile.id, personGedcomId, link)
         return true
     }
+
+    /**
+     * Removes a Geni photo from the person: its media, the photo link and the file when no other link uses it.
+     * @return true if the tree changed
+     */
+    suspend fun removeLocal(treeId: Int, geniProfileId: String, personGedcomId: String, geniPhotoId: String): Boolean {
+        val link = store.photoLinks(treeId, geniProfileId).firstOrNull { it.geniPhotoId == geniPhotoId }
+        return removeLink(treeId, geniProfileId, personGedcomId, link ?: PhotoLink(treeId, geniProfileId, geniPhotoId, null, false, null, null, PhotoState.DOWNLOADED))
+    }
+
+    /**
+     * Removes the album photos of a profile that Geni no longer lists: media, link and file, as [removeLocal] does.
+     * Not touched: the main photo, photos not downloaded yet or waiting for upload or deletion, and photos
+     * the user made their own with a title or a note (the media stays and so does its link).
+     * @param album the photos Geni lists now
+     * @return how many photos were removed
+     */
+    suspend fun reconcileAlbum(treeId: Int, geniProfileId: String, personGedcomId: String, album: List<GeniPhoto>): Int {
+        val listed = album.map { it.id }.toSet()
+        val gone = store.photoLinks(treeId, geniProfileId).filter { !it.isMain && it.state == PhotoState.DOWNLOADED && it.geniPhotoId !in listed }
+        var removed = 0
+        for (link in gone) {
+            if (removeLink(treeId, geniProfileId, personGedcomId, link, keepIfEdited = true)) removed++
+        }
+        return removed
+    }
+
+    /** @param keepIfEdited leave everything as it is when the media carries a title or notes of the user */
+    private suspend fun removeLink(treeId: Int, profileId: String, personGedcomId: String, link: PhotoLink, keepIfEdited: Boolean = false): Boolean {
+        var kept = false
+        var found = false
+        val changed = host.edit(treeId) { gedcom ->
+            val person = gedcom.people.orEmpty().firstOrNull { it.id == personGedcomId && GeniMapper.getGeniId(it) == profileId }
+            val before = person?.media.orEmpty().size
+            found = person?.media.orEmpty().any { GeniMapper.getTag(it, PHOTO_TAG) == link.geniPhotoId }
+            if (keepIfEdited && person?.media.orEmpty().any { GeniMapper.getTag(it, PHOTO_TAG) == link.geniPhotoId && isEdited(it) }) {
+                kept = true
+                return@edit false
+            }
+            person?.let { it.media = it.media.orEmpty().filter { m -> GeniMapper.getTag(m, PHOTO_TAG) != link.geniPhotoId }.toMutableList() }
+            person != null && person.media.size != before
+        }
+        // No inline media with the tag (e.g. made a shared media): the user owns it, so its link and file stay
+        if (kept || !found) return false
+        store.deletePhotoLink(treeId, profileId, link.geniPhotoId)
+        deleteFileIfUnused(treeId, link.fileName)
+        return changed
+    }
+
+    /** A media the user added a title or a note to (a GEDCOM media holds no sources of its own). */
+    private fun isEdited(media: Media) =
+        !media.title.isNullOrBlank() || media.notes.orEmpty().isNotEmpty() || media.noteRefs.orEmpty().isNotEmpty()
 
     /** Two profiles can share one Geni photo and so one file: it goes only when no photo link uses it any more. */
     private suspend fun deleteFileIfUnused(treeId: Int, fileName: String?) {
         if (fileName == null || store.photoLinks(treeId).any { it.fileName == fileName }) return
-        File(host.mediaDir(treeId), fileName).delete()
+        withContext(Dispatchers.IO) { File(host.mediaDir(treeId), fileName).delete() }
     }
 
     companion object {

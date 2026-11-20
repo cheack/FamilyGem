@@ -539,6 +539,36 @@ class UploaderTest {
         assertTrue(uploader().run(job) is Outcome.Retry)
     }
 
+    private fun deletePhotoJob() = UploadJob(treeId = 1, key = "delphoto:photo-5", kind = JobKind.DELETE_PHOTO, geniId = "photo-5",
+        personGedcomId = "I1", params = emptyList(), label = "Me", localHash = 0)
+
+    @Test
+    fun deletePhotoPostsDeleteAndIsDone() = runTest {
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/photo-5/delete", request.url.encodedPath)
+    }
+
+    @Test
+    fun deletePhotoNotFoundIsDone() = runTest {
+        server.enqueue(error(404, """{"error":{"message":"Not found"}}"""))
+        assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
+    }
+
+    @Test
+    fun deletePhotoServerErrorRetries() = runTest {
+        server.enqueue(error(500, "{}"))
+        assertTrue(uploader().run(deletePhotoJob()) is Outcome.Retry)
+    }
+
+    @Test
+    fun deletePhotoClientErrorFails() = runTest {
+        server.enqueue(error(403, """{"error":{"message":"Access denied"}}"""))
+        assertTrue(uploader().run(deletePhotoJob()) is Outcome.Failed)
+    }
+
     private val photoJson = """{"id":"photo-5","title":"Me","content_type":"image/jpeg","album_id":"album-1","sizes":{"medium":"https://x.test/p/me.jpg?sig=1"}}"""
 
     private fun photoJob(file: String = "me.jpg") = UploadJob(id = 3, treeId = 1, key = "photo:I1:$file", kind = JobKind.ADD_PHOTO, geniId = "profile-36430",

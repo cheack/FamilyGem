@@ -178,11 +178,62 @@ Decisions (from reading the write path): no Room migration: `JobKind` is stored 
 - [ ] **Step 1: On the phone (sandbox, logged in): add a photo to a Geni person (the person has no photo): it uploads, appears on Geni as main, the card keeps one copy; add a second: it uploads as album photo; switch off, add a third: stays local; airplane mode: waits then uploads after reconnect.**
 - [ ] **Step 2: Tick roadmap PR 4, deferred list, push, open PR into `geni`, CodeRabbit loop as for PR 3, Progress-log line before merge.**
 
-## PR 5: Delete and conflicts (Tasks 16–18)
+## PR 5: Delete and deletions from Geni (Tasks 16–18; expanded 2026-11-20)
 
-- Task 16: `DELETE_PHOTO` job, managed profiles only, confirmation dialog text, reuse of stage 5 rules.
-- Task 17: photos deleted on Geni leave the device (extend `PhotoSync` and `AlbumLoader`); local edits to a deleted photo go to the conflict list.
-- Task 18: main photo changed on Geni (replace the local main file; the old one stays in the album); roadmap, README progress log, memory update; PR 5.
+Decisions (from the code as it is after PR 4):
+- Main-photo change on Geni is already handled (PR 3: the old main stays as an album photo), so the old Task 18 shrinks to docs.
+- **Deleting a Geni photo in the app.** A hook at the start of Delete in the person's media tab (`MediaFragment`, menu id 8) hands inline media tagged `_GENI_PHOTO_ID` to `GeniGlue.handleDeleteMedia`. Non-main photo: choices "Remove from this device" and, if the profile is managed (stage 5 `DeleteRules.isManaged`), "Delete on Geni" (second confirmation). The main photo can be deleted only on Geni (managed profile); otherwise a message explains that it comes from Geni and would return at the next refresh. Media not from Geni: upstream as usual.
+- **Delete on Geni** removes the photo locally at once (media entry, photo link, file if unused) and queues `DELETE_PHOTO` (key `delphoto:<photoId>`, `geniId` = photo ID, `personGedcomId` = owner). Deleting is safe to repeat: a 404 counts as done, a server error retries.
+- **Photos deleted on Geni** (album photos): when the album is read (album dialog, "Download all", Keep offline), downloaded non-main photos missing from Geni's list are removed from the device, unless the media has local data (a title, a note or a source): then it stays untouched (stale link) and the case is deferred in the roadmap. The main photo is already handled by `PhotoSync.sync`.
+- No conflict list entry in this PR (ruled out above: modified media are left alone).
+
+### Task 16: `DELETE_PHOTO` job, local removal and the queue
+
+**Files:**
+- Modify: `geni/src/main/java/app/familygem/geni/sync/UploadJob.kt`, `PhotoSync.kt`, `Uploader.kt`, `SyncQueue.kt`, `UploadPlanner.kt`
+- Test: `PhotoSyncTest.kt`, `UploaderTest.kt`, `SyncQueueTest.kt`, `UploadPlannerTest.kt`
+
+**Interfaces:**
+- Produces: `JobKind.DELETE_PHOTO`; `PhotoSync.removeLocal(treeId: Int, geniProfileId: String, personGedcomId: String, geniPhotoId: String): Boolean` (removes the media tagged with that photo ID from the person, the photo link, and the file when no other link uses it; true if the tree changed); `SyncQueue.enqueueDeletePhoto(treeId: Int, photoId: String, personGedcomId: String, label: String)` (once per photo; a failed or dismissed one is asked for again, like `enqueueDelete`); `Uploader.run` handles `DELETE_PHOTO` by `client.deletePhoto(job.geniId)`; the planner never deletes a `delphoto:` job as "gone" (like `DELETE_PROFILE`).
+
+- [ ] **Step 1: Failing tests:** `PhotoSyncTest.removeLocalDropsMediaLinkAndFile` (and keeps a file another profile's link uses); `UploaderTest.deletePhotoPostsDeleteAndIsDone`, `deletePhotoNotFoundIsDone`, `deletePhotoServerErrorRetries`, `deletePhotoClientErrorFails`; `SyncQueueTest.enqueueDeletePhotoQueuesOnceAndRerequestFailed`; `UploadPlannerTest.deletePhotoJobIsNeverDroppedAsGone`.
+- [ ] **Step 2: Implement** the interfaces above; `DELETE_PHOTO` is not an add (a repeat is safe); `removeLocal` reuses the private removal code of `PhotoSync`.
+- [ ] **Step 3: Run `:geni:testDebugUnitTest` (in the rsync copy); expect PASS.**
+- [ ] **Step 4: Commit** "Queue deletion of Geni photos and remove them locally".
+
+### Task 17: Photos deleted on Geni leave the device
+
+**Files:**
+- Modify: `geni/src/main/java/app/familygem/geni/sync/PhotoSync.kt`, `AlbumLoader.kt`; callers in `app/src/geni/java/app/familygem/geni/GeniAlbum.kt` and `GeniPrefetch.kt`
+- Test: `PhotoSyncTest.kt`, `AlbumLoaderTest.kt`
+
+**Interfaces:**
+- Produces: `PhotoSync.reconcileAlbum(treeId: Int, geniProfileId: String, personGedcomId: String, album: List<GeniPhoto>): Int` (removes downloaded non-main photos of the profile whose ID is not in `album` and whose media has no title, notes or sources; returns how many); `AlbumLoader.list(treeId, geniProfileId, personGedcomId)` calls it after fetching the album and returns `Album(entries: List<AlbumEntry>, removed: Int)`; `downloadAll` reconciles too. `GeniAlbum` calls its `onChanged` when `removed > 0` and shows "N photos removed (deleted on Geni)".
+
+- [ ] **Step 1: Failing tests:** `reconcileRemovesAlbumPhotoMissingOnGeni`, `reconcileKeepsMainPhoto`, `reconcileKeepsPhotoWithLocalTitleNote Or Source` (media with a note stays, link stays), `reconcileKeepsPhotosStillInAlbum`, `reconcileIgnoresOtherProfiles`; `AlbumLoaderTest.listReportsRemovedPhotos`.
+- [ ] **Step 2: Implement; update the callers and strings (EN and RU).**
+- [ ] **Step 3: Run `:geni:testDebugUnitTest :app:assembleDebug`; expect PASS.**
+- [ ] **Step 4: Commit** "Remove album photos that were deleted on Geni".
+
+### Task 18: Delete hook, dialogs, docs and PR 5
+
+**Files:**
+- Modify: `app/src/main/java/app/familygem/profile/MediaFragment.kt` (one GENI-HOOK line at the start of case 8), `app/src/geni/java/app/familygem/geni/GeniGlue.kt` (`handleDeleteMedia`), `geni/UPSTREAM-HOOKS.md`, strings EN and RU, `docs/superpowers/plans/README.md`, memory file
+
+**Interfaces:**
+- Produces: `GeniGlue.handleDeleteMedia(context: Context, person: Person, media: Media, onDone: () -> Unit): Boolean` (true when it took over, as `handleDelete` does for persons).
+
+- [ ] **Step 1: Implement `handleDeleteMedia` per the Decisions; dialog texts: device removal "The photo stays on Geni and can be downloaded again from the album.", Geni deletion "This photo will be deleted on Geni for everyone. This cannot be undone.", main photo "This is the main photo from Geni. Delete it on Geni to remove it." (RU strings too).**
+- [ ] **Step 2: Hook line and `UPSTREAM-HOOKS.md` row; build `:geni:testDebugUnitTest :app:assembleDebug`; expect PASS.**
+- [ ] **Step 3: Phone check (sandbox, driven with uiautomator and the sandbox tool): remove an album photo from the device (album shows it downloadable again); delete the main photo → message; delete a photo on Geni (managed profile) → gone from Geni; delete a photo on Geni with the tool, open the album → removed from the device.**
+- [ ] **Step 4: Roadmap: tick PR 5 and stage 6, deferred list, Progress-log line before merge; push, PR, CodeRabbit loop (sonnet), merge, memory update.**
+
+## Review Focus (PR 5)
+
+- Photo deleted on Geni while it is the person's only local media with a note: not removed (test in Task 17).
+- Delete on Geni fails offline: the photo is already gone locally; the job waits and the failed list shows the photo ID label.
+- Two profiles sharing one file: the file stays until the last link goes (Task 16 test).
+- The main photo removed on Geni and then the album read: handled once, no double removal.
 
 ## Self-review notes
 

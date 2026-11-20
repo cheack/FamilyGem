@@ -25,13 +25,18 @@ object GeniAlbum {
         val loader = Geni.albumLoader(activity)
         Toast.makeText(activity, R.string.geni_album_loading, Toast.LENGTH_SHORT).show()
         owner.lifecycleScope.launch {
-            val entries = try {
-                loader.list(treeId, geniId)
+            val album = try {
+                loader.list(treeId, geniId, personGedcomId)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Toast.makeText(activity, activity.getString(R.string.geni_album_failed, e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
                 return@launch
+            }
+            val entries = album.entries
+            if (album.removed > 0) {
+                Toast.makeText(activity, activity.getString(R.string.geni_album_removed, album.removed), Toast.LENGTH_SHORT).show()
+                onChanged()
             }
             if (entries.isEmpty()) {
                 Toast.makeText(activity, R.string.geni_album_empty, Toast.LENGTH_SHORT).show()

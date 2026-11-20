@@ -157,7 +157,7 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 - [x] PR 2: main photo read: shown on card and diagram, kept current on refresh (phone-checked on sandbox)
 - [x] PR 3: album read: browse, on-demand download, "Keep offline" option (phone-checked on sandbox)
 - [x] PR 4: upload: add photo (first one becomes main), offline queue and failure list (scaling, upload and first-becomes-main checked against the sandbox from the phone; the add-photo screens were not driven by hand)
-- [ ] PR 5: delete on Geni (managed profiles), deletions from Geni, conflicts
+- [x] PR 5: delete: "Delete" in the media tab offers removal from the device or, on managed profiles, deletion on Geni; photos deleted on Geni leave the device when the album is read (phone-checked on sandbox)
 
 ### Deferred from the review of photos PR 1
 
@@ -187,6 +187,16 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 - [ ] A pending photo job of an ambiguous person (tag lost and snapshot differs) is kept and could be sent to the stored profile; drop PENDING photo jobs of ambiguous people (keep FAILED and DISMISSED) so they are planned again after the person is resolved
 - [ ] Old photo jobs keep their old label; the pending count may include photo jobs while the switch is off
 
+### Deferred from photos PR 5
+
+- [ ] An empty (successful) album read removes every unedited downloaded non-main photo of the profile; consider a guard if Geni can return an empty list for hidden photos
+- [ ] `AlbumLoader` can download again a photo whose `delphoto:` job is still pending (short window, heals on the next album read); skip photo IDs with a pending delete job
+- [ ] `reconcileAlbum` racing a just finished upload could drop the new photo's local media (re-downloadable from the album)
+- [ ] The main photo "Delete on Geni" only queues the job; the photo leaves the device at the next refresh, so it stays visible after the confirmation; refresh the profile when the job is done
+- [ ] Photo media with local data (title or note) that was deleted on Geni stays with a stale link and is not reported to the user
+- [ ] The photo dialog is built before the removal runs: if `PhotoSync.sync` promotes the photo to main in between, local removal can still take the current main photo off the device (check main status inside `removeLocal`)
+- [ ] `PhotoSync.deleteFileIfUnused`: a coroutine cancelled after the link is deleted but before the file delete leaves an orphan file; run the delete in `NonCancellable`
+
 ## Other tasks
 
 - [x] Register a Geni sandbox app and fill `geni.properties` (`geniAppId`, `geniHost=sandbox.geni.com`)
@@ -201,6 +211,7 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
+- 2026-11-20: Geni photos, part 5 (PR [#13](https://github.com/cheack/Treekin/pull/13)): Delete in a person's media tab on a Geni photo offers "Remove from this device" (the photo can be downloaded again from the album) or, on profiles you manage, "Delete on Geni" after a second confirmation (offline-safe, waits in the queue); the main Geni photo shows an explanation instead; photos deleted on Geni leave the device when the album is read. Stage 6 done.
 - 2026-11-20: Geni photos, part 3 (PR [#11](https://github.com/cheack/Treekin/pull/11)): the person menu has "Geni photos": the album with thumbnails, tap a photo to download it or "Download all"; "Keep offline" can also fetch all album photos; when the main photo changes on Geni the old one stays on the device as an album photo.
 - 2026-11-20: Geni photos, part 4 (PR [#12](https://github.com/cheack/Treekin/pull/12)): a photo added to a person of a Geni tree is uploaded to Geni (scaled to 2048 px, rotated upright), waits offline, shows failures in the account list; the first photo becomes the main one on Geni, later ones go to the album. The account screen has a switch "Send new photos to Geni" (on by default) to keep new photos on the device.
 - 2026-11-19: Geni photos, part 2 (PR [#9](https://github.com/cheack/Treekin/pull/9)): the main Geni photo of each loaded person now downloads to the device and shows on the card and in the person's media; an unchanged photo is not downloaded again, a changed one replaces the old, one removed on Geni leaves the device. Also (PR [#10](https://github.com/cheack/Treekin/pull/10)): the `_GENI_ID` tag on the card can no longer be edited or deleted.

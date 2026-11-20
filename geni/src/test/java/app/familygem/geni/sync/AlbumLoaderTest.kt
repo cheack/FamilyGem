@@ -57,9 +57,20 @@ class AlbumLoaderTest {
         store.savePhotoLink(PhotoLink(treeId, "profile-1", "photo-1", null, true, null, "geni-photo-1.jpg", PhotoState.DOWNLOADED))
         java.io.File(host.mediaDir(treeId), "geni-photo-1.jpg").writeBytes(jpeg)
         enqueueAlbum(1, 2, 3)
-        val entries = loader().list(treeId, "profile-1")
+        val entries = loader().list(treeId, "profile-1", "I1").entries
         assertEquals(listOf(true, true, false), entries.map { it.downloaded })
         assertEquals(listOf(true, false, false), entries.map { it.isMain })
+    }
+
+    @Test
+    fun listReportsRemovedPhotos() = runTest {
+        sync.addAlbumPhoto(treeId, "profile-1", "I1", loaderPhoto(1))
+        sync.addAlbumPhoto(treeId, "profile-1", "I1", loaderPhoto(2))
+        enqueueAlbum(1)
+        val album = loader().list(treeId, "profile-1", "I1")
+        assertEquals(1, album.removed)
+        assertEquals(listOf("photo-1"), album.entries.map { it.photo.id })
+        assertEquals(listOf("geni-photo-1.jpg"), gedcom.people.single().media.map { it.file })
     }
 
     private fun loaderPhoto(n: Int) = app.familygem.geni.api.parsePhoto(photoJson(n))

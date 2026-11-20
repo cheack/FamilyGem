@@ -218,6 +218,83 @@ class PhotoSyncTest {
     }
 
     @Test
+    fun removeLocalDropsMediaLinkAndFile() = runTest {
+        gedcom.addPerson(Person().apply { id = "I2"; GeniMapper.setGeniId(this, "profile-2") })
+        val owner = gedcom.people.first { it.id == "I1" }
+        owner.addMedia(Media().apply { file = "mine.jpg" })
+        sync.sync(treeId, profile("photo-7"), "I1")
+        sync.sync(treeId, profile("photo-7").copy(id = "profile-2"), "I2")
+        assertTrue(sync.removeLocal(treeId, "profile-1", "I1", "photo-7"))
+        assertEquals(listOf("mine.jpg"), owner.media.map { it.file })
+        assertEquals(listOf("profile-2"), store.photoLinks(treeId).map { it.geniProfileId })
+        assertTrue(File(dir(), "geni-photo-7.jpg").isFile) // Another profile's link still uses it
+        assertTrue(sync.removeLocal(treeId, "profile-2", "I2", "photo-7"))
+        assertFalse(File(dir(), "geni-photo-7.jpg").exists())
+        assertFalse(sync.removeLocal(treeId, "profile-1", "I1", "photo-7"))
+    }
+
+    private fun albumPhoto(n: Int) = GeniPhoto("photo-$n", null, null, mapOf("medium" to "https://p.example/$n/m.jpg"), null, null)
+
+    private suspend fun addAlbum(vararg ns: Int) = ns.forEach { sync.addAlbumPhoto(treeId, "profile-1", "I1", albumPhoto(it)) }
+
+    @Test
+    fun reconcileRemovesAlbumPhotoMissingOnGeni() = runTest {
+        addAlbum(1, 2)
+        assertEquals(1, sync.reconcileAlbum(treeId, "profile-1", "I1", listOf(albumPhoto(1))))
+        assertEquals(listOf("geni-photo-1.jpg"), person.media.map { it.file })
+        assertEquals(listOf("photo-1"), store.photoLinks(treeId).map { it.geniPhotoId })
+        assertFalse(File(dir(), "geni-photo-2.jpg").exists())
+    }
+
+    @Test
+    fun reconcileKeepsMainPhoto() = runTest {
+        sync.sync(treeId, profile("photo-7"), "I1")
+        assertEquals(0, sync.reconcileAlbum(treeId, "profile-1", "I1", emptyList()))
+        assertEquals(1, person.media.size)
+        assertEquals(1, store.photoLinks(treeId).size)
+    }
+
+    @Test
+    fun reconcileKeepsPhotoWithLocalTitleNoteOrSource() = runTest {
+        addAlbum(1, 2, 3)
+        person.media.single { it.file == "geni-photo-1.jpg" }.title = "Wedding"
+        person.media.single { it.file == "geni-photo-2.jpg" }.addNote(org.folg.gedcom.model.Note().apply { value = "mine" })
+        person.media.single { it.file == "geni-photo-3.jpg" }.addNoteRef(org.folg.gedcom.model.NoteRef().apply { ref = "N1" })
+        assertEquals(0, sync.reconcileAlbum(treeId, "profile-1", "I1", emptyList()))
+        assertEquals(3, person.media.size)
+        assertEquals(3, store.photoLinks(treeId).size)
+        assertTrue(File(dir(), "geni-photo-2.jpg").isFile)
+    }
+
+    @Test
+    fun keepsLinkAndFileWhenTaggedMediaIsNotInline() = runTest {
+        addAlbum(1, 2)
+        // "Make shared media": the media left the person, which holds only a reference
+        person.media = person.media.filter { it.file != "geni-photo-1.jpg" }.toMutableList()
+        assertEquals(0, sync.reconcileAlbum(treeId, "profile-1", "I1", listOf(albumPhoto(2))))
+        assertFalse(sync.removeLocal(treeId, "profile-1", "I1", "photo-1"))
+        assertEquals(setOf("photo-1", "photo-2"), store.photoLinks(treeId).map { it.geniPhotoId }.toSet())
+        assertTrue(File(dir(), "geni-photo-1.jpg").isFile)
+    }
+
+    @Test
+    fun reconcileKeepsPhotosStillInAlbum() = runTest {
+        addAlbum(1, 2)
+        assertEquals(0, sync.reconcileAlbum(treeId, "profile-1", "I1", listOf(albumPhoto(1), albumPhoto(2))))
+        assertEquals(2, person.media.size)
+    }
+
+    @Test
+    fun reconcileIgnoresOtherProfiles() = runTest {
+        gedcom.addPerson(Person().apply { id = "I2"; GeniMapper.setGeniId(this, "profile-2") })
+        addAlbum(1)
+        sync.addAlbumPhoto(treeId, "profile-2", "I2", albumPhoto(5))
+        assertEquals(1, sync.reconcileAlbum(treeId, "profile-1", "I1", emptyList()))
+        assertEquals(listOf("profile-2"), store.photoLinks(treeId).map { it.geniProfileId })
+        assertEquals(1, gedcom.people.first { it.id == "I2" }.media.size)
+    }
+
+    @Test
     fun detectsImageHeaders() {
         fun file(vararg b: Int) = File.createTempFile("img", null).apply { writeBytes(ByteArray(b.size) { b[it].toByte() }); deleteOnExit() }
         assertTrue(PhotoSync.looksLikeImage(file(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A)))

@@ -95,6 +95,17 @@ class SyncQueue(
         }
     }
 
+    /** Queues the deletion of a photo on Geni (once per photo); a failed or dismissed one is asked for again. */
+    suspend fun enqueueDeletePhoto(treeId: Int, photoId: String, personGedcomId: String, label: String) = lock(treeId).withLock {
+        val key = "delphoto:$photoId"
+        val existing = store.jobs(treeId).firstOrNull { it.key == key }
+        if (existing != null) {
+            if (existing.state != JobState.PENDING && existing.state != JobState.SENDING)
+                store.saveJob(existing.copy(state = JobState.PENDING, error = null, version = existing.version + 1))
+        } else store.saveJob(UploadJob(treeId = treeId, key = key, kind = JobKind.DELETE_PHOTO, geniId = photoId,
+            personGedcomId = personGedcomId, params = emptyList(), label = label, localHash = 0))
+    }
+
     /** Called with the tree lock held. */
     private suspend fun plan(treeId: Int, local: LocalTree) {
         synchronized(planned) { planned[treeId] = local.stamp }

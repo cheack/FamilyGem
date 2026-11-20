@@ -66,6 +66,7 @@ open class Uploader(
             JobKind.ADD_CHILD, JobKind.ADD_PARTNER -> add(job)
             JobKind.DELETE_PROFILE -> delete(job)
             JobKind.ADD_PHOTO -> addPhoto(job)
+            JobKind.DELETE_PHOTO -> deletePhoto(job)
         }
     } catch (e: CancellationException) {
         throw e
@@ -118,6 +119,17 @@ open class Uploader(
         // Geni has deleted it: a failure here must not make the job post the delete again
         bestEffort { PersonRemoval(store, host).removeFromTree(job.treeId, geniId) }
         bestEffort { store.deleteLink(job.treeId, geniId) }
+        return Outcome.Done
+    }
+
+    /** Deletes the photo on Geni; already gone there counts as done. A repeat is safe. */
+    private suspend fun deletePhoto(job: UploadJob): Outcome {
+        val photoId = job.geniId ?: return Outcome.Failed("no Geni photo ID")
+        try {
+            client.deletePhoto(photoId)
+        } catch (e: GeniApiException) {
+            if (e.code != 404) throw e
+        }
         return Outcome.Done
     }
 

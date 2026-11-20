@@ -89,6 +89,7 @@ class MediaFragment : BaseFragment() {
                 return true
             }
             8 -> { // Delete
+                if (app.familygem.geni.GeniGlue.handleDeleteMedia(requireContext(), person, media) { if (isAdded) refresh() }) return true // GENI-HOOK
                 Util.confirmDelete(requireContext()) {
                     val leaders = MediaUtil.deleteMedia(media)
                     save(true, *leaders)
