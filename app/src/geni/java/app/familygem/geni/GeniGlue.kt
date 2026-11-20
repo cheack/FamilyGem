@@ -14,6 +14,8 @@ import app.familygem.geni.map.GeniMapper
 import app.familygem.geni.sync.DeleteDecision
 import app.familygem.geni.sync.DeleteRules
 import app.familygem.geni.sync.PersonRemoval
+import app.familygem.geni.sync.PhotoSync
+import org.folg.gedcom.model.Media
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import app.familygem.geni.sync.LoadPolicy
@@ -151,6 +153,89 @@ object GeniGlue {
             }
         }
         return true
+    }
+
+    /**
+     * Deleting a media of a Geni person: handled here when the media is a Geni photo (tagged with its Geni photo ID).
+     * Returns true when it took over (a dialog follows); false for any other media, which upstream deletes as usual.
+     * [onDone] refreshes the screen after the photo was removed from this device.
+     */
+    fun handleDeleteMedia(context: Context, person: Person, media: Media, onDone: () -> Unit): Boolean {
+        install()
+        val treeId = Global.settings.openTree
+        val geniId = GeniMapper.getGeniId(person)
+        val photoId = GeniMapper.getTag(media, PhotoSync.PHOTO_TAG)
+        if (!GeniTrees.isGeni(treeId) || geniId == null || photoId == null) return false
+        val owner = context as? LifecycleOwner ?: return false
+        owner.lifecycleScope.launch {
+            val store = Geni.store(context)
+            val isMain = store.photoLinks(treeId, geniId).any { it.geniPhotoId == photoId && it.isMain }
+            val managed = try {
+                DeleteRules.isManaged(store.link(treeId, geniId)?.snapshot, Geni.client(context).managedGuids())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("GeniSync", "Managed profiles not read", e)
+                null
+            }
+            val dialog = AlertDialog.Builder(context).setMessage(
+                context.getString(if (isMain) R.string.geni_photo_main else R.string.geni_photo_delete_local) +
+                    if (managed == true) "" else "\n\n" + context.getString(
+                        if (managed == false) R.string.geni_delete_not_managed else R.string.geni_delete_unchecked)
+            ).setNegativeButton(android.R.string.cancel, null)
+            if (isMain) {
+                // The main photo is only removed by deleting it on Geni
+                if (managed == true) dialog.setPositiveButton(R.string.geni_delete_geni) { _, _ -> confirmDeletePhoto(context, owner, treeId, geniId, person.id, photoId, false, onDone) }
+                else dialog.setPositiveButton(android.R.string.ok, null)
+            } else {
+                dialog.setPositiveButton(R.string.geni_delete_local) { _, _ ->
+                    owner.lifecycleScope.launch {
+                        try {
+                            withContext(Dispatchers.IO) { PhotoSync(store, AppTreeHost).removeLocal(treeId, geniId, person.id, photoId) }
+                            onDone()
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Log.e("GeniSync", "Removing photo $photoId failed", e)
+                            Toast.makeText(context, R.string.geni_delete_failed, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+                if (managed == true) dialog.setNeutralButton(R.string.geni_delete_geni) { _, _ -> confirmDeletePhoto(context, owner, treeId, geniId, person.id, photoId, true, onDone) }
+            }
+            dialog.show()
+        }
+        return true
+    }
+
+    /** Second confirmation; then the photo is deleted on Geni through the queue, and first removed here when [removeHere]. */
+    private fun confirmDeletePhoto(
+        context: Context, owner: LifecycleOwner, treeId: Int, geniId: String, personId: String, photoId: String,
+        removeHere: Boolean, onDone: () -> Unit
+    ) {
+        AlertDialog.Builder(context).setMessage(R.string.geni_photo_delete_confirm)
+            .setPositiveButton(R.string.geni_delete_geni) { _, _ ->
+                owner.lifecycleScope.launch {
+                    val queued = try {
+                        withContext(Dispatchers.IO) {
+                            if (removeHere) PhotoSync(Geni.store(context), AppTreeHost).removeLocal(treeId, geniId, personId, photoId)
+                            Geni.queue(context).enqueueDeletePhoto(treeId, photoId, personId, photoId)
+                        }
+                        true
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.e("GeniSync", "Queueing the delete of photo $photoId failed", e)
+                        false
+                    }
+                    if (queued) {
+                        GeniSync.kick(context, treeId)
+                        Toast.makeText(context, R.string.geni_delete_queued, Toast.LENGTH_LONG).show()
+                        onDone()
+                    } else Toast.makeText(context, R.string.geni_delete_failed, Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null).show()
     }
 
     private fun confirmDeleteOnGeni(context: Context, treeId: Int, geniId: String, name: String) {
