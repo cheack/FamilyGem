@@ -186,6 +186,27 @@ class PhotoSyncTest {
     }
 
     @Test
+    fun repairingMainPhotoViaAlbumKeepsMainStatus() = runTest {
+        sync.sync(treeId, profile("photo-7"), "I1")
+        File(dir(), "geni-photo-7.jpg").delete()
+        val album = GeniPhoto("photo-7", null, null, mapOf("medium" to "https://photos.example/photo-7/medium.jpg"), null, null)
+        sync.addAlbumPhoto(treeId, "profile-1", "I1", album)
+        assertTrue(store.photoLinks(treeId, "profile-1").single().isMain)
+        assertEquals("Y", person.media.single().primary)
+    }
+
+    @Test
+    fun reusedMediaGetsTheNewFileName() = runTest {
+        sync.sync(treeId, profile("photo-7"), "I1")
+        File(dir(), "geni-photo-7.jpg").delete()
+        val album = GeniPhoto("photo-7", null, null, mapOf("medium" to "https://photos.example/photo-7/medium.png"), null, null)
+        val png = PhotoSync(store, host) { _, target -> target.writeBytes(byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 1)); "image/png" }
+        png.addAlbumPhoto(treeId, "profile-1", "I1", album)
+        assertEquals("geni-photo-7.png", person.media.single().file)
+        assertEquals("geni-photo-7.png", store.photoLinks(treeId).single().fileName)
+    }
+
+    @Test
     fun sharedFileStaysWhileAnotherProfileUsesIt() = runTest {
         gedcom.addPerson(Person().apply { id = "I2"; GeniMapper.setGeniId(this, "profile-2") })
         sync.sync(treeId, profile("photo-7"), "I1")

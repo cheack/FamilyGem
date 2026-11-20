@@ -7,6 +7,8 @@ import app.familygem.geni.api.PhotoDownloader
 import app.familygem.geni.api.mugshotToPhoto
 import app.familygem.geni.map.GeniMapper
 import org.folg.gedcom.model.Media
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -49,28 +51,32 @@ class PhotoSync(
         val known = store.photoLinks(treeId, geniProfileId).firstOrNull { it.geniPhotoId == photo.id }
         if (known?.fileName?.let { File(host.mediaDir(treeId), it).isFile } == true) return false
         val fileName = fetch(treeId, photo) ?: return false
-        return attach(treeId, geniProfileId, personGedcomId, photo, fileName, previous = null, asMain = false)
+        // A repaired file keeps the main status of its photo; genuinely new album photos are not primary
+        return attach(treeId, geniProfileId, personGedcomId, photo, fileName, previous = null, asMain = false, keepMain = known?.isMain == true)
     }
 
     /** Downloads the photo to the tree's media folder; null if it has no usable URL. Throws on a failed download. */
     private suspend fun fetch(treeId: Int, photo: GeniPhoto): String? {
         val url = photo.urlFor(*SIZES) ?: return null
         val dir = host.mediaDir(treeId)
-        val temp = File(dir, "geni-${photo.id}.download")
-        try {
-            val type = download(url, temp)
-            if (!looksLikeImage(temp)) throw java.io.IOException("Downloaded file is not an image")
-            val fileName = "geni-${photo.id}.${extension(type, url)}"
-            val target = File(dir, fileName)
-            if (!temp.renameTo(target)) temp.copyTo(target, overwrite = true)
-            return fileName
-        } finally {
-            temp.delete()
+        // File work stays off the main thread; each call has its own staging file so quick double taps do not clash
+        return withContext(Dispatchers.IO) {
+            val temp = File.createTempFile("geni-${photo.id}-", ".download", dir)
+            try {
+                val type = download(url, temp)
+                if (!looksLikeImage(temp)) throw java.io.IOException("Downloaded file is not an image")
+                val fileName = "geni-${photo.id}.${extension(type, url)}"
+                val target = File(dir, fileName)
+                if (!temp.renameTo(target)) temp.copyTo(target, overwrite = true)
+                fileName
+            } finally {
+                temp.delete()
+            }
         }
     }
 
     private suspend fun attach(
-        treeId: Int, profileId: String, personGedcomId: String, photo: GeniPhoto, fileName: String, previous: PhotoLink?, asMain: Boolean
+        treeId: Int, profileId: String, personGedcomId: String, photo: GeniPhoto, fileName: String, previous: PhotoLink?, asMain: Boolean, keepMain: Boolean = false
     ): Boolean {
         val attached = host.edit(treeId) { gedcom ->
             val person = gedcom.people.orEmpty().firstOrNull { it.id == personGedcomId && GeniMapper.getGeniId(it) == profileId }
@@ -80,6 +86,7 @@ class PhotoSync(
                 person.media.orEmpty().forEach { it.primary = null }
             }
             val existing = person.media.orEmpty().firstOrNull { GeniMapper.getTag(it, PHOTO_TAG) == photo.id }
+            existing?.file = fileName
             val media = existing ?: Media().apply {
                 file = fileName
                 setFileTag("FILE")
@@ -91,7 +98,7 @@ class PhotoSync(
         }
         if (!attached) return false
         previous?.takeIf { it.geniPhotoId != photo.id }?.let { store.savePhotoLink(it.copy(isMain = false)) }
-        store.savePhotoLink(PhotoLink(treeId, profileId, photo.id, null, asMain, marker(photo), fileName, PhotoState.DOWNLOADED))
+        store.savePhotoLink(PhotoLink(treeId, profileId, photo.id, null, asMain || keepMain, marker(photo), fileName, PhotoState.DOWNLOADED))
         return true
     }
 

@@ -53,7 +53,7 @@ object GeniPrefetch {
         val prefetcher = Prefetcher(
             loader = { id ->
                 loader.load(treeId, id).also { result ->
-                    if (album != null && result is LoadResult.Loaded) downloadAlbum(album, store, treeId, id)
+                    if (album != null && result is LoadResult.Loaded) downloadAlbum(album, store, treeId, result.profileId ?: id)
                 }
             },
             relatives = { RelativesIndex.relatives(store.unionLinks(treeId), it) },

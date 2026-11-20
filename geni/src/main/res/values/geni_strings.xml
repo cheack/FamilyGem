@@ -61,7 +61,7 @@
     <string name="geni_album_download_all">Download all</string>
     <string name="geni_album_added">Photos added: %1$d</string>
     <string name="geni_album_photo_failed">Photo not downloaded: %1$s</string>
-    <string name="geni_keep_offline_photos">Also download all photos of these people? This uses more data and storage.</string>
-    <string name="geni_keep_offline_with_photos">Yes, with photos</string>
-    <string name="geni_keep_offline_no_photos">No, people only</string>
+    <string name="geni_keep_offline_photos">The main photo of each person is always downloaded. Also download all other album photos? This uses more data and storage.</string>
+    <string name="geni_keep_offline_with_photos">Yes, all photos</string>
+    <string name="geni_keep_offline_no_photos">No, main photos only</string>
 </resources>

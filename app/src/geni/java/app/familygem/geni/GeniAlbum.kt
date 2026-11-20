@@ -67,12 +67,18 @@ object GeniAlbum {
             }
             dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
                 owner.lifecycleScope.launch {
-                    val added = loader.downloadAll(treeId, geniId, personGedcomId) { photo, e ->
-                        Toast.makeText(activity, activity.getString(R.string.geni_album_photo_failed, photo.title ?: photo.id), Toast.LENGTH_SHORT).show()
+                    try {
+                        val added = loader.downloadAll(treeId, geniId, personGedcomId) { photo, _ ->
+                            Toast.makeText(activity, activity.getString(R.string.geni_album_photo_failed, photo.title ?: photo.id), Toast.LENGTH_SHORT).show()
+                        }
+                        Toast.makeText(activity, activity.getString(R.string.geni_album_added, added), Toast.LENGTH_SHORT).show()
+                        if (added > 0) onChanged()
+                        dialog.dismiss()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Toast.makeText(activity, activity.getString(R.string.geni_album_failed, e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
                     }
-                    Toast.makeText(activity, activity.getString(R.string.geni_album_added, added), Toast.LENGTH_SHORT).show()
-                    if (added > 0) onChanged()
-                    dialog.dismiss()
                 }
             }
         }
