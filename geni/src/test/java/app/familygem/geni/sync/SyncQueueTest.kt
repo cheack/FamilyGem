@@ -84,6 +84,30 @@ class SyncQueueTest {
     }
 
     @Test
+    fun failedPhotoJobDoesNotStopLaterJobs() = runTest {
+        linkBoth()
+        queue.onSaved(1, treeWithPhoto().let { it.copy(people = listOf(it.people[0].copy(fields = driver), it.people[1])) })
+        assertEquals(2, store.jobs(1).size)
+        uploader.answer = { job -> if (job.kind == JobKind.ADD_PHOTO) Outcome.Failed("cannot read the photo: x") else uploader.geniApplies(job) }
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        assertEquals(listOf(JobKind.ADD_PHOTO, JobKind.UPDATE_PROFILE), uploader.ran.map { it.kind })
+        assertEquals(JobState.FAILED, store.jobs(1).single { it.kind == JobKind.ADD_PHOTO }.state)
+    }
+
+    @Test
+    fun photoJobIsNotRunWhileTheSettingIsOff() = runTest {
+        linkBoth()
+        queue.onSaved(1, treeWithPhoto())
+        photosOn = false
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        assertEquals(emptyList<UploadJob>(), uploader.ran)
+        assertEquals(JobState.PENDING, store.jobs(1).single().state)
+        photosOn = true
+        queue.runPending(1)
+        assertEquals(listOf(JobKind.ADD_PHOTO), uploader.ran.map { it.kind })
+    }
+
+    @Test
     fun replanWithoutSavedTreeDoesNothing() = runTest {
         queue.replan(1)
         assertEquals(emptyList<UploadJob>(), store.jobs(1))

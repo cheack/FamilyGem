@@ -34,6 +34,7 @@ data class LocalFamily(
 data class LocalTree(val people: List<LocalPerson>, val families: List<LocalFamily>, val stamp: Long = 0) {
     companion object {
         private val captures = AtomicLong()
+        private val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "gif", "webp", "bmp", "heic", "heif")
 
         fun capture(gedcom: Gedcom): LocalTree = LocalTree(
             stamp = captures.incrementAndGet(),
@@ -42,7 +43,10 @@ data class LocalTree(val people: List<LocalPerson>, val families: List<LocalFami
                 val label = listOfNotNull(fields.given, fields.surname).joinToString(" ").ifEmpty { person.id }
                 val media = person.media.orEmpty().mapNotNull { m ->
                     if (m.file?.contains("://") != false) return@mapNotNull null // Not a file of this device
-                    val file = m.file.substringAfterLast('/').takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                    // Only a plain file name of the tree's media folder, and only an image, is a candidate
+                    if ('/' in m.file || '\\' in m.file || m.file.isEmpty()) return@mapNotNull null
+                    if (m.file.substringAfterLast('.', "").lowercase() !in IMAGE_EXTENSIONS) return@mapNotNull null
+                    val file = m.file
                     LocalMedia(file, m.title, GeniMapper.getTag(m, PhotoSync.PHOTO_TAG))
                 }
                 LocalPerson(person.id, GeniMapper.getGeniId(person), label, fields, media)

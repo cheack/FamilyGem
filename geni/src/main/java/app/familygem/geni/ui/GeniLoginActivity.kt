@@ -69,11 +69,11 @@ class GeniLoginActivity : AppCompatActivity() {
         photosSwitch.isChecked = GeniSettings.uploadPhotos(applicationContext)
         photosSwitch.setOnCheckedChangeListener { _, on ->
             GeniSettings.setUploadPhotos(applicationContext, on)
-            // Photos added while it was off are planned now
-            if (on && Geni.isConfigured && Geni.host != null) lifecycleScope.launch {
+            // Planned again either way: photos added meanwhile are queued, and waiting ones are dropped when it goes off
+            if (Geni.isConfigured && Geni.host != null) lifecycleScope.launch {
                 val queue = Geni.queue(applicationContext)
                 Geni.store(applicationContext).trees().forEach { queue.replan(it.treeId) }
-                Geni.resumeUploads?.invoke()
+                if (on) Geni.resumeUploads?.invoke()
             }
         }
         if (!Geni.isConfigured) {
@@ -232,7 +232,7 @@ class GeniLoginActivity : AppCompatActivity() {
                 .setMessage(text)
                 .setPositiveButton(R.string.geni_retry_all) { _, _ ->
                     val ids = failed.map { it.id }.toSet() // Only the jobs shown here, also after confirmation
-                    if (failed.any { it.kind == JobKind.ADD_CHILD || it.kind == JobKind.ADD_PARTNER }) confirmRetryAdds(ids) else retryAll(ids)
+                    if (failed.any { it.kind == JobKind.ADD_CHILD || it.kind == JobKind.ADD_PARTNER || it.kind == JobKind.ADD_PHOTO }) confirmRetryAdds(ids) else retryAll(ids)
                 }
                 .setNegativeButton(R.string.geni_dismiss_all) { _, _ -> queueAction { dismissFailed(failed.map { it.id }.toSet()) } }
                 .setNeutralButton(R.string.geni_close, null)

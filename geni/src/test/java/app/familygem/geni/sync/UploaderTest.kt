@@ -617,6 +617,18 @@ class UploaderTest {
     }
 
     @Test
+    fun unreadablePhotoFailsWithoutSending() = runTest {
+        treeWithMedia()
+        val client = GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime })
+        for (error in listOf<Throwable>(java.io.IOException("bad file"), IllegalStateException("boom"), OutOfMemoryError("big"))) {
+            val outcome = Uploader(client, store, host, now = { 7_000L }, prepare = { throw error }).run(photoJob())
+            assertTrue(outcome is Outcome.Failed)
+            assertTrue((outcome as Outcome.Failed).message.startsWith("cannot read the photo: "))
+        }
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
     fun prepareIsUsedForBytes() = runTest {
         treeWithMedia()
         server.enqueue(ok(photoJson))

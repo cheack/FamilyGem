@@ -217,7 +217,8 @@ class SyncQueue(
      * a partner waits only while none of its relatives is on Geni or added yet.
      */
     private fun nextJob(jobs: List<UploadJob>): UploadJob? {
-        val pending = jobs.filter { it.state == JobState.PENDING }
+        val photos = uploadPhotos()
+        val pending = jobs.filter { it.state == JobState.PENDING && (photos || it.kind != JobKind.ADD_PHOTO) }
         val adding = jobs.filter { it.isAdd() && it.kind != JobKind.ADD_PHOTO && (it.state == JobState.PENDING || it.state == JobState.SENDING) }
             .mapNotNull { it.personGedcomId }.toSet()
         fun waits(job: UploadJob): Boolean {

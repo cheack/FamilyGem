@@ -215,7 +215,15 @@ open class Uploader(
         val file = File(host.mediaDir(treeId), fileName)
         if (!file.isFile) return Outcome.Failed("the photo file is missing: $fileName")
         val title = job.params.firstOrNull { it.first == "title" }?.second
-        val bytes = prepare(file)
+        val bytes = try {
+            prepare(file)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            // Nothing was sent, so a failure is safe to report; fatal errors other than memory are not ours to catch
+            if (e is Error && e !is OutOfMemoryError) throw e
+            return Outcome.Failed("cannot read the photo: ${e.message ?: e.javaClass.simpleName}")
+        }
 
         // From here Geni may have stored the photo even when the request fails: never retry automatically
         val photo: GeniPhoto = try {

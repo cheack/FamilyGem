@@ -50,8 +50,21 @@ class LocalTreeTest {
         val gedcom = Gedcom()
         gedcom.addPerson(person("I1", null).apply {
             addMedia(Media().apply { file = "https://example.com/a.jpg" })
-            addMedia(Media().apply { file = "/storage/me.jpg" })
+            addMedia(Media().apply { file = "me.jpg" })
         })
         assertEquals(listOf("me.jpg"), LocalTree.capture(gedcom).people.single().media.map { it.file })
+    }
+
+    @Test
+    fun captureSkipsMediaWithAPathAndNonImages() {
+        val gedcom = Gedcom()
+        gedcom.addPerson(person("I1", null).apply {
+            addMedia(Media().apply { file = "/storage/me.jpg" })
+            addMedia(Media().apply { file = "dir\\me.jpg" })
+            addMedia(Media().apply { file = "doc.pdf" })
+            addMedia(Media().apply { file = "noext" })
+            addMedia(Media().apply { file = "Upper.JPG" })
+        })
+        assertEquals(listOf("Upper.JPG"), LocalTree.capture(gedcom).people.single().media.map { it.file })
     }
 }

@@ -304,6 +304,25 @@ class UploadPlannerTest {
     }
 
     @Test
+    fun photosOffKeepsFailedAndDismissedJobsWhoseMediaStays() {
+        for (state in listOf(JobState.FAILED, JobState.DISMISSED, JobState.CONFLICT, JobState.SENDING)) {
+            val plan = photoPlan(listOf(me), jobs = listOf(photoJob().copy(state = state)), uploadPhotos = false)
+            assertFalse("$state", "photo:I1:me.jpg" in plan.deleteKeys)
+            assertEquals(emptyList<UploadJob>(), plan.upserts)
+        }
+    }
+
+    @Test
+    fun photosOffStillDropsFailedJobWhoseMediaIsGone() {
+        assertTrue("photo:I1:me.jpg" in photoPlan(emptyList(), jobs = listOf(photoJob().copy(state = JobState.FAILED)), uploadPhotos = false).deleteKeys)
+    }
+
+    @Test
+    fun photoJobLabelSaysItIsAPhoto() {
+        assertEquals("Photo: me.jpg (Ivan User)", photoPlan(listOf(me)).upserts.single { it.kind == JobKind.ADD_PHOTO }.label)
+    }
+
+    @Test
     fun photoJobDroppedWhenMediaGone() {
         assertTrue("photo:I1:me.jpg" in photoPlan(emptyList(), jobs = listOf(photoJob())).deleteKeys)
     }

@@ -76,6 +76,7 @@ object UploadPlanner {
         val peopleGeniIds = mutableMapOf<String, String>()
         val newPeople = mutableMapOf<String, LocalPerson>()
         val photoKeys = mutableSetOf<String>() // Keys of the photo jobs still wanted
+        val mediaKeys = mutableSetOf<String>() // Keys of every photo that could be sent, whatever the setting
         for (person in local.people) {
             val link = linkOf(person.gedcomId, person.geniId, "profile-") { snapshot ->
                 ProfileFields.ofSnapshot(snapshot)?.let { it.given == person.fields.given && it.surname == person.fields.surname } == true
@@ -86,14 +87,16 @@ object UploadPlanner {
                     peopleGeniIds[person.gedcomId] = link.geniId
                     val key = "profile:${link.geniId}"
                     val hash = person.fields.hashCode()
-                    if (uploadPhotos) {
+                    run {
                         val known = photoLinks.filter { it.geniProfileId == link.geniId }.mapNotNull { it.fileName }.toSet()
                         for (media in person.media.distinctBy { it.file }) {
                             if (media.geniPhotoId != null || media.file in known) continue
                             val photoKey = "photo:${person.gedcomId}:${media.file}"
+                            mediaKeys += photoKey
+                            if (!uploadPhotos) continue
                             photoKeys += photoKey
                             upserts += UploadJob(treeId = treeId, key = photoKey, kind = JobKind.ADD_PHOTO, geniId = link.geniId, personGedcomId = person.gedcomId,
-                                params = listOfNotNull("file" to media.file, media.title?.let { "title" to it }), label = person.label, localHash = media.hashCode())
+                                params = listOfNotNull("file" to media.file, media.title?.let { "title" to it }), label = "Photo: ${media.file} (${person.label})", localHash = media.hashCode())
                         }
                     }
                     fun update(params: List<Pair<String, String>>) = UploadJob(treeId = treeId, key = key, kind = JobKind.UPDATE_PROFILE,
@@ -155,7 +158,8 @@ object UploadPlanner {
             if (job.kind == JobKind.DELETE_PROFILE) continue // The record is gone on purpose
             val gone = when {
                 job.key.startsWith("add:") -> job.key.removePrefix("add:") !in planned
-                job.key.startsWith("photo:") -> job.key !in photoKeys
+                // With the setting off only the waiting ones go; a failed or dismissed one stays, so it is not planned and sent again later
+                job.key.startsWith("photo:") -> if (uploadPhotos) job.key !in mediaKeys else job.key !in mediaKeys || job.state == JobState.PENDING
                 else -> job.key !in linkedKeys
             }
             if (gone) deleteKeys += job.key
