@@ -76,6 +76,15 @@ object GeniGlue {
         GeniHooks.addTreesMenu(activity, menu)
     }
 
+    /** Removes the upstream Premium advertisement (purchase of FamilyGem Premium) from the About screen. */
+    fun hidePremium(activity: androidx.appcompat.app.AppCompatActivity) {
+        val manager = activity.supportFragmentManager
+        manager.findFragmentById(app.familygem.R.id.about_premium)?.let {
+            manager.beginTransaction().remove(it).commitNow()
+        }
+        activity.findViewById<android.view.View>(app.familygem.R.id.about_premium)?.visibility = android.view.View.GONE
+    }
+
     /** True for a Geni tree: its people must not be merged into other trees. */
     fun isGeniTree(treeId: Int): Boolean {
         install()
