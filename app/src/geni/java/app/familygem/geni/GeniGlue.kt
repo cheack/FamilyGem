@@ -209,21 +209,33 @@ object GeniGlue {
         }
     }
 
-    /** Adds "Keep offline" to the menu of a person card of a Geni tree. */
+    /** Adds "Geni photos" and "Keep offline" to the menu of a person card of a Geni tree. */
     fun addProfileMenu(activity: Activity, menu: Menu, person: Person?) {
         install()
         val geniId = person?.let { GeniMapper.getGeniId(it) } ?: return
         val treeId = Global.settings.openTree
+        menu.add(R.string.geni_album).setOnMenuItemClickListener {
+            GeniAlbum.show(activity, treeId, geniId, person.id) { (activity as? app.familygem.profile.ProfileActivity)?.refresh() }
+            true
+        }
         menu.add(R.string.geni_keep_offline).setOnMenuItemClickListener {
             val depths = arrayOf("1", "2", "3", "4", "5")
             AlertDialog.Builder(activity)
                 .setTitle(R.string.geni_keep_offline_depth)
                 .setSingleChoiceItems(depths, 2) { dialog, which ->
-                    AppTreeHost.schedulePrefetch(treeId, geniId, which + 1)
-                    Toast.makeText(activity, R.string.geni_keep_offline_started, Toast.LENGTH_SHORT).show()
                     dialog.dismiss()
+                    AlertDialog.Builder(activity)
+                        .setMessage(R.string.geni_keep_offline_photos)
+                        .setPositiveButton(R.string.geni_keep_offline_with_photos) { _, _ -> startKeepOffline(activity, treeId, geniId, which + 1, true) }
+                        .setNegativeButton(R.string.geni_keep_offline_no_photos) { _, _ -> startKeepOffline(activity, treeId, geniId, which + 1, false) }
+                        .show()
                 }.show()
             true
         }
+    }
+
+    private fun startKeepOffline(activity: Activity, treeId: Int, geniId: String, depth: Int, photos: Boolean) {
+        GeniPrefetch.enqueue(activity, treeId, geniId, depth, photos)
+        Toast.makeText(activity, R.string.geni_keep_offline_started, Toast.LENGTH_SHORT).show()
     }
 }

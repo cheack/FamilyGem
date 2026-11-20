@@ -5,6 +5,7 @@ import android.util.Log
 import app.familygem.geni.api.GeniClient
 import app.familygem.geni.api.RateLimiter
 import app.familygem.geni.auth.EncryptedTokenStore
+import app.familygem.geni.sync.AlbumLoader
 import app.familygem.geni.sync.ConflictResolver
 import app.familygem.geni.sync.GeniLoader
 import app.familygem.geni.sync.PhotoSync
@@ -67,5 +68,10 @@ object Geni {
             photos = PhotoSync(store, treeHost),
             onPhotoError = { profileId, e -> Log.w("GeniSync", "Photo of $profileId not synced", e) }
         )
+    }
+
+    fun albumLoader(context: Context): AlbumLoader {
+        val treeHost = host ?: error("Geni tree host not installed")
+        return AlbumLoader(client(context), store(context), PhotoSync(store(context), treeHost), treeHost::mediaDir)
     }
 }
