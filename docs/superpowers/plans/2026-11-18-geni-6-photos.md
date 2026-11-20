@@ -123,12 +123,60 @@ Detailed steps are written when PR 1 is merged, from its findings. Deliverables:
 - Task 10: album entry on the person card of a Geni person (hook in upstream's profile media tab; list, tap to download, progress, failure message).
 - Task 11: "Keep offline" option "include photos" (setting, off by default) and PR 3.
 
-## PR 4: Upload (Tasks 12–15; no set-main, Geni has no call for it)
+## PR 4: Upload (Tasks 12–15; expanded 2026-11-20)
 
-- Task 12: `ADD_PHOTO` job type in `UploadJob` and the Room queue (migration).
-- Task 13: `UploadPlanner` finds new `OBJE` on Geni persons without a link and queues `ADD_PHOTO` (default upload, local-only switch; if the profile has no photo, the upload becomes its main one); scales the image before upload.
-- Task 14: `Uploader` runs the jobs, writes the returned photo ID into `photo_links`, handles the "response lost" case without duplicates.
-- Task 15: UI: switch to keep a photo local, a note that the first photo becomes the main one; failed uploads appear in the account screen list; PR 4.
+Decisions (from reading the write path): no Room migration: `JobKind` is stored as text, the photo job keeps its file name and title in `params` (`file`, `title`), the owner in `personGedcomId` and `geniId` (profile). Job key `photo:<personGedcomId>:<fileName>`. An `ADD_PHOTO` job behaves like an add in the queue (it may exist on Geni after a lost response, so it is never retried by itself: `SENDING` becomes `FAILED`, failed stays failed until the user retries). Local-only switch: one app-wide setting "Send new photos to Geni" (default on); when off, no photo jobs are planned and pending ones are dropped by the planner. The first photo becoming the main one on Geni is shown as a note next to the switch; the local main flag follows on the next load through `PhotoSync`. Only inline media (`Person.media`) with a plain file name, no `_GENI_PHOTO_ID` tag and no photo link is a candidate.
+
+### Task 12: Local media in the saved tree and photo jobs in the planner
+
+**Files:**
+- Modify: `geni/src/main/java/app/familygem/geni/sync/UploadJob.kt` (add `ADD_PHOTO`), `LocalTree.kt`, `UploadPlanner.kt`
+- Test: `geni/src/test/java/app/familygem/geni/sync/UploadPlannerTest.kt`
+
+**Interfaces:**
+- Produces: `JobKind.ADD_PHOTO`; `data class LocalMedia(val file: String, val title: String?, val geniPhotoId: String?)`; `LocalPerson.media: List<LocalMedia> = emptyList()` (filled by `LocalTree.capture` from `Person.media`: file name = last path segment, `geniPhotoId` = tag `PhotoSync.PHOTO_TAG`); `UploadPlanner.plan(treeId, local, links, jobs, photoLinks: List<PhotoLink> = emptyList(), uploadPhotos: Boolean = true)`.
+
+- [ ] **Step 1: Failing tests in `UploadPlannerTest`:** `newMediaOnLinkedPersonPlansPhotoJob` (job key `photo:I1:me.jpg`, kind `ADD_PHOTO`, geniId = profile id, params `[file to me.jpg, title to Me]`); `taggedMediaIsNotPlanned`; `mediaWithPhotoLinkIsNotPlanned` (photo link for that profile with `fileName = "me.jpg"`); `photosOffPlansNothingAndDropsPendingJob`; `photoJobDroppedWhenMediaGone`; `mediaOfUnlinkedPersonIsNotPlanned`.
+- [ ] **Step 2: Run:** `:geni:testDebugUnitTest --tests '*UploadPlannerTest'`; expect compile failure, then FAIL.
+- [ ] **Step 3: Implement.** In the planner loop over linked people, for each candidate media (no `geniPhotoId`, `file` not among `photoLinks.filter{geniProfileId==link.geniId}.fileName`, and `uploadPhotos`) add a job with `localHash = media.hashCode()`; collect its key in a `photoKeys` set; in the final job loop treat `job.key.startsWith("photo:")` as gone when its key is not in `photoKeys`. Make jobs stay in `UploadJob` field order used by `sameChange`.
+- [ ] **Step 4: Run all `:geni:testDebugUnitTest`; expect PASS.**
+- [ ] **Step 5: Commit** "Plan photo upload jobs for new media of Geni people".
+
+### Task 13: Uploader and queue send photos
+
+**Files:**
+- Modify: `geni/src/main/java/app/familygem/geni/sync/Uploader.kt`, `SyncQueue.kt`
+- Test: `geni/src/test/java/app/familygem/geni/sync/UploaderTest.kt`, `SyncQueueTest.kt`
+
+**Interfaces:**
+- Consumes: Task 12's `ADD_PHOTO`; `GeniClient.addPhoto(profileId, fileName, title, bytes): GeniPhoto`; `TreeHost.mediaDir(treeId)`; `PhotoSync.PHOTO_TAG`, `PhotoSync.marker(photo)`.
+- Produces: `Uploader(client, store, host, now, prepare: suspend (File) -> ByteArray = { it.readBytes() })`; `Uploader.run` handles `ADD_PHOTO`; `SyncQueue` treats `ADD_PHOTO` like an add (rename `isAdd` to cover it).
+
+- [ ] **Step 1: Failing tests in `UploaderTest`:** `photoUploadStoresLinkAndTagsMedia` (file in the fake media dir; after `run` the store has a `PhotoLink` with the returned photo id, `PhotoState.DOWNLOADED`, `fileName` = the file, `isMain = false`; the media carries tag `_GENI_PHOTO_ID`; outcome Done); `photoAlreadyLinkedIsNotUploadedAgain` (link with the same `fileName` → no POST, Done); `missingFileFails` (Failed, no POST); `lostResponseFailsAndNeverRetriesItself` (exception after POST → `Failed` mentioning "check on Geni"); `networkDownBeforeSendRetries` (UnknownHostException → Retry); `prepareIsUsedForBytes`.
+- [ ] **Step 2: Failing tests in `SyncQueueTest`:** `interruptedPhotoUploadBecomesFailed`; `donePhotoJobIsDeleted`.
+- [ ] **Step 3: Implement `private suspend fun addPhoto(job: UploadJob): Outcome`:** same error mapping as `add` after the POST (reuse its catch structure through a small shared helper if it stays readable); save the `PhotoLink` first, then tag the media with `host.edit` (best effort, like add tags), then `host.refreshScreens()`. `SyncQueue`: extend the add check to `ADD_PHOTO`.
+- [ ] **Step 4: Run `:geni:testDebugUnitTest`; expect PASS.**
+- [ ] **Step 5: Commit** "Upload new photos of Geni people".
+
+### Task 14: App wiring, scaling and the switch
+
+**Files:**
+- Modify: `geni/src/main/java/app/familygem/geni/Geni.kt` (pass `prepare` and the setting), `geni/src/main/java/app/familygem/geni/ui/GeniLoginActivity.kt` and its layout (switch and note), `geni/src/main/res/values/geni_strings.xml`, `values-ru/geni_strings.xml`
+- Create: `geni/src/main/java/app/familygem/geni/sync/PhotoScaler.kt`
+- Test: `geni/src/androidTest/java/app/familygem/geni/sync/PhotoScalerTest.kt` (needs `BitmapFactory`)
+
+**Interfaces:**
+- Produces: `object PhotoScaler { suspend fun scaled(file: File, maxSide: Int = 2048): ByteArray }` (decodes with `inSampleSize`, rescales so the longer side is at most `maxSide`, JPEG quality 85; a file already small enough and JPEG is returned unchanged); a `GeniSettings`-style boolean `uploadPhotos` in the existing Geni preferences (default true) read when the queue plans (`SyncQueue` gets `uploadPhotos: () -> Boolean`).
+
+- [ ] **Step 1: Instrumented test `PhotoScalerTest`:** a 4000x3000 bitmap becomes at most 2048 on the long side and decodes; a 100x100 JPEG comes back byte-identical.
+- [ ] **Step 2: Implement `PhotoScaler`, wire `prepare = PhotoScaler::scaled`, add the switch "Send new photos to Geni" with the note "The first photo of a person becomes their main photo on Geni." in the account screen; turning the switch back on plans photos added meanwhile.**
+- [ ] **Step 3: Build:** `:geni:testDebugUnitTest :app:assembleDebug` (in the rsync copy); expect PASS. Run `connectedDebugAndroidTest` for the new test if the phone is attached.
+- [ ] **Step 4: Commit** "Scale photos before upload and add the send-photos switch".
+
+### Task 15: Phone check, roadmap, PR 4
+
+- [ ] **Step 1: On the phone (sandbox, logged in): add a photo to a Geni person (the person has no photo): it uploads, appears on Geni as main, the card keeps one copy; add a second: it uploads as album photo; switch off, add a third: stays local; airplane mode: waits then uploads after reconnect.**
+- [ ] **Step 2: Tick roadmap PR 4, deferred list, push, open PR into `geni`, CodeRabbit loop as for PR 3, Progress-log line before merge.**
 
 ## PR 5: Delete and conflicts (Tasks 16–18)
 
