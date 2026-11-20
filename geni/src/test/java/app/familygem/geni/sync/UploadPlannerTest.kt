@@ -237,6 +237,14 @@ class UploadPlannerTest {
     }
 
     @Test
+    fun ambiguousPersonKeepsItsPhotoJobs() {
+        val local = couple().let { it.copy(people = listOf(it.people[0].copy(geniId = null, fields = newFields, media = listOf(me))) + it.people.drop(1)) }
+        for (state in listOf(JobState.FAILED, JobState.DISMISSED, JobState.PENDING)) {
+            assertFalse("$state", "photo:I1:me.jpg" in plan(local, jobs = listOf(photoJob().copy(state = state))).deleteKeys)
+        }
+    }
+
+    @Test
     fun editedAddWithoutSnapshotFetchesSnapshotFirst() {
         // Added as New User; the snapshot could not be fetched, the link holds the hash of what was sent
         val olya = newFields.copy(given = "Olya")
@@ -261,5 +269,85 @@ class UploadPlannerTest {
         val delete = UploadJob(id = 9, treeId = 1, key = "delete:profile-9", kind = JobKind.DELETE_PROFILE, geniId = "profile-9",
             params = emptyList(), label = "x", localHash = 0)
         assertFalse("delete:profile-9" in plan(couple(), jobs = listOf(delete)).deleteKeys)
+    }
+
+    private fun photoPlan(media: List<LocalMedia>, photoLinks: List<PhotoLink> = emptyList(), jobs: List<UploadJob> = emptyList(), uploadPhotos: Boolean = true, linked: Boolean = true): Plan {
+        val owner = person("I1", "profile-1", ivan).copy(media = if (linked) media else emptyList())
+        val stranger = person("I3", null, newFields).copy(media = media) // Not on Geni yet
+        val local = LocalTree(listOf(owner, person("I2", "profile-2", anna)) + listOfNotNull(stranger.takeUnless { linked }),
+            listOf(family("F1", "union-1", listOf("I1", "I2"))))
+        return UploadPlanner.plan(1, local, coupleLinks, jobs, photoLinks, uploadPhotos)
+    }
+    private fun photoJob(key: String = "photo:I1:me.jpg") = UploadJob(id = 7, treeId = 1, key = key, kind = JobKind.ADD_PHOTO, geniId = "profile-1",
+        personGedcomId = "I1", params = listOf("file" to "me.jpg"), label = "x", localHash = 0)
+    private val me = LocalMedia("me.jpg", "Me", null)
+
+    @Test
+    fun newMediaOnLinkedPersonPlansPhotoJob() {
+        val job = photoPlan(listOf(me)).upserts.single()
+        assertEquals("photo:I1:me.jpg", job.key)
+        assertEquals(JobKind.ADD_PHOTO, job.kind)
+        assertEquals("profile-1", job.geniId)
+        assertEquals("I1", job.personGedcomId)
+        assertEquals(listOf("file" to "me.jpg", "title" to "Me"), job.params)
+        assertEquals(me.hashCode(), job.localHash)
+    }
+
+    @Test
+    fun taggedMediaIsNotPlanned() {
+        assertEquals(emptyList<UploadJob>(), photoPlan(listOf(me.copy(geniPhotoId = "photo-1"))).upserts)
+    }
+
+    @Test
+    fun mediaWithPhotoLinkIsNotPlanned() {
+        val photoLink = PhotoLink(1, "profile-1", "photo-1", null, true, null, "me.jpg", PhotoState.DOWNLOADED)
+        assertEquals(emptyList<UploadJob>(), photoPlan(listOf(me), listOf(photoLink)).upserts)
+    }
+
+    @Test
+    fun photosOffPlansNothingAndDropsPendingJob() {
+        val plan = photoPlan(listOf(me), jobs = listOf(photoJob()), uploadPhotos = false)
+        assertEquals(emptyList<UploadJob>(), plan.upserts)
+        assertTrue("photo:I1:me.jpg" in plan.deleteKeys)
+    }
+
+    @Test
+    fun photosOffKeepsFailedAndDismissedJobsWhoseMediaStays() {
+        for (state in listOf(JobState.FAILED, JobState.DISMISSED, JobState.CONFLICT, JobState.SENDING)) {
+            val plan = photoPlan(listOf(me), jobs = listOf(photoJob().copy(state = state)), uploadPhotos = false)
+            assertFalse("$state", "photo:I1:me.jpg" in plan.deleteKeys)
+            assertEquals(emptyList<UploadJob>(), plan.upserts)
+        }
+    }
+
+    @Test
+    fun photosOffStillDropsFailedJobWhoseMediaIsGone() {
+        assertTrue("photo:I1:me.jpg" in photoPlan(emptyList(), jobs = listOf(photoJob().copy(state = JobState.FAILED)), uploadPhotos = false).deleteKeys)
+    }
+
+    @Test
+    fun photoJobLabelSaysItIsAPhoto() {
+        assertEquals("Photo: me.jpg (Ivan User)", photoPlan(listOf(me)).upserts.single { it.kind == JobKind.ADD_PHOTO }.label)
+    }
+
+    @Test
+    fun photoJobDroppedWhenMediaGone() {
+        assertTrue("photo:I1:me.jpg" in photoPlan(emptyList(), jobs = listOf(photoJob())).deleteKeys)
+    }
+
+    @Test
+    fun photoJobKeptWhileMediaStays() {
+        assertFalse("photo:I1:me.jpg" in photoPlan(listOf(me), jobs = listOf(photoJob())).deleteKeys)
+    }
+
+    @Test
+    fun mediaOfUnlinkedPersonIsNotPlanned() {
+        assertEquals(emptyList<UploadJob>(), photoPlan(listOf(me), linked = false).upserts.filter { it.kind == JobKind.ADD_PHOTO })
+    }
+
+    @Test
+    fun sameFileTwiceOnOnePersonPlansOneJob() {
+        val upserts = photoPlan(listOf(me, me.copy(title = "Again"))).upserts.filter { it.kind == JobKind.ADD_PHOTO }
+        assertEquals(listOf("photo:I1:me.jpg"), upserts.map { it.key })
     }
 }

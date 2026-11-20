@@ -54,7 +54,8 @@ class SyncQueueTest {
     }
 
     private val uploader = ScriptedUploader()
-    private val queue = SyncQueue(store, uploader)
+    private var photosOn = true
+    private val queue = SyncQueue(store, uploader, { photosOn })
 
     private suspend fun linkBoth() = store.saveLinks(listOf(
         GeniLink(1, "profile-1", "I1", true, null, ivanJson, 0),
@@ -68,6 +69,49 @@ class SyncQueueTest {
 
     private val driver = ivan.copy(occupation = "Driver")
     private val pilot = ivan.copy(occupation = "Pilot")
+
+    private fun treeWithPhoto() = tree().let { it.copy(people = listOf(it.people[0].copy(media = listOf(LocalMedia("me.jpg", "Me", null))), it.people[1])) }
+
+    @Test
+    fun photoJobIsPlannedOnlyWhileTheSettingIsOn() = runTest {
+        linkBoth()
+        photosOn = false
+        queue.onSaved(1, treeWithPhoto())
+        assertEquals(emptyList<UploadJob>(), store.jobs(1))
+        photosOn = true
+        queue.replan(1)
+        assertEquals(listOf("photo:I1:me.jpg"), store.jobs(1).map { it.key })
+    }
+
+    @Test
+    fun failedPhotoJobDoesNotStopLaterJobs() = runTest {
+        linkBoth()
+        queue.onSaved(1, treeWithPhoto().let { it.copy(people = listOf(it.people[0].copy(fields = driver), it.people[1])) })
+        assertEquals(2, store.jobs(1).size)
+        uploader.answer = { job -> if (job.kind == JobKind.ADD_PHOTO) Outcome.Failed("cannot read the photo: x") else uploader.geniApplies(job) }
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        assertEquals(listOf(JobKind.ADD_PHOTO, JobKind.UPDATE_PROFILE), uploader.ran.map { it.kind })
+        assertEquals(JobState.FAILED, store.jobs(1).single { it.kind == JobKind.ADD_PHOTO }.state)
+    }
+
+    @Test
+    fun photoJobIsNotRunWhileTheSettingIsOff() = runTest {
+        linkBoth()
+        queue.onSaved(1, treeWithPhoto())
+        photosOn = false
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        assertEquals(emptyList<UploadJob>(), uploader.ran)
+        assertEquals(JobState.PENDING, store.jobs(1).single().state)
+        photosOn = true
+        queue.runPending(1)
+        assertEquals(listOf(JobKind.ADD_PHOTO), uploader.ran.map { it.kind })
+    }
+
+    @Test
+    fun replanWithoutSavedTreeDoesNothing() = runTest {
+        queue.replan(1)
+        assertEquals(emptyList<UploadJob>(), store.jobs(1))
+    }
 
     @Test
     fun samePlanTwiceKeepsOneJob() = runTest {
@@ -538,5 +582,53 @@ class SyncQueueTest {
         val job = store.jobs(1).single()
         assertEquals(JobState.PENDING, job.state)
         assertNull(job.error)
+    }
+
+    private fun photoJob(state: JobState = JobState.PENDING) = UploadJob(treeId = 1, key = "photo:I1:me.jpg", kind = JobKind.ADD_PHOTO, geniId = "profile-1",
+        personGedcomId = "I1", params = listOf("file" to "me.jpg"), label = "Ivan User", localHash = 0, state = state)
+
+    @Test
+    fun interruptedPhotoUploadBecomesFailed() = runTest {
+        store.saveJob(photoJob(JobState.SENDING))
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        val job = store.jobs(1).single()
+        assertEquals(JobState.FAILED, job.state)
+        assertTrue(job.error!!.contains("check on Geni"))
+        assertEquals(emptyList<UploadJob>(), uploader.ran)
+    }
+
+    @Test
+    fun donePhotoJobIsDeleted() = runTest {
+        linkBoth()
+        queue.onSaved(1, tree().let { t -> t.copy(people = t.people.map { if (it.gedcomId == "I1") it.copy(media = listOf(LocalMedia("me.jpg", null, null))) else it }) })
+        assertEquals("photo:I1:me.jpg", store.jobs(1).single().key)
+        var stateDuringRun: JobState? = null
+        uploader.answer = { stateDuringRun = store.jobs(1).single().state; Outcome.Done }
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        assertEquals(JobState.SENDING, stateDuringRun)
+        assertEquals(emptyList<UploadJob>(), store.jobs(1))
+    }
+
+    @Test
+    fun failedPhotoJobIsRecordedWhateverItsVersion() = runTest {
+        store.saveJob(photoJob())
+        uploader.answer = {
+            store.saveJob(store.jobs(1).single().copy(version = 5)) // Planned again while it was sent
+            Outcome.Failed("lost")
+        }
+        queue.runPending(1)
+        val job = store.jobs(1).single()
+        assertEquals(JobState.FAILED, job.state)
+        assertEquals("lost", job.error)
+    }
+
+    @Test
+    fun pendingPhotoJobDoesNotMakeAChildWait() = runTest {
+        store.saveJob(addJob("add:I6", "I6", JobKind.ADD_CHILD, listOf("partner:I1")))
+        store.saveJob(photoJob())
+        uploader.answer = { Outcome.Done }
+        queue.runPending(1)
+        // The child is not held back by the photo of its parent
+        assertEquals(listOf("add:I6", "photo:I1:me.jpg"), uploader.ran.map { it.key })
     }
 }

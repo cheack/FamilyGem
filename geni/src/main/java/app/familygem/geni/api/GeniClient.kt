@@ -11,6 +11,10 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import okio.ByteString.Companion.toByteString
+import java.util.concurrent.TimeUnit
+
+/** A photo upload is slow on a bad connection: its POST waits longer for the answer. */
+private const val PHOTO_READ_TIMEOUT_SECONDS = 60L
 
 /** The user must log in to Geni (again). */
 class GeniAuthRequiredException : Exception("Geni login required")
@@ -111,7 +115,7 @@ class GeniClient(
         val encoded = withContext(Dispatchers.IO) { bytes.toByteString().base64() }
         val params = mutableListOf("file" to encoded, "file_name" to fileName)
         if (title != null) params.add("title" to title)
-        return parsePhoto(post("$profileId/add-photo", params))
+        return parsePhoto(post("$profileId/add-photo", params, PHOTO_READ_TIMEOUT_SECONDS))
     }
 
     /** Deletes a photo from Geni. */
@@ -135,23 +139,24 @@ class GeniClient(
      * Raw JSON response of a form POST to an API path relative to the base, like "profile-1/update".
      * Repeated keys are allowed; an empty value clears the field on Geni.
      */
-    suspend fun post(path: String, params: List<Pair<String, String>>): String {
+    suspend fun post(path: String, params: List<Pair<String, String>>, readTimeoutSeconds: Long? = null): String {
         // add() canonicalizes every value, which is slow for a big base64 photo: keep it off the caller's thread
         val form = withContext(Dispatchers.IO) {
             FormBody.Builder().apply { params.forEach { (key, value) -> add(key, value) } }.build()
         }
-        return execute(Request.Builder().url(apiUrl(path)).post(form))
+        return execute(Request.Builder().url(apiUrl(path)).post(form), readTimeoutSeconds)
     }
 
     /** Sends the request with the token; 401 clears the token, 429 is retried once after the rate window. */
-    private suspend fun execute(builder: Request.Builder): String {
+    private suspend fun execute(builder: Request.Builder, readTimeoutSeconds: Long? = null): String {
         val token = tokens.get()?.takeIf { it.expiresAtMillis > now() } ?: throw GeniAuthRequiredException()
         val request = builder.header("Authorization", "Bearer ${token.token}").build()
         var retried = false
         while (true) {
             limiter.acquire()
             val (code, body) = withContext(Dispatchers.IO) {
-                http.newCall(request).execute().use { response ->
+                (if (readTimeoutSeconds == null) http else http.newBuilder().readTimeout(readTimeoutSeconds, TimeUnit.SECONDS).build())
+                    .newCall(request).execute().use { response ->
                     updateLimiter(response)
                     response.code to response.body.string()
                 }

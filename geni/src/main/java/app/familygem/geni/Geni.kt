@@ -8,6 +8,7 @@ import app.familygem.geni.auth.EncryptedTokenStore
 import app.familygem.geni.sync.AlbumLoader
 import app.familygem.geni.sync.ConflictResolver
 import app.familygem.geni.sync.GeniLoader
+import app.familygem.geni.sync.PhotoScaler
 import app.familygem.geni.sync.PhotoSync
 import app.familygem.geni.sync.RoomSyncStore
 import app.familygem.geni.sync.SyncQueue
@@ -52,8 +53,9 @@ object Geni {
     /** The upload queue; one instance, so its per-tree locks are shared. */
     @Synchronized
     fun queue(context: Context): SyncQueue = queue ?: run {
-        val uploader = Uploader(client(context), store(context), host ?: error("Geni tree host not installed"))
-        SyncQueue(store(context), uploader) { job, outcome -> Log.d("GeniSync", "Tree ${job.treeId} ${job.kind} ${job.key}: $outcome") }
+        val uploader = Uploader(client(context), store(context), host ?: error("Geni tree host not installed"),
+            prepare = PhotoScaler::scaled)
+        SyncQueue(store(context), uploader, { GeniSettings.uploadPhotos(context) }) { job, outcome -> Log.d("GeniSync", "Tree ${job.treeId} ${job.kind} ${job.key}: $outcome") }
             .also { queue -> uploader.onTreeEdited = queue::setLocal }
     }.also { queue = it }
 

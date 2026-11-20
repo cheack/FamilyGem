@@ -14,10 +14,12 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 import androidx.appcompat.widget.Toolbar
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import app.familygem.geni.Geni
+import app.familygem.geni.GeniSettings
 import app.familygem.geni.R
 import app.familygem.geni.api.GeniAuthRequiredException
 import app.familygem.geni.auth.AuthResult
@@ -63,6 +65,17 @@ class GeniLoginActivity : AppCompatActivity() {
         failedButton.setOnClickListener { showFailed() }
         conflictsButton = findViewById(R.id.geni_conflicts_button)
         conflictsButton.setOnClickListener { chooseConflict() }
+        val photosSwitch = findViewById<SwitchCompat>(R.id.geni_upload_photos_switch)
+        photosSwitch.isChecked = GeniSettings.uploadPhotos(applicationContext)
+        photosSwitch.setOnCheckedChangeListener { _, on ->
+            GeniSettings.setUploadPhotos(applicationContext, on)
+            // Planned again either way: photos added meanwhile are queued, and waiting ones are dropped when it goes off
+            if (Geni.isConfigured && Geni.host != null) lifecycleScope.launch {
+                val queue = Geni.queue(applicationContext)
+                Geni.store(applicationContext).trees().forEach { queue.replan(it.treeId) }
+                if (on) Geni.resumeUploads?.invoke()
+            }
+        }
         if (!Geni.isConfigured) {
             status.setText(R.string.geni_not_configured)
             return
@@ -219,7 +232,7 @@ class GeniLoginActivity : AppCompatActivity() {
                 .setMessage(text)
                 .setPositiveButton(R.string.geni_retry_all) { _, _ ->
                     val ids = failed.map { it.id }.toSet() // Only the jobs shown here, also after confirmation
-                    if (failed.any { it.kind == JobKind.ADD_CHILD || it.kind == JobKind.ADD_PARTNER }) confirmRetryAdds(ids) else retryAll(ids)
+                    if (failed.any { it.kind == JobKind.ADD_CHILD || it.kind == JobKind.ADD_PARTNER || it.kind == JobKind.ADD_PHOTO }) confirmRetryAdds(ids) else retryAll(ids)
                 }
                 .setNegativeButton(R.string.geni_dismiss_all) { _, _ -> queueAction { dismissFailed(failed.map { it.id }.toSet()) } }
                 .setNeutralButton(R.string.geni_close, null)

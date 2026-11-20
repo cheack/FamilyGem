@@ -156,7 +156,7 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 - [x] PR 1: photo API client (list, get, upload, delete, download) and sandbox check
 - [x] PR 2: main photo read: shown on card and diagram, kept current on refresh (phone-checked on sandbox)
 - [x] PR 3: album read: browse, on-demand download, "Keep offline" option (phone-checked on sandbox)
-- [ ] PR 4: upload: add photo (first one becomes main), offline queue and failure list
+- [x] PR 4: upload: add photo (first one becomes main), offline queue and failure list (scaling, upload and first-becomes-main checked against the sandbox from the phone; the add-photo screens were not driven by hand)
 - [ ] PR 5: delete on Geni (managed profiles), deletions from Geni, conflicts
 
 ### Deferred from the review of photos PR 1
@@ -177,6 +177,16 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 - [ ] Album repair racing a main-photo change has no per-profile lock; main status is read just before saving, which narrows the window
 - [ ] Album thumbnails load through Glide over plain https without auth; check they still work if Geni signs thumbnail URLs per request
 
+### Deferred from photos PR 4
+
+- [ ] Crop right after adding a photo uploads the uncropped file (the tree is saved before the crop and the queue runs at once); needs a short hold on new photo jobs with a wake-up
+- [ ] `PhotoScaler`: huge images can decode to about 50 MB (an out-of-memory is now caught as a failed upload); small JPEGs keep their EXIF data (GPS) because they are sent as is; PNG transparency turns black after re-encoding to JPEG; only EXIF orientation 6 is tested
+- [ ] Switching the photo upload on re-plans only trees saved in this process; after a cold start the photos wait for the next save of each tree
+- [ ] Local photos of Geni people from earlier builds upload on the first save after the update (the switch defaults to on), with no notice
+- [ ] A photo whose tag edit failed after upload can get a second local media on the next photo sync (found by tag only)
+- [ ] A pending photo job of an ambiguous person (tag lost and snapshot differs) is kept and could be sent to the stored profile; drop PENDING photo jobs of ambiguous people (keep FAILED and DISMISSED) so they are planned again after the person is resolved
+- [ ] Old photo jobs keep their old label; the pending count may include photo jobs while the switch is off
+
 ## Other tasks
 
 - [x] Register a Geni sandbox app and fill `geni.properties` (`geniAppId`, `geniHost=sandbox.geni.com`)
@@ -192,6 +202,7 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
 - 2026-11-20: Geni photos, part 3 (PR [#11](https://github.com/cheack/Treekin/pull/11)): the person menu has "Geni photos": the album with thumbnails, tap a photo to download it or "Download all"; "Keep offline" can also fetch all album photos; when the main photo changes on Geni the old one stays on the device as an album photo.
+- 2026-11-20: Geni photos, part 4 (PR [#12](https://github.com/cheack/Treekin/pull/12)): a photo added to a person of a Geni tree is uploaded to Geni (scaled to 2048 px, rotated upright), waits offline, shows failures in the account list; the first photo becomes the main one on Geni, later ones go to the album. The account screen has a switch "Send new photos to Geni" (on by default) to keep new photos on the device.
 - 2026-11-19: Geni photos, part 2 (PR [#9](https://github.com/cheack/Treekin/pull/9)): the main Geni photo of each loaded person now downloads to the device and shows on the card and in the person's media; an unchanged photo is not downloaded again, a changed one replaces the old, one removed on Geni leaves the device. Also (PR [#10](https://github.com/cheack/Treekin/pull/10)): the `_GENI_ID` tag on the card can no longer be edited or deleted.
 - 2026-11-18: Geni photos, part 1 (PR [#8](https://github.com/cheack/Treekin/pull/8)): the app can list, read, upload and delete Geni photos and download photo files safely (no token sent to photo hosts, size cap, cancellable). Nothing is visible to the user yet; the main photo comes next.
 - 2026-11-18: UI rules for Geni trees (PR [#7](https://github.com/cheack/Treekin/pull/7)): sharing, merging and comparing are hidden for the Geni tree; unlinking a relative is refused with an explanation; deleting a person offers "Remove from this device" and, for profiles the user manages, "Delete on Geni" after a second confirmation; the user's own profile cannot be removed. Stage 5 done.

@@ -4,6 +4,7 @@ import app.familygem.geni.TreeHost
 import app.familygem.geni.api.GeniApiException
 import app.familygem.geni.api.GeniAuthRequiredException
 import app.familygem.geni.api.GeniClient
+import app.familygem.geni.api.GeniPhoto
 import app.familygem.geni.api.geniId
 import app.familygem.geni.api.GeniProfile
 import app.familygem.geni.api.GeniUnion
@@ -15,6 +16,7 @@ import app.familygem.geni.map.threeWay
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CancellationException
+import java.io.File
 import java.io.IOException
 import java.net.ConnectException
 import java.net.NoRouteToHostException
@@ -41,6 +43,8 @@ const val GONE = "GONE"
 
 private class SnapshotConflict : Exception("the snapshot kept changing during the refresh")
 
+private const val CHECK_PHOTO = "check on Geni whether the photo was added, then retry or dismiss"
+
 private const val CHECK_GENI = "check on Geni whether the person was created, then retry or dismiss"
 
 /** Runs one upload job against Geni and records the result in the sync store and the tree. */
@@ -48,7 +52,9 @@ open class Uploader(
     private val client: GeniClient,
     private val store: SyncStore,
     private val host: TreeHost,
-    private val now: () -> Long = System::currentTimeMillis
+    private val now: () -> Long = System::currentTimeMillis,
+    /** The bytes to send for a photo file (a place to shrink big photos); the file as it is by default. */
+    private val prepare: suspend (File) -> ByteArray = { it.readBytes() }
 ) {
 
     /** Told about the tree after every edit the uploader makes, so plans never use a tree saved before it. */
@@ -59,6 +65,7 @@ open class Uploader(
             JobKind.UPDATE_PROFILE, JobKind.UPDATE_UNION -> update(job)
             JobKind.ADD_CHILD, JobKind.ADD_PARTNER -> add(job)
             JobKind.DELETE_PROFILE -> delete(job)
+            JobKind.ADD_PHOTO -> addPhoto(job)
         }
     } catch (e: CancellationException) {
         throw e
@@ -191,6 +198,69 @@ open class Uploader(
         bestEffort {
             refreshSnapshot(treeId, profileId)
             (unionId ?: familyLink?.geniId)?.let { refreshSnapshot(treeId, it) }
+        }
+        return Outcome.Done
+    }
+
+    /** Sends the photo file of a person to its Geni profile, then links it and tags the media in the tree. */
+    private suspend fun addPhoto(job: UploadJob): Outcome {
+        val treeId = job.treeId
+        val profileId = job.geniId ?: return Outcome.Failed("no Geni ID")
+        val personId = job.personGedcomId ?: return Outcome.Failed("no person")
+        val fileName = job.params.firstOrNull { it.first == "file" }?.second
+        if (fileName.isNullOrEmpty() || fileName == "." || fileName == ".." || '/' in fileName || '\\' in fileName)
+            return Outcome.Failed("the photo file name is not a plain file name")
+        // Already uploaded (a finished job run again): never send a second copy
+        if (store.photoLinks(treeId, profileId).any { it.fileName == fileName }) return Outcome.Done
+        val file = File(host.mediaDir(treeId), fileName)
+        if (!file.isFile) return Outcome.Failed("the photo file is missing: $fileName")
+        val title = job.params.firstOrNull { it.first == "title" }?.second
+        val bytes = try {
+            prepare(file)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            // Nothing was sent, so a failure is safe to report; fatal errors other than memory are not ours to catch
+            if (e is Error && e !is OutOfMemoryError) throw e
+            return Outcome.Failed("cannot read the photo: ${e.message ?: e.javaClass.simpleName}")
+        }
+
+        // From here Geni may have stored the photo even when the request fails: never retry automatically
+        val photo: GeniPhoto = try {
+            client.addPhoto(profileId, fileName, title, bytes)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: GeniAuthRequiredException) {
+            return Outcome.NeedsLogin // Refused before anything was stored
+        } catch (e: GeniApiException) {
+            if (e.code == 429) return Outcome.Retry("HTTP 429") // Not processed
+            return Outcome.Failed("${geniMessage(e.message)}; $CHECK_PHOTO")
+        } catch (e: UnknownHostException) {
+            return Outcome.Retry("offline: ${e.message}") // No connection was made: nothing reached Geni
+        } catch (e: ConnectException) {
+            return Outcome.Retry("offline: ${e.message}")
+        } catch (e: NoRouteToHostException) {
+            return Outcome.Retry("offline: ${e.message}")
+        } catch (e: Exception) {
+            return Outcome.Failed("connection lost while sending the photo; $CHECK_PHOTO")
+        }
+
+        // The link first: once stored, this file is never sent again; the tag in the tree follows
+        try {
+            store.savePhotoLink(PhotoLink(treeId, profileId, photo.id, null, false, PhotoSync.marker(photo), fileName, PhotoState.DOWNLOADED))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return Outcome.Failed("Geni stored ${photo.id} but the app could not save the link (${e.message}); $CHECK_PHOTO")
+        }
+        bestEffort {
+            host.edit(treeId) { gedcom ->
+                val media = gedcom.people.orEmpty().firstOrNull { it.id == personId }?.media.orEmpty()
+                    .firstOrNull { it.file?.substringAfterLast('/') == fileName && GeniMapper.getTag(it, PhotoSync.PHOTO_TAG) == null }
+                media?.let { GeniMapper.setTag(it, PhotoSync.PHOTO_TAG, photo.id) }
+                onTreeEdited(treeId, LocalTree.capture(gedcom))
+            }
+            host.refreshScreens()
         }
         return Outcome.Done
     }

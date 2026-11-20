@@ -20,7 +20,7 @@
     <string name="geni_retry_all">Retry all</string>
     <string name="geni_dismiss_all">Dismiss all</string>
     <string name="geni_close">Close</string>
-    <string name="geni_retry_adds_warning">Some of these changes add people. Geni may have created them already: check on Geni first, or they may be added twice.</string>
+    <string name="geni_retry_adds_warning">Some of these changes add people or photos. Geni may have created them already (it may already be on Geni): check on Geni first, or they may be added twice.</string>
     <string name="geni_retry_anyway">Retry anyway</string>
     <string name="geni_conflicts">Conflicts (%1$d)</string>
     <string name="geni_conflict_intro">Someone changed these fields on Geni while you were editing them. Choose the value to keep.</string>
@@ -64,4 +64,6 @@
     <string name="geni_keep_offline_photos">The main photo of each person is always downloaded. Also download all other album photos? This uses more data and storage.</string>
     <string name="geni_keep_offline_with_photos">Yes, all photos</string>
     <string name="geni_keep_offline_no_photos">No, main photos only</string>
+    <string name="geni_upload_photos">Send new photos to Geni</string>
+    <string name="geni_upload_photos_note">The first photo of a person becomes their main photo on Geni.</string>
 </resources>

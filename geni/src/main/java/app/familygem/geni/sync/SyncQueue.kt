@@ -13,8 +13,8 @@ enum class RunResult {
     NEEDS_LOGIN
 }
 
-/** Message of an add that was being sent when the app stopped: Geni may or may not have created the profile. */
-private const val INTERRUPTED_ADD = "the app stopped while adding; check on Geni whether the person was created, then retry or dismiss"
+/** Message of an add that was being sent when the app stopped: Geni may or may not have created the profile (or photo). */
+private const val INTERRUPTED_ADD = "the app stopped while adding; check on Geni whether it was created, then retry or dismiss"
 
 private const val DIFFERENT_VALUE = "sent, but Geni stored a different value; check the profile on Geni"
 
@@ -26,6 +26,8 @@ private const val DIFFERENT_VALUE = "sent, but Geni stored a different value; ch
 class SyncQueue(
     private val store: SyncStore,
     private val uploader: Uploader,
+    /** Read at every plan: the "send new photos" setting. */
+    private val uploadPhotos: () -> Boolean = { true },
     /** Told about every finished upload attempt (for the log); never given params or tokens. */
     private val onResult: (UploadJob, Outcome) -> Unit = { _, _ -> }
 ) {
@@ -67,6 +69,11 @@ class SyncQueue(
             ?.let { store.saveJob(it.copy(state = JobState.PENDING, error = null)) }
     }
 
+    /** Plans the last saved tree again, e.g. after the photos setting changed; nothing if no tree was saved yet. */
+    suspend fun replan(treeId: Int) = lock(treeId).withLock {
+        synchronized(lastLocal) { lastLocal[treeId] }?.let { plan(treeId, it) }
+    }
+
     /** Queues the deletion of a profile on Geni (once per profile); [label] is what the user sees if it fails. */
     suspend fun enqueueDelete(treeId: Int, geniId: String, label: String) = lock(treeId).withLock {
         val key = "delete:$geniId"
@@ -92,7 +99,8 @@ class SyncQueue(
     private suspend fun plan(treeId: Int, local: LocalTree) {
         synchronized(planned) { planned[treeId] = local.stamp }
         val existing = store.jobs(treeId).associateBy { it.key }
-        val plan = UploadPlanner.plan(treeId, local, store.links(treeId), existing.values.toList())
+        val plan = UploadPlanner.plan(treeId, local, store.links(treeId), existing.values.toList(),
+            store.photoLinks(treeId), uploadPhotos())
         for (wanted in plan.upserts) {
             val job = existing[wanted.key]
             when {
@@ -200,7 +208,8 @@ class SyncQueue(
         )
     }
 
-    private fun UploadJob.isAdd() = kind == JobKind.ADD_CHILD || kind == JobKind.ADD_PARTNER
+    /** A photo upload is like an add: after a lost response the photo may exist on Geni, so it is never sent again by itself. */
+    private fun UploadJob.isAdd() = kind == JobKind.ADD_CHILD || kind == JobKind.ADD_PARTNER || kind == JobKind.ADD_PHOTO
 
     /**
      * First pending job, in order, that does not wait for another add, whatever order they were planned in:
@@ -208,8 +217,9 @@ class SyncQueue(
      * a partner waits only while none of its relatives is on Geni or added yet.
      */
     private fun nextJob(jobs: List<UploadJob>): UploadJob? {
-        val pending = jobs.filter { it.state == JobState.PENDING }
-        val adding = jobs.filter { it.isAdd() && (it.state == JobState.PENDING || it.state == JobState.SENDING) }
+        val photos = uploadPhotos()
+        val pending = jobs.filter { it.state == JobState.PENDING && (photos || it.kind != JobKind.ADD_PHOTO) }
+        val adding = jobs.filter { it.isAdd() && it.kind != JobKind.ADD_PHOTO && (it.state == JobState.PENDING || it.state == JobState.SENDING) }
             .mapNotNull { it.personGedcomId }.toSet()
         fun waits(job: UploadJob): Boolean {
             val waiting = job.anchors.filter { it.substringAfter(':') in adding }
