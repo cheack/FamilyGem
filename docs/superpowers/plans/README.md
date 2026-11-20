@@ -205,7 +205,7 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 - [x] Rename the GitHub repository to `cheack/Treekin`
 - [x] Replace "Family Gem" in other strings (example tree, Premium): generated overlay `app/src/geni/res/values*/strings.xml` via `scripts/gen_geni_strings.py` (the about screen shows `app_name`; its `www.familygem.app` link and the Premium purchase itself are still upstream's)
 - [x] `NumberPicker` divider fix from Sternbach-Software/GeniForAndroid: not needed, upstream hides the divider through the theme (`AppTheme.Wheel.TransparentLines`) and no code uses reflection on it
-- [ ] CI: weekly trial merge of `upstream/master`, build and tests
+- [x] CI: weekly trial merge of `upstream/master`, build and tests (`.github/workflows/upstream-check.yml`, Mondays 06:00 UTC and manual dispatch; a failed run is the alert)
 
 ## Progress log
 
