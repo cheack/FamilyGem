@@ -51,8 +51,7 @@ class PhotoSync(
         val known = store.photoLinks(treeId, geniProfileId).firstOrNull { it.geniPhotoId == photo.id }
         if (known?.fileName?.let { File(host.mediaDir(treeId), it).isFile } == true) return false
         val fileName = fetch(treeId, photo) ?: return false
-        // A repaired file keeps the main status of its photo; genuinely new album photos are not primary
-        return attach(treeId, geniProfileId, personGedcomId, photo, fileName, previous = null, asMain = false, keepMain = known?.isMain == true)
+        return attach(treeId, geniProfileId, personGedcomId, photo, fileName, previous = null, asMain = false)
     }
 
     /** Downloads the photo to the tree's media folder; null if it has no usable URL. Throws on a failed download. */
@@ -76,7 +75,7 @@ class PhotoSync(
     }
 
     private suspend fun attach(
-        treeId: Int, profileId: String, personGedcomId: String, photo: GeniPhoto, fileName: String, previous: PhotoLink?, asMain: Boolean, keepMain: Boolean = false
+        treeId: Int, profileId: String, personGedcomId: String, photo: GeniPhoto, fileName: String, previous: PhotoLink?, asMain: Boolean
     ): Boolean {
         val attached = host.edit(treeId) { gedcom ->
             val person = gedcom.people.orEmpty().firstOrNull { it.id == personGedcomId && GeniMapper.getGeniId(it) == profileId }
@@ -98,7 +97,9 @@ class PhotoSync(
         }
         if (!attached) return false
         previous?.takeIf { it.geniPhotoId != photo.id }?.let { store.savePhotoLink(it.copy(isMain = false)) }
-        store.savePhotoLink(PhotoLink(treeId, profileId, photo.id, null, asMain || keepMain, marker(photo), fileName, PhotoState.DOWNLOADED))
+        // A repaired album file keeps main status, read now (not before the download) so a main change meanwhile is not undone
+        val stillMain = store.photoLinks(treeId, profileId).any { it.geniPhotoId == photo.id && it.isMain }
+        store.savePhotoLink(PhotoLink(treeId, profileId, photo.id, null, asMain || stillMain, marker(photo), fileName, PhotoState.DOWNLOADED))
         return true
     }
 
