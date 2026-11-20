@@ -159,6 +159,8 @@ object UploadPlanner {
             val gone = when {
                 job.key.startsWith("add:") -> job.key.removePrefix("add:") !in planned
                 // With the setting off only the waiting ones go; a failed or dismissed one stays, so it is not planned and sent again later
+                // The photos of an ambiguous person keep their jobs too: the tag may come back and the file must not be sent again
+                job.key.startsWith("photo:") && (job.personGedcomId ?: job.key.split(':').getOrNull(1)) in ambiguous -> false
                 job.key.startsWith("photo:") -> if (uploadPhotos) job.key !in mediaKeys else job.key !in mediaKeys || job.state == JobState.PENDING
                 else -> job.key !in linkedKeys
             }

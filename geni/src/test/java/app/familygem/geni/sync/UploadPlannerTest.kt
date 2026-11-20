@@ -237,6 +237,14 @@ class UploadPlannerTest {
     }
 
     @Test
+    fun ambiguousPersonKeepsItsPhotoJobs() {
+        val local = couple().let { it.copy(people = listOf(it.people[0].copy(geniId = null, fields = newFields, media = listOf(me))) + it.people.drop(1)) }
+        for (state in listOf(JobState.FAILED, JobState.DISMISSED, JobState.PENDING)) {
+            assertFalse("$state", "photo:I1:me.jpg" in plan(local, jobs = listOf(photoJob().copy(state = state))).deleteKeys)
+        }
+    }
+
+    @Test
     fun editedAddWithoutSnapshotFetchesSnapshotFirst() {
         // Added as New User; the snapshot could not be fetched, the link holds the hash of what was sent
         val olya = newFields.copy(given = "Olya")
