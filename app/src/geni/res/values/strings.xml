@@ -2,4 +2,9 @@
 <resources>
     <!-- Overrides upstream "Family Gem": modified versions must not look like the original app -->
     <string name="app_name" translatable="false">Treekin</string>
+    <!-- GENERATED:BEGIN -->
+    <string name="family_gem_example">Treekin example</string>
+    <string name="family_gem_premium" translatable="false">Treekin Premium</string>
+    <string name="unlock_function">This feature can be unlocked with Treekin Premium.</string>
+    <!-- GENERATED:END -->
 </resources>

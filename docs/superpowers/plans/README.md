@@ -203,7 +203,7 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 - [x] Own app ID `net.cheack.treekin` and name "Treekin" (in `app/geni.gradle` and `app/src/geni/res`)
 - [x] Redirect scheme `net.cheack.treekin://authorize` instead of `app.familygem.geni://` (also change the Callback URL in the Geni app)
 - [x] Rename the GitHub repository to `cheack/Treekin`
-- [ ] Replace "Family Gem" in other strings (example tree, Premium, about screen)
+- [x] Replace "Family Gem" in other strings (example tree, Premium): generated overlay `app/src/geni/res/values*/strings.xml` via `scripts/gen_geni_strings.py` (the about screen shows `app_name`; its `www.familygem.app` link and the Premium purchase itself are still upstream's)
 - [ ] Take the transparent `NumberPicker` divider fix from Sternbach-Software/GeniForAndroid
 - [ ] CI: weekly trial merge of `upstream/master`, build and tests
 
