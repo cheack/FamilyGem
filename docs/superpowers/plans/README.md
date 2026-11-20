@@ -228,8 +228,8 @@ Plan: `docs/superpowers/plans/2026-11-20-geni-onboarding.md`. Decision (2026-11-
 - [x] Login button reads "Log in with Geni" (ru "Войти через Geni")
 - [ ] Disclaimer on the About screen: "not endorsed, operated, or sponsored by Geni.com" (after PR 15 lands: put a text view where the Premium advertisement was removed)
 - [ ] Geni logo next to the login form, linked to geni.com, at least 100x40 px, unaltered, less prominent than the app's own logo (decide first: the logo files are Geni's trademarked assets, licensed only for branding compliance; check that shipping them in a GPL-3.0 repo is acceptable)
-- [ ] Own privacy policy and user agreement, linked where users open the app (Terms XI.B) and before obtaining user data; link from login and About
-- [ ] Check that the launcher icon is "sufficiently different" from Geni's logo
+- [ ] Own privacy policy and user agreement, linked where users open the app (Terms XI.B) and before obtaining user data; link from login and About (policy `docs/PRIVACY.md` + About link done; user agreement and login link still open)
+- [x] Check that the launcher icon is "sufficiently different" from Geni's logo (new own tree icon)
 
 ### Deferred from the review of the cards branch
 
@@ -241,6 +241,8 @@ Plan: `docs/superpowers/plans/2026-11-20-geni-onboarding.md`. Decision (2026-11-
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
+- 2026-11-20: About screen shows a "not affiliated with Geni/MyHeritage" disclaimer and a privacy policy link; new tree launcher icon; `docs/PRIVACY.md` added (branch geni-polish-1).
+- 2026-11-20: Geni-first onboarding (PR [#17](https://github.com/cheack/Treekin/pull/17)): an empty trees list opens the Geni login; a fresh login creates and opens the account's tree; unsaved edits and the edit lock survive opening a tree after login; the import tool can upload photos and refuses Geni trees.
 - 2026-11-20: Horizontal person cards (PR [#16](https://github.com/cheack/Treekin/pull/16)): diagram cards are all the same size, photo on the left, a coloured sex stripe and tint, straight elbow connection lines instead of curves; the login button reads "Log in with Geni"; a branding audit is in the roadmap.
 - 2026-11-20: Premium advertisement hidden (PR [#15](https://github.com/cheack/Treekin/pull/15)): the About screen no longer offers FamilyGem Premium.
 - 2026-11-20: Other tasks (PR [#14](https://github.com/cheack/Treekin/pull/14)): the example tree and the Premium messages say "Treekin" in every language; a weekly CI job trial-merges the original FamilyGem, builds and tests (fails when attention is needed). The NumberPicker divider needed no fix.

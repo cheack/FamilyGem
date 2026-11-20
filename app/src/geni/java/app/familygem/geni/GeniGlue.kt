@@ -5,6 +5,7 @@ import android.util.Log
 import android.view.Menu
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import app.familygem.Global
@@ -28,6 +29,8 @@ import org.folg.gedcom.model.Person
 
 /** Entry points called by one-line GENI-HOOK calls in upstream code; connects :geni with the app. */
 object GeniGlue {
+
+    private const val PRIVACY_POLICY_URL = "https://github.com/cheack/Treekin/blob/geni/docs/PRIVACY.md"
 
     private var resumed = false
 
@@ -89,6 +92,28 @@ object GeniGlue {
             manager.beginTransaction().remove(it).commitNow()
         }
         activity.findViewById<android.view.View>(app.familygem.R.id.about_premium)?.visibility = android.view.View.GONE
+        addAboutNotes(activity)
+    }
+
+    /** Adds the "not affiliated with Geni" disclaimer and the privacy policy link to the About screen. */
+    private fun addAboutNotes(activity: AppCompatActivity) {
+        val premium = activity.findViewById<android.view.View>(app.familygem.R.id.about_premium) ?: return
+        val parent = premium.parent as? android.widget.LinearLayout ?: return
+        val gap = (16 * activity.resources.displayMetrics.density).toInt()
+        val disclaimer = android.widget.TextView(activity).apply {
+            setText(R.string.geni_about_disclaimer)
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, 0, 0, gap)
+        }
+        val policy = android.widget.TextView(activity, null, 0, app.familygem.R.style.AppTheme_Link).apply {
+            setText(R.string.geni_privacy_policy)
+            setOnClickListener {
+                activity.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(PRIVACY_POLICY_URL)))
+            }
+        }
+        parent.addView(disclaimer)
+        parent.addView(policy, android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT))
     }
 
     /**

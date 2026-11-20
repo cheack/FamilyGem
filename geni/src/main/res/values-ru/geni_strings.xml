@@ -71,4 +71,6 @@
     <string name="geni_upload_photos">Отправлять новые фото на Geni</string>
     <string name="geni_upload_photos_note">Первое фото человека становится его главным фото на Geni.</string>
     <string name="geni_open_failed">Не удалось открыть дерево. Откройте его из списка деревьев.</string>
+    <string name="geni_about_disclaimer">Treekin — независимое приложение. Оно не создано, не одобрено и не поддерживается Geni.com или MyHeritage. Geni — товарный знак его владельца.</string>
+    <string name="geni_privacy_policy">Политика конфиденциальности</string>
 </resources>

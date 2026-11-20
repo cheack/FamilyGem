@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Scaled into the 66dp adaptive-icon safe zone, centred on the tree's bounding box -->
+    <group
+        android:pivotX="54"
+        android:pivotY="46.5"
+        android:scaleX="0.7"
+        android:scaleY="0.7"
+        android:translateY="7.5">
+        <!-- Trunk and branches -->
+        <path
+            android:fillColor="@color/icon"
+            android:pathData="M51,86 L57,86 L57,64 L70,50 L67,47 L57,57 L57,44 L63,34 L60,32 L54,40 L48,32 L45,34 L51,44 L51,57 L41,47 L38,50 L51,64 Z" />
+        <!-- Crown of leaves -->
+        <path
+            android:fillColor="@color/icon"
+            android:pathData="M54,18 m-11,0 a11,11 0 1,0 22,0 a11,11 0 1,0 -22,0 M36,40 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0 M72,40 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0 M27,52 m-8,0 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0 M81,52 m-8,0 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0" />
+    </group>
+</vector>
