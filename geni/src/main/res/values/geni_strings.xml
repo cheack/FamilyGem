@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="geni_menu_account">Geni account</string>
-    <string name="geni_login">Log in to Geni</string>
+    <string name="geni_login">Log in with Geni</string>
     <string name="geni_logout">Log out</string>
     <string name="geni_logout_confirm">Log out of Geni? Changes not uploaded yet will wait until you log in again.</string>
     <string name="geni_logged_in_as">Logged in as %1$s</string>
