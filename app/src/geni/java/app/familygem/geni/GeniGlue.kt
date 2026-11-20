@@ -85,6 +85,18 @@ object GeniGlue {
         activity.findViewById<android.view.View>(app.familygem.R.id.about_premium)?.visibility = android.view.View.GONE
     }
 
+    /**
+     * Connects two cards with straight segments (vertical, horizontal, vertical) instead of upstream's S-curve.
+     * The horizontal bar sits [barOffset] below the start so that siblings of different heights share one bar;
+     * a gap shorter than twice the offset puts it in the middle.
+     */
+    fun connect(path: android.graphics.Path, x1: Float, y1: Float, x2: Float, y2: Float, barOffset: Float) {
+        val middle = y1 + (y2 - y1).coerceIn(-barOffset * 2, barOffset * 2) / 2
+        path.lineTo(x1, middle)
+        path.lineTo(x2, middle)
+        path.lineTo(x2, y2)
+    }
+
     /** True for a Geni tree: its people must not be merged into other trees. */
     fun isGeniTree(treeId: Int): Boolean {
         install()

@@ -207,6 +207,21 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 - [x] `NumberPicker` divider fix from Sternbach-Software/GeniForAndroid: not needed, upstream hides the divider through the theme (`AppTheme.Wheel.TransparentLines`) and no code uses reflection on it
 - [x] CI: weekly trial merge of `upstream/master`, build and tests (`.github/workflows/upstream-check.yml`, Mondays 06:00 UTC and manual dispatch; a failed run is the alert)
 
+### Geni branding audit (2026-11-20, against https://www.geni.com/platform/developer/help/branding and `/terms`)
+
+- [x] App name has no "Geni"; the cards use their own look, no Geni logo, name or colours
+- [x] Login button reads "Log in with Geni" (ru "Войти через Geni")
+- [ ] Disclaimer on the About screen: "not endorsed, operated, or sponsored by Geni.com" (after PR 15 lands: put a text view where the Premium advertisement was removed)
+- [ ] Geni logo next to the login form, linked to geni.com, at least 100x40 px, unaltered, less prominent than the app's own logo (decide first: the logo files are Geni's trademarked assets, licensed only for branding compliance; check that shipping them in a GPL-3.0 repo is acceptable)
+- [ ] Own privacy policy and user agreement, linked where users open the app (Terms XI.B) and before obtaining user data; link from login and About
+- [ ] Check that the launcher icon is "sufficiently different" from Geni's logo
+
+### Deferred from the review of the cards branch
+
+- [ ] RTL: the stripe corner radii in `person_border_*` (overlay) do not flip with `gravity="start"`; add `drawable-ldrtl` variants or drop the radii
+- [ ] The overlay `person_border_*` drawables also restyle minicards, small person rows, the person list and the merge screens (all keep at least 5dp padding); check them on the phone and decide whether they should keep the stripe
+- [ ] Not checked on the phone: light theme, a right-to-left locale, a 60-character name, PNG/PDF export of the diagram
+
 ## Progress log
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.

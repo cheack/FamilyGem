@@ -583,7 +583,7 @@ class DiagramFragment : BaseFragment(R.layout.diagram_fragment) {
                     val y2 = toPxFloat(line.y2)
                     path.moveTo(x1, y1)
                     if (line is CurveLine) {
-                        path.cubicTo(x1, y2, x2, y1, x2, y2)
+                        app.familygem.geni.GeniGlue.connect(path, x1, y1, x2, y2, toPxFloat(20F)) // GENI-HOOK straight elbow instead of cubicTo(x1, y2, x2, y1, x2, y2)
                     } else { // Horizontal or vertical line
                         path.lineTo(x2, y2)
                     }
