@@ -88,7 +88,7 @@ object UploadPlanner {
                     val hash = person.fields.hashCode()
                     if (uploadPhotos) {
                         val known = photoLinks.filter { it.geniProfileId == link.geniId }.mapNotNull { it.fileName }.toSet()
-                        for (media in person.media) {
+                        for (media in person.media.distinctBy { it.file }) {
                             if (media.geniPhotoId != null || media.file in known) continue
                             val photoKey = "photo:${person.gedcomId}:${media.file}"
                             photoKeys += photoKey

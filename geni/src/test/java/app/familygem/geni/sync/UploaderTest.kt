@@ -15,6 +15,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.folg.gedcom.model.ChildRef
 import org.folg.gedcom.model.Family
 import org.folg.gedcom.model.Gedcom
+import org.folg.gedcom.model.Media
 import org.folg.gedcom.model.Person
 import org.folg.gedcom.model.SpouseRef
 import org.junit.After
@@ -536,5 +537,105 @@ class UploaderTest {
         val job = UploadJob(treeId = 1, key = "delete:profile-7", kind = JobKind.DELETE_PROFILE, geniId = "profile-7",
             params = emptyList(), label = "Ivan", localHash = 0)
         assertTrue(uploader().run(job) is Outcome.Retry)
+    }
+
+    private val photoJson = """{"id":"photo-5","title":"Me","content_type":"image/jpeg","album_id":"album-1","sizes":{"medium":"https://x.test/p/me.jpg?sig=1"}}"""
+
+    private fun photoJob(file: String = "me.jpg") = UploadJob(id = 3, treeId = 1, key = "photo:I1:$file", kind = JobKind.ADD_PHOTO, geniId = "profile-36430",
+        personGedcomId = "I1", params = listOfNotNull("file" to file, "title" to "Me"), label = "Test User", localHash = 1)
+
+    private fun treeWithMedia(file: String = "me.jpg", bytes: ByteArray? = byteArrayOf(1, 2, 3)): Gedcom {
+        val gedcom = tree()
+        gedcom.people.first { it.id == "I1" }.addMedia(Media().apply { this.file = file; setFileTag("FILE") })
+        if (bytes != null) java.io.File(host.mediaDir(1), file).writeBytes(bytes)
+        return gedcom
+    }
+
+    @Test
+    fun photoUploadStoresLinkAndTagsMedia() = runTest {
+        val gedcom = treeWithMedia()
+        server.enqueue(ok(photoJson))
+        assertEquals(Outcome.Done, uploader().run(photoJob()))
+        val post = server.takeRequest()
+        assertEquals("/api/profile-36430/add-photo", post.url.encodedPath)
+        val link = store.photoLinks(1, "profile-36430").single()
+        assertEquals("photo-5", link.geniPhotoId)
+        assertEquals(PhotoState.DOWNLOADED, link.state)
+        assertEquals("me.jpg", link.fileName)
+        assertFalse(link.isMain)
+        assertNull(link.gedcomMediaId)
+        assertEquals("https://x.test/p/me.jpg", link.marker)
+        assertEquals("photo-5", GeniMapper.getTag(gedcom.people.first { it.id == "I1" }.media.single(), PhotoSync.PHOTO_TAG))
+    }
+
+    @Test
+    fun photoAlreadyLinkedIsNotUploadedAgain() = runTest {
+        treeWithMedia()
+        store.savePhotoLink(PhotoLink(1, "profile-36430", "photo-9", null, false, null, "me.jpg", PhotoState.DOWNLOADED))
+        assertEquals(Outcome.Done, uploader().run(photoJob()))
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun missingFileFails() = runTest {
+        treeWithMedia(bytes = null)
+        assertTrue(uploader().run(photoJob()) is Outcome.Failed)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun fileNameWithPathFails() = runTest {
+        treeWithMedia()
+        assertTrue(uploader().run(photoJob("../me.jpg")) is Outcome.Failed)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun lostPhotoResponseFailsAndNeverRetriesItself() = runTest {
+        treeWithMedia()
+        server.enqueue(MockResponse.Builder().onResponseStart(SocketEffect.CloseSocket()).build())
+        val outcome = uploader().run(photoJob())
+        assertTrue(outcome is Outcome.Failed && outcome.message.contains("check on Geni"))
+        assertTrue(store.photoLinks(1).isEmpty())
+    }
+
+    @Test
+    fun photoNetworkDownBeforeSendRetries() = runTest {
+        treeWithMedia()
+        val offline = Uploader(GeniClient("http://geni.invalid/api/".toHttpUrl(), tokens, RateLimiter { testScheduler.currentTime }), store, host)
+        assertTrue(offline.run(photoJob()) is Outcome.Retry)
+    }
+
+    @Test
+    fun photo429RetriesAndAuthNeedsLogin() = runTest {
+        treeWithMedia()
+        server.enqueue(error(429)) // The client asks once more after the rate window
+        server.enqueue(error(429))
+        assertTrue(uploader().run(photoJob()) is Outcome.Retry)
+        server.enqueue(error(401))
+        assertEquals(Outcome.NeedsLogin, uploader().run(photoJob()))
+    }
+
+    @Test
+    fun prepareIsUsedForBytes() = runTest {
+        treeWithMedia()
+        server.enqueue(ok(photoJson))
+        val client = GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime })
+        val prepared = Uploader(client, store, host, now = { 7_000L }, prepare = { byteArrayOf(9) })
+        assertEquals(Outcome.Done, prepared.run(photoJob()))
+        // base64 of one byte 9 is "CQ=="
+        assertTrue(server.takeRequest().body!!.utf8().contains("file=CQ%3D%3D"))
+    }
+
+    @Test
+    fun photoLinkSaveFailureFails() = runTest {
+        treeWithMedia()
+        server.enqueue(ok(photoJson))
+        val failing = object : InMemorySyncStore() {
+            override suspend fun savePhotoLink(link: PhotoLink) = error("disk full")
+        }
+        val client = GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime })
+        val outcome = Uploader(client, failing, host).run(photoJob())
+        assertTrue(outcome is Outcome.Failed && outcome.message.contains("check on Geni"))
     }
 }

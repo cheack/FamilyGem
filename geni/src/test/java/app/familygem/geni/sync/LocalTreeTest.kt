@@ -4,6 +4,7 @@ import app.familygem.geni.map.GeniMapper
 import org.folg.gedcom.model.ChildRef
 import org.folg.gedcom.model.Family
 import org.folg.gedcom.model.Gedcom
+import org.folg.gedcom.model.Media
 import org.folg.gedcom.model.Name
 import org.folg.gedcom.model.Person
 import org.folg.gedcom.model.SpouseRef
@@ -42,5 +43,15 @@ class LocalTreeTest {
         assertEquals("union-1", family.geniId)
         assertEquals(listOf("I1", "I2"), family.partners)
         assertEquals(listOf("I3"), family.children)
+    }
+
+    @Test
+    fun captureSkipsMediaThatIsAnUrl() {
+        val gedcom = Gedcom()
+        gedcom.addPerson(person("I1", null).apply {
+            addMedia(Media().apply { file = "https://example.com/a.jpg" })
+            addMedia(Media().apply { file = "/storage/me.jpg" })
+        })
+        assertEquals(listOf("me.jpg"), LocalTree.capture(gedcom).people.single().media.map { it.file })
     }
 }

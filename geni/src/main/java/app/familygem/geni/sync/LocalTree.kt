@@ -41,7 +41,8 @@ data class LocalTree(val people: List<LocalPerson>, val families: List<LocalFami
                 val fields = ProfileFields.of(person)
                 val label = listOfNotNull(fields.given, fields.surname).joinToString(" ").ifEmpty { person.id }
                 val media = person.media.orEmpty().mapNotNull { m ->
-                    val file = m.file?.substringAfterLast('/')?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                    if (m.file?.contains("://") != false) return@mapNotNull null // Not a file of this device
+                    val file = m.file.substringAfterLast('/').takeIf { it.isNotEmpty() } ?: return@mapNotNull null
                     LocalMedia(file, m.title, GeniMapper.getTag(m, PhotoSync.PHOTO_TAG))
                 }
                 LocalPerson(person.id, GeniMapper.getGeniId(person), label, fields, media)

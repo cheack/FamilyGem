@@ -317,4 +317,10 @@ class UploadPlannerTest {
     fun mediaOfUnlinkedPersonIsNotPlanned() {
         assertEquals(emptyList<UploadJob>(), photoPlan(listOf(me), linked = false).upserts.filter { it.kind == JobKind.ADD_PHOTO })
     }
+
+    @Test
+    fun sameFileTwiceOnOnePersonPlansOneJob() {
+        val upserts = photoPlan(listOf(me, me.copy(title = "Again"))).upserts.filter { it.kind == JobKind.ADD_PHOTO }
+        assertEquals(listOf("photo:I1:me.jpg"), upserts.map { it.key })
+    }
 }
