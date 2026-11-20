@@ -59,6 +59,7 @@ open class Uploader(
             JobKind.UPDATE_PROFILE, JobKind.UPDATE_UNION -> update(job)
             JobKind.ADD_CHILD, JobKind.ADD_PARTNER -> add(job)
             JobKind.DELETE_PROFILE -> delete(job)
+            JobKind.ADD_PHOTO -> Outcome.Failed("Photo upload is not implemented yet") // Task 13
         }
     } catch (e: CancellationException) {
         throw e

@@ -25,7 +25,8 @@ data class Plan(
 /** Compares a saved tree with the Geni snapshots of its records and works out the upload jobs. Pure: no I/O. */
 object UploadPlanner {
 
-    fun plan(treeId: Int, local: LocalTree, links: List<GeniLink>, jobs: List<UploadJob>): Plan {
+    fun plan(treeId: Int, local: LocalTree, links: List<GeniLink>, jobs: List<UploadJob>,
+        photoLinks: List<PhotoLink> = emptyList(), uploadPhotos: Boolean = true): Plan {
         val byGeniId = links.associateBy { it.geniId }
         val byGedcomId = links.associateBy { it.gedcomId }
         val labels = local.people.associate { it.gedcomId to it.label }
@@ -74,6 +75,7 @@ object UploadPlanner {
         val linkedPeople = mutableSetOf<String>()
         val peopleGeniIds = mutableMapOf<String, String>()
         val newPeople = mutableMapOf<String, LocalPerson>()
+        val photoKeys = mutableSetOf<String>() // Keys of the photo jobs still wanted
         for (person in local.people) {
             val link = linkOf(person.gedcomId, person.geniId, "profile-") { snapshot ->
                 ProfileFields.ofSnapshot(snapshot)?.let { it.given == person.fields.given && it.surname == person.fields.surname } == true
@@ -84,6 +86,16 @@ object UploadPlanner {
                     peopleGeniIds[person.gedcomId] = link.geniId
                     val key = "profile:${link.geniId}"
                     val hash = person.fields.hashCode()
+                    if (uploadPhotos) {
+                        val known = photoLinks.filter { it.geniProfileId == link.geniId }.mapNotNull { it.fileName }.toSet()
+                        for (media in person.media) {
+                            if (media.geniPhotoId != null || media.file in known) continue
+                            val photoKey = "photo:${person.gedcomId}:${media.file}"
+                            photoKeys += photoKey
+                            upserts += UploadJob(treeId = treeId, key = photoKey, kind = JobKind.ADD_PHOTO, geniId = link.geniId, personGedcomId = person.gedcomId,
+                                params = listOfNotNull("file" to media.file, media.title?.let { "title" to it }), label = person.label, localHash = media.hashCode())
+                        }
+                    }
                     fun update(params: List<Pair<String, String>>) = UploadJob(treeId = treeId, key = key, kind = JobKind.UPDATE_PROFILE,
                         geniId = link.geniId, params = params, label = person.label, localHash = hash)
                     if (link.snapshot == null && link.verifiedHash != null && link.verifiedHash != hash) {
@@ -141,7 +153,11 @@ object UploadPlanner {
         // Jobs whose record is gone (deleted locally: not uploaded), linked meanwhile or no longer connected
         for (job in jobs) {
             if (job.kind == JobKind.DELETE_PROFILE) continue // The record is gone on purpose
-            val gone = if (job.key.startsWith("add:")) job.key.removePrefix("add:") !in planned else job.key !in linkedKeys
+            val gone = when {
+                job.key.startsWith("add:") -> job.key.removePrefix("add:") !in planned
+                job.key.startsWith("photo:") -> job.key !in photoKeys
+                else -> job.key !in linkedKeys
+            }
             if (gone) deleteKeys += job.key
         }
         // Orphan marks: a link whose record is missing now, or back again
