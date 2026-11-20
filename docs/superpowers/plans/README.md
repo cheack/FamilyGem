@@ -155,7 +155,7 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 
 - [x] PR 1: photo API client (list, get, upload, delete, download) and sandbox check
 - [x] PR 2: main photo read: shown on card and diagram, kept current on refresh (phone-checked on sandbox)
-- [ ] PR 3: album read: browse, on-demand download, "Keep offline" option
+- [x] PR 3: album read: browse, on-demand download, "Keep offline" option (phone-checked on sandbox)
 - [ ] PR 4: upload: add photo (first one becomes main), offline queue and failure list
 - [ ] PR 5: delete on Geni (managed profiles), deletions from Geni, conflicts
 
@@ -170,6 +170,11 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 - [ ] Decode a downloaded photo fully (not only its first bytes) before it replaces the current one; a truncated JPEG now passes (needs Android `BitmapFactory`; maybe compare with `Content-Length` in `PhotoDownloader` instead)
 - [ ] With auto-save off, a photo change is only in memory: the old file is deleted and the link saved before the tree is saved, so closing without saving leaves a media entry with no file; tie the link and file retirement to the deferred save, and check the real media attachment, not only the link, before skipping a sync
 - [ ] Photos of a whole family download one after another on load; consider a background pass with a second refresh per photo
+
+### Deferred from photos PR 3
+
+- [ ] "Keep offline" with photos costs one extra API call per person; watch the rate limit on large branches
+- [ ] Album thumbnails load through Glide over plain https without auth; check they still work if Geni signs thumbnail URLs per request
 
 ## Other tasks
 
