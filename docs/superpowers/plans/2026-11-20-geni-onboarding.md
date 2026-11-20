@@ -54,7 +54,7 @@
 - [ ] **Step 1: Failing test** for `shouldOnboard` (three cases). FAIL.
 - [ ] **Step 2: Implement** `shouldOnboard` and `startOnboarding` (static `shown` flag set when it starts the login screen with `Intent(activity, GeniLoginActivity)`; returns whether it started). PASS.
 - [ ] **Step 3: Hook and inventory row.** Build.
-- [ ] **Step 4: Emulator check** (fresh install, `adb shell pm clear`): launch shows the Geni account screen; Back shows the Trees list with the add-tree prompt; log in (user) opens the tree diagram; a second login with an existing tree opens it without creating another (check the tree count). Report what was not checked.
+- [x] **Step 4: Emulator check** (2026-11-20: second login after logout opened the existing "V P" tree, list unchanged at 6 entries; fresh install and rotation during creation not rechecked) (fresh install, `adb shell pm clear`): launch shows the Geni account screen; Back shows the Trees list with the add-tree prompt; log in (user) opens the tree diagram; a second login with an existing tree opens it without creating another (check the tree count). Report what was not checked.
 - [ ] **Step 5: Commit.**
 
 ### Task 3: Docs
