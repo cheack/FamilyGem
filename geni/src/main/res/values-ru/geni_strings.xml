@@ -60,6 +60,7 @@
     <string name="geni_album_tap_to_download">Нажмите, чтобы скачать</string>
     <string name="geni_album_download_all">Скачать все</string>
     <string name="geni_album_added">Добавлено фото: %1$d</string>
+    <string name="geni_album_removed">Удалено фото (удалены на Geni): %1$d</string>
     <string name="geni_album_photo_failed">Фото не скачано: %1$s</string>
     <string name="geni_keep_offline_photos">Главное фото каждого человека скачивается всегда. Скачать также все остальные фото из альбомов? Это больше трафика и места.</string>
     <string name="geni_keep_offline_with_photos">Да, все фото</string>
